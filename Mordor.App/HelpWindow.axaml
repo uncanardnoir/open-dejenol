@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Mordor.App.HelpWindow"
+        Title="Mordor 1.1 (M1 Depths of Dejenol) Help Lesson" Width="1000" Height="700"
+        FontFamily="Cascadia Mono, Consolas, monospace"
+        WindowStartupLocation="CenterScreen"
+        Background="#12121a">
+    <!-- The title and the header are the help's own heading on its Welcome page
+         (MORDOR.HLP's first topic). The original opened WinHelp on MORDOR.HLP
+         (MAIN.TXT:596, MODULE1.BAS:42); the search box stands in for WinHelp's own Search. -->
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Background="#1c2740" Padding="10,6">
+            <TextBlock Text="Mordor 1.1 (M1 Depths of Dejenol) Help Lesson" FontWeight="Bold" Foreground="#e8e0c0" VerticalAlignment="Center"/>
+        </Border>
+
+        <Border DockPanel.Dock="Left" Width="300" Padding="8" Background="#101018">
+            <DockPanel>
+                <TextBox DockPanel.Dock="Top" x:Name="SearchBox" Watermark="Search" Margin="0,0,0,6"/>
+                <ListBox x:Name="TopicList" Background="#0e0e14"/>
+            </DockPanel>
+        </Border>
+
+        <Border Padding="14">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" x:Name="TopicTitle" FontSize="17" FontWeight="Bold" Foreground="#e8e0c0" Margin="0,0,0,8"/>
+                <ScrollViewer x:Name="BodyScroll" BringIntoViewOnFocusChange="False">
+                    <SelectableTextBlock x:Name="TopicBody" Foreground="#d0d0dc" TextWrapping="Wrap" FontSize="13"/>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+    </DockPanel>
+</Window>

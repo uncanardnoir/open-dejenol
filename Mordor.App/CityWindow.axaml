@@ -1,0 +1,380 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:app="clr-namespace:Mordor.App"
+        x:Class="Mordor.App.CityWindow"
+        Title="Mordor 1.1" Width="1180" Height="760"
+        FontFamily="Cascadia Mono, Consolas, monospace"
+        WindowStartupLocation="CenterScreen"
+        Background="#12121a">
+    <!-- The frame is captioned gc0192 + " " + gc0186, "Mordor 1.1", in the city and the dungeon alike
+         (FRMMAIN.BAS:148-152, MAIN.TXT:33-35). -->
+    <!--
+        The city is a frame like the dungeon, because in the original both are children of the one
+        frame and the same windows sit beside them either way. The help's screenshot of the Control
+        Panel (game_files/bm0.png) was taken in the city, and its Window Control list reads:
+
+            <ALL> / Messages / "Crashland" / Objects & Spells / Party Information / The City
+
+        so those are the five, and the character window is captioned with that player's own
+        character name in quotes.
+    -->
+    <DockPanel>
+        <!--
+            frmMain!picToolbar. It is the frame's, not any one window's, so the city carries the
+            same strip and the same two readouts.
+        -->
+        <app:Toolbar DockPanel.Dock="Top" x:Name="Tools"/>
+
+        <Panel>
+            <app:MdiHost x:Name="Host"/>
+
+            <!--
+                The Shed. Everything here is lifted out in the constructor and handed to a child
+                window, so it is empty by the time anyone sees it. It exists so the panels can be
+                written as XAML with their x:Names and Click handlers intact, which is what the
+                code-behind addresses them by.
+            -->
+            <Panel x:Name="Shed" IsVisible="False">
+
+                <!-- ==================================================== the Messages child -->
+                <!--
+                    One list, as game_files/bm15.png shows it, with the newest line selected -
+                    sub085B ends "lstMessages.ListIndex = lstMessages.ListCount - 1".
+
+                    There used to be a green bar above the list holding the latest line as well, so
+                    everything the city said appeared twice in the same small window. Every line
+                    now goes to the list through Log, one call per sub085B line.
+
+                    "You can clear the message window by double-clicking on the list box" (help).
+                -->
+                <DockPanel x:Name="MessagesBox">
+                    <!-- lstMessages has the form's own MS Sans Serif 8.25 (MORDOR.EXE, frmCharStat4), through
+                         the Options fonts (UiFonts): it had been the frame's Cascadia Mono -->
+                    <ListBox x:Name="MessageLog" Background="#08080c" BorderBrush="#333"
+                             BorderThickness="1" app:UiFonts.Font="frmCharStat4.lstMessages" DoubleTapped="OnClearMessages">
+                    <!-- at most twenty lines (mc04F2), so a plain StackPanel: every row is laid out as it is
+                         added. Rows were seen blank at normal size until a maximise re-measured the
+                         list, the mark of a virtualising panel that has not realised them -->
+                    <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
+                    <!-- lstMessages is a VB ListBox: one row per line at the font's own height, 13 pixels in
+                         game_files/bm15.png. The theme's item padding made every line two tall. -->
+                    <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="Padding" Value="3,0"/><Setter Property="MinHeight" Value="0"/></Style></ListBox.Styles>
+                </ListBox>
+                </DockPanel>
+
+                <!-- ============================================ the Party Information child -->
+                <!-- "Even when only one character is loaded, the party window is still displayed"
+                     (help, The Game Screen) -->
+                <!--
+                    frmParty as its form data in MORDOR.EXE (RCDATA 44) lays it out, in pixels at
+                    15 twips each. The client is 4365x1485 twips, 291x99, and an outer Elastic at
+                    15,15 holds it all; the header labels sit at its top, the member rows in a
+                    second Elastic at 45,210, and the buttons at 1125. Each control's rectangle:
+
+                      Name   header 60,0 690x180          row lblName    30,45 1275x195, left
+                      Hits   header 1110,0 690x180 right  row lblHits    1095,45 660x195, right
+                      Spells header 1890,0 585x195 right  row lblSpells  1830,45 615x195, centre
+                      Status header 2460,0 690x180 right  row lblStatus  2475,45 600x195, right
+                      Option header 3570,0 690x210 right  row lblOption  3255,45 900x195, right
+                      cmdCommand(0..2) Switch To 30, Options 1020, Leave 3345; top 1125, 945x300
+
+                    The row labels are MS Sans Serif 8.25, 11 pixels, and opaque. Each loaded row
+                    is its row above's Top + Height, 195 twips down (FRMGROUP.BAS:375-379), so four
+                    rows end above the buttons. lblName is wider than the gap to lblHits, which is
+                    brought in front of it (FRMGROUP.BAS:371): a long name is cut where Hits
+                    begins, 1065 twips from its left. The columns below are those edges, from the
+                    header's own left (75 twips in the client); each cell's margin puts its text
+                    where its label has it.
+
+                    Form_Resize keeps the height in proportion to the width (FRMGROUP.BAS:117-122),
+                    sizes the Elastic to the client (sub07B3) and scales every font with the width
+                    (sub07C5, MAINMOD.BAS:1925-1975): the whole form zooms. The window scales this
+                    291x99 drawing the same way, larger as well as smaller (CityWindow.Mdi.cs).
+                -->
+                <app:ElasticCanvas x:Name="PartyBox" DrawnHeight="99" app:UiFonts.Font="frmParty">
+                    <!-- Name, Hits, Spells, Status, Option - the five of game_files/bm5.png. Mod
+                         columns (docs/MODDING.md) are added after Option by ModSlots.PartyHeader. -->
+                    <Grid ColumnDefinitions="72,49,42,53,64" x:Name="PartyHeader" Canvas.Left="5" Canvas.Top="1" Height="12">
+                        <TextBlock Grid.Column="0" Text="Name" FontWeight="Bold" Foreground="#888"/>
+                        <TextBlock Grid.Column="1" Text="Hits" FontWeight="Bold" Foreground="#888" HorizontalAlignment="Right" Margin="0,0,5,0"/>
+                        <TextBlock Grid.Column="2" Text="Spells" FontWeight="Bold" Foreground="#888" HorizontalAlignment="Right" Margin="0,0,2,0"/>
+                        <TextBlock Grid.Column="3" Text="Status" FontWeight="Bold" Foreground="#888" HorizontalAlignment="Right" Margin="0,0,10,0"/>
+                        <TextBlock Grid.Column="4" Text="Option" FontWeight="Bold" Foreground="#888" HorizontalAlignment="Right"/>
+                    </Grid>
+                    <!-- rows at 15 + 210 + 45 twips, 13 pixels each -->
+                    <StackPanel x:Name="PartyRows" Canvas.Left="5" Canvas.Top="18"/>
+                    <!-- cmdCommand(0..2) (FRMGROUP.BAS:32-46), all always shown -->
+                    <app:ElasticCanvas.Styles>
+                        <Style Selector="Button">
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="MinHeight" Value="0"/>
+                            <Setter Property="Width" Value="63"/>
+                            <Setter Property="Height" Value="20"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                        </Style>
+                    </app:ElasticCanvas.Styles>
+                    <Button Canvas.Left="3" Canvas.Top="76" Focusable="False" Content="Switch To" Click="OnPartySwitchTo"/>
+                    <Button Canvas.Left="69" Canvas.Top="76" Focusable="False" Content="Options" Click="OnPartyOptions"/>
+                    <!-- 15 + 3345 + 945 = 4305 twips, 4 pixels in from the client's right: kept that far
+                         from the right when a mod column widens the drawing -->
+                    <Button Canvas.Right="4" Canvas.Top="76" Focusable="False" Content="Leave" Click="OnPartyLeave"/>
+                </app:ElasticCanvas>
+
+                <!-- ============================================ the Objects & Spells child -->
+                <!--
+                    FRMCHAR3 is on the frame in the city as well. Use refuses there in the
+                    original's own words - "Must be in Dungeon to Use items." (FRMCHAR3.BAS:225) -
+                    and Info answers on the character window's Misc page, which is where sub1560
+                    sends it.
+
+                    frmCharStat3 as its form data in MORDOR.EXE (RCDATA 10) lays it out, in pixels
+                    at 15 twips each. The client is 4065x3105 twips, 271x207. tabItemTab, a
+                    VideoSoft IndexTab, is at 30,30 4005x3060 with "Items|Spells|Companions" in the
+                    form's MS Sans Serif 8.25, three tabs to the row (IndexTab.Apply). Each page is
+                    an Elastic, elaTabFrame(0..2), whose rectangle is in the tab control's own
+                    coordinates; the controls below are in the page's:
+
+                      Items, elaTabFrame(0) 75,360 3810x2550
+                        elaItemFrame 0,15 3495x495, sized to the page's height by Form_Load
+                          (FRMCHAR3.BAS:352-357): the list, 233 wide and 170 tall
+                        picItems 0,0 6000x405 holding lblItemStatus(0) 30,-15 210x235 (centred,
+                          the form's bold face) and lblItem(0) 285,-15 5000x240; Form_Load loads
+                          forty and sub2263 stacks them 235 twips apart (FRMCHAR3.BAS:666-678)
+                        vsbItems 3510,0 270x2520
+                        cmdCommand(0..3) Equip, Use, Drop, Info at 2655, tops 1365, 1650, 1935 and
+                          2220, 870x300: over the list's lower right, as bm14.png shows them
+                      Spells, elaTabFrame(1) 75,375 3810x2580
+                        lblLabel(4) "Spell Type" 105,210 1020x240 right; cmbClass 1275,180 2190x300
+                        lblLabel(1) "Spell Name" 135,600 1080x210; lblLabel(5) "Guild" 1875,600
+                          510x195 right; lblLabel(2) "Lev" 2295,600 510x195 right; lblLabel(3)
+                          "Points" 2895,600 555x195 right
+                        elaSpells 165,825 3330x1065 with five rows 210 twips apart: lblName 30,
+                          lblGuild 1815 420 wide, lblLevel 2265 420 wide, lblPoints 2775 525 wide,
+                          the last three right-justified (SpellPage.Row)
+                        vsbSpells 3495,825 285x1080
+                        lblLabel(0) "Spell" 105,2070 510x195; txtSpell 585,2025 1890x285;
+                          cmdCast 2580,2010 600x315; cmdInfo 3165,2010 600x315
+                      Companions, elaTabFrame(2) 135,390 3810x2580
+                        lblCarryInfo 90,30 3330x210, Arial 8.25 bold
+                        cmdCompanion(0..3) "1".."4" 270x255 at 30 down, (3) at 3495 and each
+                          other a button's width left of the next (FRMCHAR3.BAS:384-394)
+                        elaElastic 60,270 3705x2205 with the four picCompanion pictures, 750
+                          square, and their lblCompName and lblCompHits (ServiceForms.Companions)
+
+                    Form_Resize keeps the height in proportion to the width, sizes the tab control
+                    to the client (sub07D4) and scales every font with the width (sub07C5,
+                    FRMCHAR3.BAS:408-444): the whole form zooms, and the window scales this 271x207
+                    drawing the same way, larger as well as smaller (CityWindow.Mdi.cs).
+                -->
+                <!-- the form's MS Sans Serif 8.25 through the Options fonts (UiFonts), inherited by every
+                     control on the three pages: none sets a size of its own -->
+                <TabControl x:Name="SheetTabs" Padding="0" Margin="2,2,2,1" app:UiFonts.Font="frmCharStat3">
+                    <TabControl.Styles>
+                        <Style Selector="Button">
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="MinHeight" Value="0"/>
+                            <Setter Property="MinWidth" Value="0"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                        </Style>
+                        <Style Selector="ComboBox">
+                            <Setter Property="MinHeight" Value="0"/>
+                            <Setter Property="Padding" Value="4,0"/>
+                        </Style>
+                        <Style Selector="TextBox">
+                            <Setter Property="MinHeight" Value="0"/>
+                            <Setter Property="Padding" Value="2,0"/>
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <!-- txtSpell is one line and has no scroll bar: in a larger Options font the theme put its up-arrow in the box -->
+                            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled"/>
+                        </Style>
+                        <Style Selector="ListBox">
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Background" Value="#0a0a10"/>
+                        </Style>
+                        <!-- a row is its labels' height: the theme's item padding made each pack row 44 pixels -->
+                        <Style Selector="ListBoxItem">
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="MinHeight" Value="0"/>
+                        </Style>
+                        <Style Selector="ScrollBar">
+                            <Setter Property="AllowAutoHide" Value="False"/>
+                        </Style>
+                        <!-- cmdCast and cmdInfo as a VB3 CommandButton draws itself, in a black frame: the
+                             form puts cmdCast (2580, 600 twips wide) 15 twips over cmdInfo (3165), and the
+                             frame is what parts them, as the Dungeon window's button row (Button.frame there) -->
+                        <Style Selector="Button.frame">
+                            <Setter Property="BorderBrush" Value="Black"/>
+                            <Setter Property="BorderThickness" Value="1"/>
+                        </Style>
+                        <Style Selector="Button.frame:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="BorderBrush" Value="Black"/>
+                        </Style>
+                        <Style Selector="Button.frame:pressed /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="BorderBrush" Value="Black"/>
+                        </Style>
+                    </TabControl.Styles>
+                    <TabItem Header="Items">
+                        <Canvas Width="254" Height="170" Margin="5,2,0,0" HorizontalAlignment="Left" VerticalAlignment="Top">
+                            <!-- the buttons sit over the list, as cmdCommand sits over picItems, and a
+                                 VB CommandButton is opaque: the theme's see-through fills let the
+                                 selected row and the mods' marks show through them. These are the
+                                 theme's own fills laid over the list's #0a0a10, made solid. -->
+                            <Canvas.Resources>
+                                <SolidColorBrush x:Key="ButtonBackground" Color="#3b3b40"/>
+                                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#232328"/>
+                                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#6c6c70"/>
+                                <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#3b3b40"/>
+                            </Canvas.Resources>
+                            <!-- "Item in Items Tab - Use the Item", the help's Double Click
+                                 Commands. In town that is FRMCHAR3's own refusal. -->
+                            <ListBox x:Name="PackList" Canvas.Left="0" Canvas.Top="0" Width="233" Height="170"
+                                     ScrollViewer.VerticalScrollBarVisibility="Hidden" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     DoubleTapped="OnPackUse">
+                                <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Margin="0,-1,0,0"/></ItemsPanelTemplate></ListBox.ItemsPanel>
+                            </ListBox>
+                            <ScrollBar x:Name="PackScroll" Orientation="Vertical" Canvas.Left="234" Canvas.Top="0" Width="18" Height="168"/>
+                            <!-- the mods' commands (Quality of Life's Sort): the form has no room below
+                                 Info, so they stack upwards from Equip, the same size -->
+                            <StackPanel x:Name="PackModButtons" Canvas.Left="177" Canvas.Bottom="79"/>
+                            <Button Canvas.Left="177" Canvas.Top="91" Width="58" Height="20" Focusable="False" Content="Equip" Click="OnPackEquip" x:Name="PackEquipBtn"/>
+                            <Button Canvas.Left="177" Canvas.Top="110" Width="58" Height="20" Focusable="False" Content="Use" Click="OnPackUse" x:Name="PackUseBtn"/>
+                            <Button Canvas.Left="177" Canvas.Top="129" Width="58" Height="20" Focusable="False" Content="Drop" Click="OnPackDrop" x:Name="PackDropBtn"/>
+                            <Button Canvas.Left="177" Canvas.Top="148" Width="58" Height="20" Focusable="False" Content="Info" Click="OnPackInfo" x:Name="PackInfoBtn"/>
+                        </Canvas>
+                    </TabItem>
+
+                    <!--
+                        Cast refuses here in the original's own words - "Cannot cast spells while in
+                        the city!" is the first thing cmdCast_Click checks (FRMCHAR3.BAS:156-159).
+                        Info answers on the character window's Misc page, where sub1560 sends it.
+                        sub2424 fills the rows (FRMCHAR3.BAS:681-712).
+                    -->
+                    <TabItem Header="Spells">
+                        <Canvas Width="254" Height="172" Margin="5,3,0,0" HorizontalAlignment="Left" VerticalAlignment="Top">
+                            <TextBlock Canvas.Left="7" Canvas.Top="14" Width="68" Text="Spell Type" FontWeight="Bold" TextAlignment="Right"/>
+                            <ComboBox x:Name="ClassBox" Canvas.Left="85" Canvas.Top="12" Width="146" Height="20"/>
+                            <TextBlock Canvas.Left="9" Canvas.Top="40" Width="72" Text="Spell Name" FontWeight="Bold"/>
+                            <TextBlock Canvas.Left="125" Canvas.Top="40" Width="34" Text="Guild" FontWeight="Bold" TextAlignment="Right"/>
+                            <TextBlock Canvas.Left="153" Canvas.Top="40" Width="34" Text="Lev" FontWeight="Bold" TextAlignment="Right"/>
+                            <TextBlock Canvas.Left="193" Canvas.Top="40" Width="37" Text="Points" FontWeight="Bold" TextAlignment="Right"/>
+                            <!-- "Spell in Spell Book - Cast the Spell", same list. In town
+                                 that is cmdCast_Click's refusal, which is a real line. -->
+                            <ListBox x:Name="SpellList" Canvas.Left="11" Canvas.Top="55" Width="222" Height="71"
+                                     ScrollViewer.VerticalScrollBarVisibility="Hidden" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     DoubleTapped="OnSpellListDoubleTapped">
+                                <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Margin="2,2,0,0"/></ItemsPanelTemplate></ListBox.ItemsPanel>
+                            </ListBox>
+                            <ScrollBar x:Name="SpellScroll" Orientation="Vertical" Canvas.Left="233" Canvas.Top="55" Width="19" Height="72"/>
+                            <!-- txtSpell: what Cast and Info act on. A click on a spell writes its
+                                 name here (lblName_MouseDown, FRMCHAR3.BAS:622-636); a name can
+                                 also be typed, any spell at all (fn1725). -->
+                            <TextBlock x:Name="SpellLabel" Canvas.Left="7" Canvas.Top="138" Width="34" Text="Spell" FontWeight="Bold"/>
+                            <TextBox x:Name="SpellText" Canvas.Left="39" Canvas.Top="135" Width="126" Height="19"/>
+                            <Button Classes="frame" Canvas.Left="172" Canvas.Top="134" Width="40" Height="21" Focusable="False" Content="_Cast" Click="OnSpellCast"/>
+                            <Button Classes="frame" Canvas.Left="211" Canvas.Top="134" Width="40" Height="21" Focusable="False" Content="_Info" Click="OnSpellInfo"/>
+                        </Canvas>
+                    </TabItem>
+
+                    <!--
+                        Kicking one out refuses in the city, again in the original's words
+                        (FRMCHAR3.BAS:259-261). Attacking one is a dungeon command: there is nothing
+                        here for a companion to turn into, and picCompanion_MouseDown asks for a
+                        dungeon level (FRMCHAR3.BAS:786). The pictures, their names and hits and the
+                        kick-out buttons are placed in code, at the form's rectangles (CompanionsPage).
+                    -->
+                    <TabItem Header="Companions">
+                        <Canvas Width="254" Height="172" Margin="9,4,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" x:Name="CompanionPage">
+                            <TextBlock x:Name="CarryLine" Canvas.Left="6" Canvas.Top="2" Width="222" Height="14" Foreground="#8fd9d9"
+                                       app:UiFonts.Font="frmCharStat3.lblCarryInfo" FontWeight="Bold"/>
+                        </Canvas>
+                    </TabItem>
+                </TabControl>
+
+                <!-- ==================================================== the The City child -->
+                <!--
+                    frmCityMain as FRMCTYM.FRM draws it: a client area of 7200x3045 twips, 480x203
+                    pixels, with eight imgPicture images and eight lblSelection captions at the
+                    form's own places (game_files/cityw1.png is this window, 487x229 with its
+                    border). Every place is in pixels at 15 twips each:
+
+                        General Store (3,3)    Morgue (123,3)     Guilds (242,3)    Dungeon (362,3)
+                        Confinement (3,104)    Seer (123,104)     Bank (241,104)    EXIT (362,121)
+
+                    each picture 115x75 (the EXIT sign 115x40) with its caption 115x17 under it
+                    (Exit's 70x17 at 385,163). A click on the caption is a click on the picture
+                    (lblSelection_Click, FRMCTYM.BAS:224-226).
+
+                    The border is Fixed Double (BorderStyle 3), so the town cannot be dragged to
+                    another size; its size is the character's (FRMCTYM.BAS:95-104), and Form_Resize
+                    scales every control to it, across and down separately (FRMCTYM.BAS:163-167,
+                    sub0760) - which is what the Viewbox's Fill does.
+                -->
+                <Viewbox x:Name="CityBox" Stretch="Fill">
+                    <Canvas x:Name="CityPanel" Width="480" Height="203" Background="#12121a"
+                            app:UiFonts.Font="frmCityMain.lblSelection(0)">
+                        <Canvas.Styles>
+                            <Style Selector="Button.pic">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="MinHeight" Value="0"/>
+                                <Setter Property="MinWidth" Value="0"/>
+                            </Style>
+                            <Style Selector="Button.pic Image">
+                                <Setter Property="Stretch" Value="Fill"/>
+                            </Style>
+                            <Style Selector="Button.caption">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                                <Setter Property="MinHeight" Value="0"/>
+                                <Setter Property="MinWidth" Value="0"/>
+                                <Setter Property="Background" Value="#1e1e2c"/>
+                                <Setter Property="Foreground" Value="#d0d0e0"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                                <Setter Property="CornerRadius" Value="0"/>
+                            </Style>
+                        </Canvas.Styles>
+                        <!-- imgPicture(0..7) -->
+                        <Button Focusable="False" Classes="pic" Click="ShowStore" Canvas.Left="3" Canvas.Top="3" Width="115" Height="75"><Image Source="{app:Art town_store.png}"/></Button>
+                        <Button Focusable="False" Classes="pic" Click="ShowMorgue" Canvas.Left="123" Canvas.Top="3" Width="115" Height="75"><Image Source="{app:Art town_morgue.png}"/></Button>
+                        <Button Focusable="False" Classes="pic" Click="ShowGuild" Canvas.Left="242" Canvas.Top="3" Width="115" Height="75"><Image Source="{app:Art town_guild.png}"/></Button>
+                        <Button Focusable="False" Classes="pic" Click="EnterDungeon" Canvas.Left="362" Canvas.Top="3" Width="115" Height="75"><Image Source="{app:Art town_dungeon.png}"/></Button>
+                        <Button Focusable="False" Classes="pic" Click="ShowConfinement" Canvas.Left="3" Canvas.Top="104" Width="115" Height="75"><Image Source="{app:Art town_confinement.png}"/></Button>
+                        <Button Focusable="False" Classes="pic" Click="ShowSeer" Canvas.Left="123" Canvas.Top="104" Width="115" Height="75"><Image Source="{app:Art town_seer.png}"/></Button>
+                        <Button Focusable="False" Classes="pic" Click="ShowBank" Canvas.Left="241" Canvas.Top="104" Width="115" Height="75"><Image Source="{app:Art town_bank.png}"/></Button>
+                        <!-- the EXIT sign is FRMCTYM.FRM's own picture, 120x42 -->
+                        <Button Focusable="False" Classes="pic" Click="LeaveTown" Canvas.Left="362" Canvas.Top="121" Width="115" Height="40"><Image Source="{app:Art town_exit.png}"/></Button>
+                        <!-- lblSelection(0..7) -->
+                        <Button Focusable="False" Classes="caption" Click="ShowStore" Canvas.Left="3" Canvas.Top="79" Width="115" Height="17"><TextBlock Text="General Store"/></Button>
+                        <Button Focusable="False" Classes="caption" Click="ShowMorgue" Canvas.Left="123" Canvas.Top="79" Width="115" Height="17"><TextBlock Text="Morgue"/></Button>
+                        <Button Focusable="False" Classes="caption" Click="ShowGuild" Canvas.Left="242" Canvas.Top="79" Width="115" Height="17"><TextBlock Text="Guilds"/></Button>
+                        <Button Focusable="False" Classes="caption" Click="EnterDungeon" Canvas.Left="362" Canvas.Top="79" Width="115" Height="17"><TextBlock Text="Dungeon"/></Button>
+                        <Button Focusable="False" Classes="caption" Click="ShowConfinement" Canvas.Left="3" Canvas.Top="180" Width="115" Height="17"><TextBlock Text="Confinement"/></Button>
+                        <Button Focusable="False" Classes="caption" Click="ShowSeer" Canvas.Left="123" Canvas.Top="180" Width="115" Height="17"><TextBlock Text="Seer"/></Button>
+                        <Button Focusable="False" Classes="caption" Click="ShowBank" Canvas.Left="242" Canvas.Top="180" Width="115" Height="17"><TextBlock Text="Bank"/></Button>
+                        <Button Focusable="False" Classes="caption" Click="LeaveTown" Canvas.Left="385" Canvas.Top="163" Width="70" Height="17"><TextBlock Text="Exit"/></Button>
+                        <!--
+                            The eight picture buttons are all of frmCity (game_files/cityw1.png).
+                            A row of text buttons used to sit under them (Control Panel, Automap,
+                            Library, Hall of Records, Help Lesson); the original reaches each of
+                            those another way, and so does the port: the Library from the Guilds'
+                            Library button (FRMCTYG.BAS:170-171), the Hall of Records from the main
+                            menu (FRMMENU.BAS:40), and the rest from the toolbar or F1/F8/F10
+                            (FRMMAIN.BAS:48-100).
+                        -->
+                    </Canvas>
+                </Viewbox>
+
+                <!--
+                    A service is a form of its own in the original (frmCityStore, frmCityBank and
+                    the rest, FRMCTYM.BAS:192-203), shown modeless, so several can be up at once.
+                    Each gets a child window of its own, built in code (CityWindow.Services.cs).
+                -->
+            </Panel>
+        </Panel>
+    </DockPanel>
+</Window>

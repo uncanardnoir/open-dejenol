@@ -1,0 +1,77 @@
+# Original identifiers for the decompiled Mordor source.
+# confidence: definitive = traced to a literal string in the program; guess = inferred, verify before trusting.
+kind	old	new	confidence	evidence
+module	MODULE11	HALL	definitive	error-string 2/3 (HALL=2 MAINMOD=1)
+module	MODULE12	GRAPHICS	definitive	error-string 1/3 (MAZEMOD=2 GRAPHICS=1)
+module	MODULE2	MAINMOD	definitive	error-string x6
+module	MODULE3	MAZEMOD	definitive	error-string x5
+module	MODULE4	MONSMOD	definitive	error-string x10
+module	MODULE6	MAINMOD2	definitive	error-string x20
+module	MODULE7	MULTIMOD	definitive	error-string x4
+module	MODULE9	MUSIC	definitive	error-string x2
+proc	fn09A4	mdrmazLookAround	definitive	error-string in body
+proc	fn0B4E	monCanMonsterSeeInvisible	definitive	error-string in body
+proc	fn0B6C	monCheckCompAttack	definitive	error-string in body
+proc	fn0DBF	monGetGold	definitive	error-string in body
+proc	fn0E4A	monGetSpecialHits	definitive	error-string in body
+proc	fn0E5F	monGetSpellHits	definitive	error-string in body
+proc	fn1135	mdrcharCastSpell	definitive	error-string in body
+proc	fn118E	mdrcharCheckCast	definitive	error-string in body
+proc	fn11E2	mdrcharCheckItems	definitive	error-string in body
+proc	fn1305	mdrcharGetIDSkill	definitive	error-string in body
+proc	fn16A2	mdrcharTeleport	definitive	error-string in body
+proc	fn17AE	mdrmulIsPartyInvisible	definitive	error-string in body
+proc	fn1BF0	mdrhalGetIndexValue	definitive	error-string in body
+proc	fn272C	modItemCost	definitive	error-string in body
+proc	fn2EB5	modReadAutoMap	definitive	error-string in body
+proc	fn33CC	modItemCost	definitive	error-string in body
+proc	sub046B	mdrBetaUpdate	definitive	error-string in body
+proc	sub047C	mdrcharSetAD	definitive	error-string in body
+proc	sub04DC	mdrcharUnload	definitive	error-string in body
+proc	sub05F6	mdrEndProgram	definitive	error-string in body
+proc	sub0607	mdrReleaseDCs	definitive	error-string in body
+proc	sub0618	mdrDeInitializeFX	definitive	error-string in body
+proc	sub062D	mdrFadeOutMIDI	definitive	error-string in body
+proc	sub06B4	mdrReadAllData	definitive	error-string in body
+proc	sub06E8	mdrReplenishCStore	definitive	error-string in body
+proc	sub071B	mdrReplenishStore	definitive	error-string in body
+proc	sub087C	mdrmazPerceiveSquare	definitive	error-string in body
+proc	sub08A9	mdrcharStats	definitive	error-string in body
+proc	sub091E	mdrcharSetDead	definitive	error-string in body
+proc	sub096E	mdrmazGetChars	definitive	error-string in body
+proc	sub0980	mdrmazShowMaze	definitive	error-string in body
+proc	sub0A1D	mdrmazPerceiveAhead	definitive	error-string in body
+proc	sub0B82	mdrcharShowCompanions	definitive	error-string in body
+proc	sub0BAA	monShowChest	definitive	error-string in body
+proc	sub0BBA	monShowMonsters	definitive	error-string in body
+proc	sub0BCD	monShowCursor	definitive	error-string in body
+proc	sub0C8A	monCompanionAttack	definitive	error-string in body
+proc	sub0CCC	mdrcharGetCarry	definitive	error-string in body
+proc	sub0EAE	mdrcharAddAge	definitive	error-string in body
+proc	sub0EBF	mdrcharStatRaiseMessage	definitive	error-string in body
+proc	sub0EDA	mdrcharRemoveItem	definitive	error-string in body
+proc	sub0F01	monOpenChest	definitive	error-string in body
+proc	sub0F38	mdrcharShowCharry	definitive	error-string in body
+proc	sub0F4C	mdcharShowBuffer	definitive	error-string in body
+proc	sub0F61	mdrcharShowItem	definitive	error-string in body
+proc	sub1043	mdrhalCheckRecord	definitive	error-string in body
+proc	sub10C5	mdrmazConfigureDCs	definitive	error-string in body
+proc	sub1149	mdrcharSubtractItemUse	definitive	error-string in body
+proc	sub1560	mdrcharSetInfo	definitive	error-string in body
+proc	sub1572	mdrcharShowInfo	definitive	error-string in body
+proc	sub15B0	mdrmulInitiateCombatRound	definitive	error-string in body
+proc	sub1614	mdrcharSaveWindowPos	definitive	error-string in body
+proc	sub1745	mdrmulLoadParty	definitive	error-string in body
+proc	sub178B	mdrmulSwitch	definitive	error-string in body
+proc	sub1C40	mdrUpdateLibraryFile	definitive	error-string in body
+proc	sub1D3C	mdrmazSetClipboard	definitive	error-string in body
+proc	sub1EBA	modUpdateInfo	definitive	error-string in body
+proc	sub29D0	modSetNewAD	definitive	error-string in body
+proc	sub29DF	modAwardCrest	definitive	error-string in body
+proc	sub2E29	medPlotMaze	definitive	error-string in body
+proc	sub2E38	modAdjustMap	definitive	error-string in body
+proc	sub2E6E	medDrawCursor	definitive	error-string in body
+proc	sub2E7F	medDrawSquare	definitive	error-string in body
+proc	sub2F40	modUpdateCharacterList	definitive	error-string in body
+proc	sub2F5A	modUpdateStats	definitive	error-string in body
+proc	sub3502	modPrint	definitive	error-string in body

@@ -1,0 +1,24 @@
+{
+  "id": "Kaizen",
+  "name": "Kaizen",
+  "version": "1.2.0",
+  "author": "OpenDejenol",
+  "gameVersion": "1.1",
+  "assembly": "Mordor.Mod.Kaizen.dll",
+  "entryType": "Mordor.Mod.Kaizen.KaizenMod",
+  "description": "Casts each character's buff list on entering the dungeon, and heals the party before returning to town.",
+  "settings": [
+    {
+      "key": "BuffOnEntry",
+      "label": "Buff on entering the dungeon",
+      "description": "Casts each member's buff list from the Kaizen window on going down from town.",
+      "default": false
+    },
+    {
+      "key": "HealBeforeTown",
+      "label": "Heal before returning to town",
+      "description": "Heals the party with spells on the stairs up from level 1.",
+      "default": false
+    }
+  ]
+}

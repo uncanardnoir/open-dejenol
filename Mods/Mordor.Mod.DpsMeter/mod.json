@@ -1,0 +1,11 @@
+{
+  "id": "DpsMeter",
+  "name": "DPS Meter",
+  "version": "1.1.0",
+  "author": "OpenDejenol",
+  "gameVersion": "1.1",
+  "assembly": "Mordor.Mod.DpsMeter.dll",
+  "entryType": "Mordor.Mod.DpsMeter.DpsMeterMod",
+  "description": "Shows damage dealt or XP gained by each character",
+  "settings": []
+}

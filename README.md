@@ -1,0 +1,75 @@
+# OpenDejenol
+
+OpenDejenol is a faithful engine for [**Mordor: The Depths of Dejenol**](https://www.decklinsdemise.com/mordor.htm) (MakeItSo Software, 1995):
+a native Windows program that plays the original game from your own copy of it.
+
+<p align="center"><img src="docs/images/screenshot.webp" width="640" alt="OpenDejenol in the dungeon: the character, party, automap, Objects &amp; Spells, Messages and DPS Meter windows"></p>
+
+This project was born out of the increasing difficulty of being able to play the 1995 classic on modern hardware. The aim is to create an engine that can run the game as faithfully as possible without any emulation layers. While the base game is intended to be faithful, there is a modding system that allows developers to create quality-of-life and other mods to augment the base game.
+
+This engine is built in C# using the Avalonia framework. It is almost entirely ported by LLMs (primarily Opus 5.5) via decompiled VB3 code and playtested by the creator. Very little of the code has been actually read or reviewed by hand.
+
+## Mods
+
+OpenDejenol comes bundled with a few mods. These include:
+
+**Quality of Life** - Auto-management systems for party gold, enhanced UIs for party information and the store and such. No change to gameplay, no additional information that isn't already exposed.
+
+<p align="center"><img src="docs/images/party-window.png" width="370" alt="The Party Information window with QoL's Next column, HP/SP and XP bars"> <img src="docs/images/general-store.png" width="400" alt="The General Store with QoL's Slot and Worn columns, sortable headings and the Hide unusable box"></p>
+
+**Kaizen** - Auto-cast a pre-set list of buffs every time the party enters the dungeon; auto-heal party members with all remaining unused SP when returning to town to prevent aging.
+
+<p align="center"><img src="docs/images/kaizen.png" width="400" alt="The Kaizen window: a character's buff list, each row a spell and its target"></p>
+
+**DPS Meter** - Tracks damage dealt or XP gained.
+
+<p align="center"><img src="docs/images/dps-meter-xp.png" width="400" alt="The DPS Meter in XP mode: experience gained per character, split into Damage and Chests"></p>
+
+## Requirements
+
+- Your own copy of Mordor: The Depths of Dejenol - the full version or the shareware. The full version can be purchased from [Decklin's Domain](https://www.decklinsdemise.com/mordor.htm).
+- 64-bit Windows 10 or 11
+
+## Installing and running
+
+There are no release downloads yet - see [Building from source](#building-from-source) below.
+
+On first run, OpenDejenol looks for your Mordor folder; if it can't find one, it asks you to locate
+it, and remembers the choice in `%APPDATA%\OpenDejenol`.
+
+## Building from source
+
+- The .NET 8 SDK.
+- `dotnet build Mordor.App -c Release` builds `Mordor.App/bin/Release/net8.0/OpenDejenol.exe`.
+- `dotnet run --project Mordor.App` builds the Debug configuration and starts it.
+- `sh tools/check.sh <path to your Mordor folder>` runs the checks (Git Bash or another POSIX
+  shell). A few of them read material that is not in this repository and say
+  "skipped: decompiled source not present"; that is expected.
+
+## Contributing
+There are many ways to contribute:
+
+**For non-developers:**
+
+- If you notice a bug or something that is not faithful to the original game, please file an issue and I will take a look when I find time. I have done my best to playtest this game, but I have surely missed many things and have blind spots in my own playthrough.
+
+- If you have an idea for a new mod, also file an issue and I will similarly take a look. With LLM-based programming, many mods are easy to create now!
+
+**For developers:**
+
+Please submit PRs! It is highly encouraged to use LLMs to understand and modify the codebase. Since this codebase was LLM-originated, it was not optimized for human readability. Please try to make any contributions reasonably high quality - test out changes as much as possible, ideally against the original version of the game. A decompiled version of the original game may help you in cross-checking details (getting your hands on such a decompiled version is left up to the reader). When opening a PR, please include what you did and how you validated - this will make things much easier for me to merge.
+
+Feel free to create your own mods as well, and submit for PR. If they are of reasonable quality and taste (at my discretion), I will merge them in.
+
+There are other possible extensions to OpenDejenol - mobile versions (need to figure out layout issues) and cloud saves would be an interesting idea. C#/Avalonia run on Linux and macOS, so a port to those OSes should be possible with some work as well. I will probably not prioritize any of these in the near future, but would be quite interested if someone else wants to work on it!
+
+## License
+
+OpenDejenol is free software, released under the GNU General Public License, version 3 - see
+[LICENSE](LICENSE).
+
+Mordor: The Depths of Dejenol and its data remain the property of their owners and are not part of this project.
+
+## Credits and thanks
+
+Thank you to David Allen for creating Mordor, a big part of my childhood!

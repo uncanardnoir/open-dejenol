@@ -1,0 +1,18 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Mordor.App.App"
+             RequestedThemeVariant="Dark">
+
+    <Application.Styles>
+        <!-- one accent, the port's own, rather than Windows': with Windows set to pick its accent from
+             the wallpaper, a ticked box and a selected row took whatever colour the desktop had at the
+             time - gold on the Mods page from the title screen, blue-grey from the Control Panel -->
+        <FluentTheme>
+            <FluentTheme.Palettes>
+                <ColorPaletteResources x:Key="Dark" Accent="#2f5597"/>
+                <ColorPaletteResources x:Key="Light" Accent="#2f5597"/>
+            </FluentTheme.Palettes>
+        </FluentTheme>
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+    </Application.Styles>
+</Application>

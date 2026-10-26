@@ -1,0 +1,84 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Mordor.App.MainWindow"
+        Title="OpenDejenol — Data Browser"
+        Width="1100" Height="720"
+        FontFamily="Cascadia Mono, Consolas, monospace">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Background="#1e1e28" Padding="8">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Data folder:" VerticalAlignment="Center"/>
+                <TextBox x:Name="PathBox" Width="620" VerticalAlignment="Center"/>
+                <Button x:Name="ReloadBtn" Content="Reload" Click="OnReload"/>
+                <Button x:Name="NewCharBtn" Content="▶ New Character" Background="#2d6a2d" Click="OnNewCharacter"/>
+                <Button x:Name="LoadCharBtn" Content="Load Character" Click="OnLoadCharacter"/>
+                <CheckBox x:Name="SoundBox" Content="Sound" IsChecked="True" VerticalAlignment="Center"/>
+                <CheckBox x:Name="MusicBox" Content="Music" IsChecked="True" VerticalAlignment="Center"/>
+                <TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="#8fd98f"/>
+            </StackPanel>
+        </Border>
+
+        <TabControl>
+            <TabItem Header="Monsters">
+                <DataGrid x:Name="MonsterGrid" IsReadOnly="True" GridLinesVisibility="All"
+                          CanUserSortColumns="True" AutoGenerateColumns="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60"/>
+                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="230"/>
+                        <DataGridTextColumn Header="Kind" Binding="{Binding Kind}" Width="110"/>
+                        <DataGridTextColumn Header="Att" Binding="{Binding Att}" Width="70"/>
+                        <DataGridTextColumn Header="Def" Binding="{Binding Def}" Width="70"/>
+                        <DataGridTextColumn Header="Hits" Binding="{Binding Hits}" Width="70"/>
+                        <DataGridTextColumn Header="Lvl" Binding="{Binding LevelFound}" Width="60"/>
+                        <DataGridTextColumn Header="Groups" Binding="{Binding NumGroups}" Width="70"/>
+                        <DataGridTextColumn Header="Align" Binding="{Binding AlignmentValue}" Width="70"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="Items">
+                <DataGrid x:Name="ItemGrid" IsReadOnly="True" GridLinesVisibility="All"
+                          CanUserSortColumns="True" AutoGenerateColumns="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60"/>
+                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="240"/>
+                        <DataGridTextColumn Header="Att" Binding="{Binding Att}" Width="70"/>
+                        <DataGridTextColumn Header="Def" Binding="{Binding Def}" Width="70"/>
+                        <DataGridTextColumn Header="Price" Binding="{Binding Price}" Width="120"/>
+                        <DataGridTextColumn Header="Floor" Binding="{Binding Floor}" Width="70"/>
+                        <DataGridTextColumn Header="Hands" Binding="{Binding NHands}" Width="70"/>
+                        <DataGridTextColumn Header="Cursed" Binding="{Binding Cursed}" Width="70"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="Spells">
+                <DataGrid x:Name="SpellGrid" IsReadOnly="True" GridLinesVisibility="All"
+                          CanUserSortColumns="True" AutoGenerateColumns="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60"/>
+                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="240"/>
+                        <DataGridTextColumn Header="Level" Binding="{Binding Level}" Width="80"/>
+                        <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="90"/>
+                        <DataGridTextColumn Header="Dmg1" Binding="{Binding Damage1}" Width="80"/>
+                        <DataGridTextColumn Header="Dmg2" Binding="{Binding Damage2}" Width="80"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="Dungeon">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="8">
+                        <TextBlock Text="Level:" VerticalAlignment="Center"/>
+                        <ComboBox x:Name="LevelBox" Width="90" SelectionChanged="OnLevelChanged"/>
+                        <TextBlock x:Name="FloorInfo" VerticalAlignment="Center" Foreground="#c8c8d8"/>
+                    </StackPanel>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                        <Canvas x:Name="MapCanvas" Background="#101018"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

@@ -1,0 +1,70 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Mordor.App.CharacterCreationWindow"
+        Title="Create Character" Width="940" Height="560"
+        FontFamily="Cascadia Mono, Consolas, monospace"
+        WindowStartupLocation="CenterScreen"
+        Background="#12121a">
+    <!-- the name box is a tan-yellow input field like the Store's InputBox, and keeps that colour when it
+         has focus or the pointer; the theme's dark focused background had left the black name black on black -->
+    <Window.Styles>
+        <Style Selector="TextBox#NameBox:focus /template/ Border#PART_BorderElement, TextBox#NameBox:pointerover /template/ Border#PART_BorderElement, TextBox#NameBox:focus-within /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="#d8c88a"/>
+        </Style>
+    </Window.Styles>
+    <DockPanel Margin="14">
+        <!-- the original's bottom row of buttons -->
+        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,10,*,10,*" Margin="0,14,0,0">
+            <Button Grid.Column="0" x:Name="CreateBtn" Content="_Save Character" HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" Padding="8" Background="#2d6a2d" Click="OnCreate"/>
+            <Button Grid.Column="2" x:Name="TutorialBtn" Content="_Tutorial" HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" Padding="8" Click="OnTutorial"/>
+            <Button Grid.Column="4" x:Name="ExitBtn" Content="E_xit" HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" Padding="8" Click="OnExit"/>
+        </Grid>
+
+        <TextBlock DockPanel.Dock="Bottom" x:Name="ErrorText" Foreground="IndianRed" TextWrapping="Wrap" MinHeight="18" Margin="0,8,0,0"/>
+
+        <Grid ColumnDefinitions="300,14,320,14,*">
+
+            <!-- who you are -->
+            <StackPanel Grid.Column="0" Spacing="4">
+                <TextBlock Text="Character Name" FontWeight="Bold"/>
+                <TextBox x:Name="NameBox" Background="#d8c88a" Foreground="Black" CaretBrush="Black"/>
+
+                <TextBlock Text="Race" FontWeight="Bold" Margin="0,10,0,0"/>
+                <ComboBox x:Name="RaceBox" HorizontalAlignment="Stretch" SelectionChanged="OnRaceChanged"/>
+
+                <TextBlock Text="Sex" FontWeight="Bold" Margin="0,10,0,0"/>
+                <ComboBox x:Name="SexBox" HorizontalAlignment="Stretch"/>
+
+                <TextBlock Text="Alignment" FontWeight="Bold" Margin="0,10,0,0"/>
+                <ComboBox x:Name="AlignBox" HorizontalAlignment="Stretch" SelectionChanged="OnAlignChanged"/>
+
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,14,0,0">
+                    <Button x:Name="RaceStatsBtn" Content="Race Stats" Click="OnRaceStats"/>
+                    <Button x:Name="GuildStatsBtn" Content="Guild Stats" Click="OnGuildStats"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- the six statistics -->
+            <Border Grid.Column="2" BorderBrush="#555" BorderThickness="1" Padding="12" VerticalAlignment="Top">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Stats" FontWeight="Bold" Margin="0,0,0,4"/>
+                    <StackPanel x:Name="StatRows" Spacing="6"/>
+                    <Border Background="#1c1c26" Padding="8,5" Margin="0,10,0,0" HorizontalAlignment="Center">
+                        <TextBlock x:Name="PoolText" Foreground="#e8d060" FontWeight="Bold"/>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- which guilds would take you -->
+            <StackPanel Grid.Column="4" Spacing="4">
+                <TextBlock Text="Guilds Allowed" FontWeight="Bold"/>
+                <Border BorderBrush="#555" BorderThickness="1" Background="#c0c0c0" Padding="8" Height="330">
+                    <StackPanel x:Name="GuildRows" Spacing="2"/>
+                </Border>
+            </StackPanel>
+        </Grid>
+    </DockPanel>
+</Window>

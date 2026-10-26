@@ -1,0 +1,47 @@
+{
+  "id": "QoL",
+  "name": "Quality of Life",
+  "version": "1.13.0",
+  "author": "OpenDejenol",
+  "gameVersion": "1.1",
+  "assembly": "Mordor.Mod.QoL.dll",
+  "entryType": "Mordor.Mod.QoL.QolMod",
+  "description": "Small conveniences for the town, the Store, the Bank and the party windows.",
+  "choices": [
+    {
+      "key": "TownGold",
+      "label": "Town gold",
+      "description": "Where the party's gold is kept in town, and who covers a charge the payer is short of.",
+      "options": [ "Off", "Everyone's own bank", "Leader's bank" ],
+      "optionDescriptions": [
+        "As the game: nothing automatic. Sales pay the seller's hand; a charge takes the payer's hand, then bank.",
+        "Arriving and selling put gold in each one's own account; a shortfall comes from the others' accounts, in party order.",
+        "Arriving and selling put the party's gold in the leader's account; it covers a shortfall after the payer's own bank."
+      ],
+      "default": "Everyone's own bank"
+    }
+  ],
+  "settings": [
+    { "key": "UnlockedStoreAlignment", "label": "Unlocked Store alignment choice", "description": "Another item can be picked while Select Alignment is up in the Store.", "default": true },
+    { "key": "ToolbarTooltips", "label": "Toolbar tooltips", "description": "Each toolbar button names its function and key under the mouse.", "default": true },
+    { "key": "XpToNextColumn", "label": "Next column (XP to next level)", "description": "A Next column in Party Information with the experience still needed.", "default": true },
+    { "key": "HpSpBars", "label": "HP/SP bars", "description": "Hit point and spell point bars in Party Information.", "default": true },
+    { "key": "XpBar", "label": "XP bar", "description": "A bar to the next level, then to the pin, behind the Next column's figure.", "default": true },
+    { "key": "MarkActiveQuests", "label": "Quest marks", "description": "A mark in the Next column for a guild quest, a tick once it is done.", "default": true },
+    { "key": "MarkUnidentified", "label": "Unidentified-item marks", "description": "A coloured ? after an item not yet fully identified.", "default": true },
+    { "key": "StoreSlotColumns", "label": "Slot and Worn columns", "description": "Slot and Worn columns in the Store's Buy list show where each item is worn.", "default": true },
+    { "key": "StoreSortable", "label": "Sortable column headings", "description": "The Store's Item and Slot headings sort the Buy list when clicked.", "default": true },
+    { "key": "SayStoreShelved", "label": "Note what a sale stocks", "description": "Messages says when an item you sell goes onto the Store's shelf.", "default": true },
+    { "key": "ColorCodedCombatMessages", "label": "Color-coded combat messages", "description": "Colours combat lines in the Messages window by kind.", "default": true }
+  ],
+  "settingsWindow": {
+    "title": "Quality of Life settings",
+    "groups": [
+      { "label": "General", "description": "The Store's unlocked alignment choice and the toolbar's tooltips.", "keys": [ "UnlockedStoreAlignment", "ToolbarTooltips" ] },
+      { "label": "Town gold", "description": "In town, gold kept in the bank for you and charges covered from it. The dungeon's gold is always split evenly.", "keys": [ "TownGold" ] },
+      { "label": "Enhanced character UI", "description": "Adds a Next column, HP/SP and XP bars, quest marks and unidentified-item marks.", "keys": [ "XpToNextColumn", "HpSpBars", "XpBar", "MarkActiveQuests", "MarkUnidentified" ] },
+      { "label": "Enhanced store UI", "description": "Adds Slot and Worn columns, sortable headings, and a note of what a sale stocks to the Store.", "keys": [ "StoreSlotColumns", "StoreSortable", "SayStoreShelved" ] },
+      { "label": "Color-coded combat messages", "description": "Colours combat lines in the Messages window by kind.", "keys": [ "ColorCodedCombatMessages" ] }
+    ]
+  }
+}

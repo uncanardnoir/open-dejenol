@@ -1,0 +1,6 @@
+# AVLN3001 says a XAML window "won't be reachable via runtime loader" because it has no public
+# parameterless constructor. The windows it names (CharacterCreationWindow, CityWindow,
+# DungeonWindow, HelpWindow) are always built from code with the arguments they need and are never
+# loaded by URI, so a parameterless constructor would only be dead code that makes a half-built window.
+[*.axaml]
+avalonia_xaml_diagnostic.AVLN3001.severity = none

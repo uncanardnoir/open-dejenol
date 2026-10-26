@@ -1,0 +1,9 @@
+# build output
+bin/
+obj/
+*.user
+
+# save files - characters, the shared automap, the store's stock.
+# These are the player's own game state and do not belong in the repository.
+saves/
+saves-backup-*/

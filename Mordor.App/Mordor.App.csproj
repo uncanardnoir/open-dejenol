@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- the program is OpenDejenol: OpenDejenol.exe, OpenDejenol.dll. The project and its
+         namespace keep the Mordor.App name the rest of the source uses. -->
+    <AssemblyName>OpenDejenol</AssemblyName>
+    <RootNamespace>Mordor.App</RootNamespace>
+    <Product>OpenDejenol</Product>
+    <AssemblyTitle>OpenDejenol</AssemblyTitle>
+    <Description>OpenDejenol - a faithful engine for Mordor: The Depths of Dejenol, played from the player's own copy</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.2.3">
+      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Mordor.Core\Mordor.Core.csproj" />
+    <ProjectReference Include="..\Mordor.Modding\Mordor.Modding.csproj" />
+  </ItemGroup>
+
+  <!-- the mods that come with the port, into bin/<config>/net8.0/mods (docs/MODDING.md) -->
+  <Import Project="..\Mods\ShipMods.targets" />
+
+  <!-- No pictures or help of the game's own are built in: they are read out of the player's copy at
+       start (Art.cs, Mordor.Core/Extraction, docs/GAME_FILES.md). -->
+</Project>

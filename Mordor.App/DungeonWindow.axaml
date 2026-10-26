@@ -1,0 +1,452 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:app="clr-namespace:Mordor.App"
+        x:Class="Mordor.App.DungeonWindow"
+        Title="Mordor 1.1" Width="1200" Height="780"
+        FontFamily="Cascadia Mono, Consolas, monospace"
+        WindowStartupLocation="CenterScreen"
+        Background="#0a0a10">
+    <!-- The frame is captioned gc0192 + " " + gc0186, "Mordor 1.1", in the dungeon and the city alike
+         (FRMMAIN.BAS:148-152, MAIN.TXT:33-35). -->
+    <!--
+        Mordor is an MDI application. There is one frame, and everything inside it - the dungeon,
+        Party Information, Messages, Objects & Spells - is a window of its own that the player
+        drags, resizes, rolls up and closes. So this window is an MdiHost and nothing else; the
+        panels below live in the Shed until the constructor hands each one to a child window.
+
+        This window is never shown on its own in play: the city puts Root into its own frame in
+        place of the town's for as long as the party is below (DungeonWindow.RunInside), because
+        the original has the one frame, frmMain, and swaps frmCityMain for frmDungeonMain inside
+        it. Only the MORDOR_TEST=dungeon smoke test opens it as a window of its own.
+
+        The Dungeon child keeps the original's arrangement (help screenshot game_files/dmainw1.png,
+        487x229):
+
+            26,6,6 West [ 1 ]  ☠      [mon][mon]          [chest]
+            ┌───────────────┐ ┌────────────────────────────────────┐
+            │   3D view     │ │ 1. 4 Blue Pelagons                 │
+            │  101 x 101    │ │ 2. 2 Pelagons                      │
+            └───────────────┘ │      You were Breathed on for 22!  │
+             ← ↑ →   ↓        └────────────────────────────────────┘
+            (square caption)
+            1 2 3 4 5 6 7 8 9 10  Map Pickup Drop Fight Spell Take Open Exit
+
+        The arrangement and the sizes are the original's; the rendering is this port's. The
+        automap is a window of its own there, reached by the Map button.
+    -->
+    <!--
+        None of the buttons on this window take keyboard focus. This is a game driven from the
+        keyboard: space is "stop fighting, opening, etc.", f is Fight, o is Open, and a button that
+        had focus would swallow those keys and press itself instead. Clicking still works; the keys
+        keep going to the window, which is where OnKeyDown reads them.
+    -->
+
+    <DockPanel x:Name="Root">
+        <!-- frmMain!picToolbar: it belongs to the frame, not to any of the windows inside it.
+             F11 toggles it, and the Options window can turn it off for good. -->
+        <app:Toolbar DockPanel.Dock="Top" x:Name="Tools"/>
+
+        <Panel>
+        <app:MdiHost x:Name="Host"/>
+
+        <!--
+            The Shed. Everything here is lifted out in the constructor and handed to a child
+            window, so it is empty by the time anyone sees it. It exists so the panels can be
+            written as XAML with their x:Names and Click handlers intact, which is what the
+            code-behind addresses them by.
+        -->
+        <Panel x:Name="Shed" IsVisible="False">
+
+            <!-- ===================================================== the Dungeon child -->
+            <!--
+                frmDungeonMain as FRMDUNM.FRM draws it: a client area of 7200x3045 twips, 480x203
+                pixels, every control at the form's own place in pixels (15 twips each). The window
+                is game_files/dmainw1.png, 487x229 with its border.
+
+                Form_Resize scales every control with the window (sub0760, FRMDUNM.BAS:334) after
+                setting the height from the width (FRMDUNM.BAS:328-332), so the whole of it grows
+                and shrinks together - which is what the Viewbox does.
+
+                The arrangement and the sizes are the original's; the colours are this port's.
+            -->
+            <Viewbox x:Name="DungeonBox" Stretch="Fill">
+                <!-- the form's MS Sans Serif 8.25 through the Options fonts (UiFonts); lblDisarm has its own -->
+                <Canvas x:Name="DungeonCanvas" Width="480" Height="203" Background="#0c0c14" app:UiFonts.Font="frmDungeonMain">
+                    <Canvas.Styles>
+                        <Style Selector="Button">
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="MinHeight" Value="0"/>
+                            <Setter Property="MinWidth" Value="0"/>
+                            <Setter Property="CornerRadius" Value="0"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                        </Style>
+                        <!-- cmdBuffer and cmdAction as a VB3 CommandButton draws itself, inside a
+                             one-pixel black frame. The form puts Pickup and Drop, and Fight and
+                             Spell, 15 twips over one another (cmdAction(4) 3015 600 wide against
+                             cmdAction(5) at 3600; cmdAction(0) 4230 500 wide against cmdAction(1) at
+                             4710) and the ten buffers edge to edge, so the frame is all that parts
+                             them - game_files/dmainw1.png shows the black line between each pair.
+                             The theme's frame is see-through, and the pairs read as one button. -->
+                        <Style Selector="Button.frame">
+                            <Setter Property="BorderBrush" Value="Black"/>
+                            <Setter Property="BorderThickness" Value="1"/>
+                        </Style>
+                        <Style Selector="Button.frame:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="BorderBrush" Value="Black"/>
+                        </Style>
+                        <Style Selector="Button.frame:pressed /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="BorderBrush" Value="Black"/>
+                        </Style>
+                        <Style Selector="Button.frame:disabled /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="BorderBrush" Value="Black"/>
+                        </Style>
+                    </Canvas.Styles>
+
+                    <!-- lblRoom: 45,30 1575x225 - where you are and which way you face -->
+                    <TextBlock x:Name="PosText" Canvas.Left="3" Canvas.Top="2" Width="105" Height="15"
+                               Foreground="#e8e0c0" FontWeight="Bold" TextAlignment="Center"/>
+
+                    <!-- shpMazeBox, three pixels bigger than picMaze2 and one pixel up and left of it
+                         (FRMDUNM.BAS:262-265) -->
+                    <Rectangle Canvas.Left="4" Canvas.Top="19" Width="104" Height="104" Stroke="#333" StrokeThickness="1"/>
+                    <!-- picMaze2: 75,300 1515x1515, the view, 101 pixels square -->
+                    <Canvas x:Name="ViewCanvas" Canvas.Left="5" Canvas.Top="20" Width="101" Height="101"
+                            Background="#000" ClipToBounds="True"/>
+                    <!-- lblDead, inside picMaze2 at 0,615 1470x225: the death-state word
+                         (MAINMOD2.BAS:3043), shown only while it has one -->
+                    <TextBlock x:Name="CombatTitle" Canvas.Left="5" Canvas.Top="61" Width="98" Height="15"
+                               Background="#808080" Foreground="#fff0f0" FontWeight="Bold" TextAlignment="Center"
+                               IsVisible="{Binding $self.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
+                    <!-- picPicture(0) at 45,1890 holds cmdMove(0..3), 300x300 each, captioned in the
+                         Symbol font: left at -15, up at 270, right at 555 and down at 1005 - one row,
+                         with a gap before the last (game_files/dmainw1.png) -->
+                    <Button Focusable="False" Content="←" Canvas.Left="2" Canvas.Top="125" Width="20" Height="20" Click="OnTurnLeft"/>
+                    <Button Focusable="False" Content="↑" Canvas.Left="21" Canvas.Top="125" Width="20" Height="20" Click="OnForward"/>
+                    <Button Focusable="False" Content="→" Canvas.Left="40" Canvas.Top="125" Width="20" Height="20" Click="OnTurnRight"/>
+                    <Button Focusable="False" Content="↓" Canvas.Left="70" Canvas.Top="125" Width="20" Height="20" Click="OnTurnAround"/>
+
+                    <!--
+                        picMonsters: 1665,45 5490x2145. Monsters on this square, whether or not they
+                        have engaged. The original never covers the view with a combat box, because
+                        combat runs on a timer and a box you had to dismiss would be wrong.
+                    -->
+                    <Border x:Name="CombatPanel" IsVisible="False" Canvas.Left="111" Canvas.Top="3" Width="366" Height="143"
+                            Background="#18101a" BorderBrush="#a04040" BorderThickness="1">
+                        <Canvas x:Name="CombatCanvas" Width="364" Height="141">
+                            <!-- sub0B9B draws the engaged picture 45x45 at 3,8 (MONSMOD.BAS:4444-4445) -->
+                            <Image x:Name="StateIcon" Canvas.Left="2" Canvas.Top="7" Width="45" Height="45"
+                                   RenderOptions.BitmapInterpolationMode="None"/>
+                            <!-- monShowMonsters (MONSMOD.BAS:4351-4396): one 60x60 portrait per
+                                 living group, side by side and centred on the box at y 7 (6 on this canvas,
+                                 which is picMonsters less one, as StateIcon's 2,7 is sub0B9B's 3,8), each
+                                 copied straight off the sheet (SRCCOPY). Filled by ShowPortraits. -->
+                            <Canvas x:Name="MonsterStrip" Canvas.Left="0" Canvas.Top="0" Width="364" Height="70"
+                                    IsHitTestVisible="False"/>
+                            <!-- monShowChest: 45x45 against the far edge, 6 pixels in, at y 8
+                                 (MONSMOD.BAS:4099-4100). "To open a chest during peacetime or
+                                 combat, either press 'o' or click on the chest" (help, Combat). -->
+                            <Image x:Name="ChestIcon" Canvas.Left="314" Canvas.Top="7" Width="45" Height="45"
+                                   Cursor="Hand" Tapped="OnChestClicked" RenderOptions.BitmapInterpolationMode="None"/>
+                            <!-- picMonGroups: 60,1050 5320x480, lblMonster(0..3) two to a column,
+                                 167x13 each, with lblCurrentGroup's mark in front -->
+                            <ItemsControl x:Name="MonsterList" Canvas.Left="3" Canvas.Top="70" Width="355" Height="32"
+                                          Background="#0a0a10">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel Orientation="Vertical" ItemWidth="166" ItemHeight="14"/></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                            <!-- lblCharacterHit 90,1605 5325x210 and lblMonsterHit 90,1860 5325x195 -->
+                            <TextBlock x:Name="CombatHit" Canvas.Left="5" Canvas.Top="106" Width="355" Height="14"
+                                       Foreground="#ffe080" FontWeight="Bold" TextAlignment="Center"/>
+                            <TextBlock x:Name="CombatMonsterHit" Canvas.Left="5" Canvas.Top="123" Width="355" Height="13"
+                                       Foreground="#ff9090" FontWeight="Bold" TextAlignment="Center"/>
+                            <!-- No combat log here: picMonsters holds lblCharacterHit and lblMonsterHit and
+                                 no list. Everything else a fight says goes through sub085B to the
+                                 Messages window, as it happens. No order line, spell box or Fight /
+                                 Defend / Stop buttons either: dmainw1.png has none, and the orders are
+                                 the keys (f, d, c, space - MAINMOD2.BAS:3582-3606, 4011-4050) and the
+                                 toolbar's Fight and Spell, which only queue those keys
+                                 (FRMDUNM.BAS:76-123). -->
+                        </Canvas>
+                    </Border>
+
+                    <!-- cmdWait: 3405,795 2040x480. The original has one button here and it is only
+                         ever shown when you are dead (MAINMOD2.BAS:3046). -->
+                    <Button Focusable="False" x:Name="WaitBtn" Content="_Wait for Rescue" IsVisible="False"
+                            Canvas.Left="227" Canvas.Top="53" Width="136" Height="32" Click="OnWait"/>
+
+                    <!-- lblSquareInfo: 60,2250 5190x405, the square's own caption, above the
+                         command bar -->
+                    <TextBlock x:Name="MsgText" Canvas.Left="4" Canvas.Top="150" Width="346" Height="27"
+                               Foreground="#c8c8d8" TextWrapping="Wrap"/>
+
+                    <!--
+                        picTrap: 5340,2250 1815x420, lblTrap and lblDisarm and nothing else
+                        (MONSMOD.BAS:4171-4177). The sentence that used to stand above them here -
+                        "A chest lies among the remains. (o to open)" - was this port's own; the
+                        chest announces itself by being drawn.
+                    -->
+                    <Border x:Name="ChestPanel" IsVisible="False" Canvas.Left="356" Canvas.Top="150" Width="121" Height="28"
+                            Background="#1a1508" BorderBrush="#8a7a30" BorderThickness="1">
+                        <!-- VB clips a container's children to it, and lblTrap starts 195 twips
+                             left of picTrap: ClipToBounds -->
+                        <Canvas Width="119" Height="26" ClipToBounds="True">
+                            <!-- lblTrap -195,0 1950x210, Alignment 1 (Right Justify) and no font of its
+                                 own - the form's MS Sans Serif 8.25 bold - in frmDungeonMain's form
+                                 data in MORDOR.EXE (RCDATA 22). It was Courier New and centred, and
+                                 "Magically Locked" ran out of the box -->
+                            <TextBlock x:Name="ChestText" Canvas.Left="-14" Canvas.Top="-1" Width="130" Height="14"
+                                       Foreground="#ffd070" FontWeight="Bold" TextAlignment="Right"/>
+                            <!-- lblDisarm 120,195 1650x210, Courier New 7.5 bold, Alignment 1 (Right
+                                 Justify) - the same form data -->
+                            <TextBlock x:Name="ChestGauge" Canvas.Left="7" Canvas.Top="12" Width="110" Height="14"
+                                       app:UiFonts.Font="frmDungeonMain.lblDisarm" FontWeight="Bold"
+                                       Foreground="#8fd9d9" TextAlignment="Right"/>
+                        </Canvas>
+                    </Border>
+
+                    <!-- picPicture(1) at 45,2715 7110x285: cmdBuffer(0), 225x285, with nine more
+                         loaded beside it (FRMDUNM.BAS:245-252), then the eight cmdAction buttons -->
+                    <UniformGrid x:Name="BufferButtons" Columns="10" Rows="1" Canvas.Left="2" Canvas.Top="180" Width="150" Height="19"/>
+                    <Button Classes="frame" Focusable="False" x:Name="MapBtn" Content="Map" Canvas.Left="169" Canvas.Top="180" Width="33" Height="19" Click="OnOpenAutomap"/>
+                    <Button Classes="frame" Focusable="False" x:Name="PickupBtn" Content="Pickup" Canvas.Left="204" Canvas.Top="180" Width="40" Height="19" Click="OnPickupBody"/>
+                    <Button Classes="frame" Focusable="False" x:Name="DropBodyBtn" Content="Drop" Canvas.Left="243" Canvas.Top="180" Width="40" Height="19" Click="OnDropBody"/>
+                    <Button Classes="frame" Focusable="False" x:Name="FightBtn" Content="Fight" Canvas.Left="285" Canvas.Top="180" Width="33" Height="19" Click="OnAttack"/>
+                    <Button Classes="frame" Focusable="False" x:Name="SpellBtn" Content="Spell" Canvas.Left="317" Canvas.Top="180" Width="33" Height="19" Click="OnShowSheetSpells"/>
+                    <Button Classes="frame" Focusable="False" x:Name="TakeBtn" Content="Take" Canvas.Left="352" Canvas.Top="180" Width="40" Height="19" Click="OnShowSheet"/>
+                    <Button Classes="frame" Focusable="False" x:Name="OpenBtn" Content="Open" Canvas.Left="394" Canvas.Top="180" Width="40" Height="19" Click="OnOpenChest"/>
+                    <Button Classes="frame" Focusable="False" x:Name="ExitBtn" Content="Exit" Canvas.Left="436" Canvas.Top="180" Width="40" Height="19" Click="OnExitToTown"/>
+                </Canvas>
+            </Viewbox>
+
+            <!-- ============================================ the Party Information child -->
+            <!-- the original keeps this in its own window, "which will pop up and remain until
+                 the party is disbanded (or killed)" (help, Parties) -->
+            <!-- frmParty, the same form as the town's: drawn to its form data (MORDOR.EXE RCDATA 44)
+                 at its 291x99 client and zoomed with the window. The rectangles, and where each
+                 number comes from, are in the town's copy in CityWindow.axaml. No marker column:
+                 bm5.png has none, the selected row is told by its colour. -->
+            <app:ElasticCanvas x:Name="PartyBox" DrawnHeight="99" IsVisible="False" app:UiFonts.Font="frmParty">
+                <Grid ColumnDefinitions="72,49,42,53,64" x:Name="PartyHeader" Canvas.Left="5" Canvas.Top="1" Height="12">
+                    <TextBlock Grid.Column="0" Text="Name" FontWeight="Bold" Foreground="#888"/>
+                    <TextBlock Grid.Column="1" Text="Hits" FontWeight="Bold" Foreground="#888" HorizontalAlignment="Right" Margin="0,0,5,0"/>
+                    <TextBlock Grid.Column="2" Text="Spells" FontWeight="Bold" Foreground="#888" HorizontalAlignment="Right" Margin="0,0,2,0"/>
+                    <TextBlock Grid.Column="3" Text="Status" FontWeight="Bold" Foreground="#888" HorizontalAlignment="Right" Margin="0,0,10,0"/>
+                    <TextBlock Grid.Column="4" Text="Option" FontWeight="Bold" Foreground="#888" HorizontalAlignment="Right"/>
+                </Grid>
+                <StackPanel x:Name="PartyRows" Canvas.Left="5" Canvas.Top="18"/>
+                <!-- cmdCommand(0..2) (FRMGROUP.BAS:32-46) -->
+                <app:ElasticCanvas.Styles>
+                    <Style Selector="Button">
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="MinHeight" Value="0"/>
+                        <Setter Property="Width" Value="63"/>
+                        <Setter Property="Height" Value="20"/>
+                        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                        <Setter Property="VerticalContentAlignment" Value="Center"/>
+                    </Style>
+                </app:ElasticCanvas.Styles>
+                <Button Canvas.Left="3" Canvas.Top="76" Focusable="False" Content="Switch To" Click="OnSwitchTo"/>
+                <Button Canvas.Left="69" Canvas.Top="76" Focusable="False" Content="Options" Click="OnPartyOptions"/>
+                <Button Canvas.Right="4" Canvas.Top="76" Focusable="False" Content="Leave" Click="OnPartyLeave"/>
+            </app:ElasticCanvas>
+
+            <!-- ==================================================== the Messages child -->
+            <!-- the original's own scrolling window (help screenshot bm15.png) -->
+            <DockPanel x:Name="MessagesBox">
+                <!--
+                    lstMessages is a list box, and sub085B ends with
+                    "lstMessages.ListIndex = lstMessages.ListCount - 1" - so the newest line is the
+                    selected one and the list is sitting on it. The help's screenshot of this
+                    window (game_files/bm15.png) shows exactly that: five lines, the last one
+                    highlighted. This was a TextBlock of joined lines, which cannot show it.
+                -->
+                <!-- lstMessages has the form's own MS Sans Serif 8.25 (MORDOR.EXE, frmCharStat4), through
+                     the Options fonts (UiFonts): it had been the frame's Cascadia Mono -->
+                <ListBox x:Name="MessageLog" Background="#08080c" BorderBrush="#333" BorderThickness="1"
+                         app:UiFonts.Font="frmCharStat4.lstMessages" DoubleTapped="OnClearMessages">
+                    <!-- at most twenty lines (mc04F2), so a plain StackPanel: every row is laid out as it is
+                         added. Rows were seen blank at normal size until a maximise re-measured the
+                         list, the mark of a virtualising panel that has not realised them -->
+                    <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
+                    <!-- lstMessages is a VB ListBox: one row per line at the font's own height, 13 pixels in
+                         game_files/bm15.png. The theme's item padding made every line two tall. -->
+                    <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="Padding" Value="3,0"/><Setter Property="MinHeight" Value="0"/></Style></ListBox.Styles>
+                </ListBox>
+            </DockPanel>
+
+            <!-- ============================================ the Objects & Spells child -->
+            <!--
+                FRMCHAR3, the second of the game's two tabbed windows (help, The Game Screen), with
+                the three pages the help names: Items, Spells and Companions. CTRL-i, CTRL-p and
+                CTRL-o reach them from anywhere in the game.
+
+                The character's own stats used to be repeated at the top of this window. They are
+                not here any more - they have a window of their own now, which is where the
+                original keeps them.
+
+                Laid out to frmCharStat3's form data in MORDOR.EXE (RCDATA 10), as the town's copy
+                is: see CityWindow.axaml for every rectangle. The client is 271x207 and the whole
+                form zooms with the window (FRMCHAR3.BAS:408-444).
+            -->
+            <Border x:Name="SheetPanel" IsVisible="False" Background="Transparent">
+                    <!-- the buffers are filled by dragging onto the character window's Buffers page (FRMCHAR1.BAS:219-233).
+                         No message line under the pages: FRMCHAR3's labels are lblItem, lblItemStatus,
+                         lblGuild, lblName, lblLevel, lblPoints, lblCompName, lblCharacterHit and
+                         lblCall, and what the window's commands say goes to Messages (sub085B) -->
+                    <!-- tabItemTab at 30,30 4005x3060 -->
+                    <!-- the form's MS Sans Serif 8.25 through the Options fonts (UiFonts), inherited by
+                         every control on the three pages: none sets a size of its own -->
+                    <TabControl x:Name="SheetTabs" Padding="0" Margin="2,2,2,1" app:UiFonts.Font="frmCharStat3">
+                        <TabControl.Styles>
+                            <Style Selector="Button">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="MinHeight" Value="0"/>
+                                <Setter Property="MinWidth" Value="0"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            </Style>
+                            <Style Selector="ComboBox">
+                                <Setter Property="MinHeight" Value="0"/>
+                                <Setter Property="Padding" Value="4,0"/>
+                            </Style>
+                            <Style Selector="TextBox">
+                                <Setter Property="MinHeight" Value="0"/>
+                                <Setter Property="Padding" Value="2,0"/>
+                                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                                <!-- txtSpell is one line and has no scroll bar: in a larger Options font the theme put its up-arrow in the box -->
+                                <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled"/>
+                            </Style>
+                            <Style Selector="ListBox">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="Background" Value="#0a0a10"/>
+                            </Style>
+                            <!-- a row is its labels' height: the theme's item padding made each pack row 44 pixels -->
+                            <Style Selector="ListBoxItem">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="MinHeight" Value="0"/>
+                            </Style>
+                            <Style Selector="ScrollBar">
+                                <Setter Property="AllowAutoHide" Value="False"/>
+                            </Style>
+                            <!-- cmdCast and cmdInfo as a VB3 CommandButton draws itself, in a black frame: the
+                                 form puts cmdCast (2580, 600 twips wide) 15 twips over cmdInfo (3165), and the
+                                 frame is what parts them, as the Dungeon window's button row (Button.frame there) -->
+                            <Style Selector="Button.frame">
+                                <Setter Property="BorderBrush" Value="Black"/>
+                                <Setter Property="BorderThickness" Value="1"/>
+                            </Style>
+                            <Style Selector="Button.frame:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                <Setter Property="BorderBrush" Value="Black"/>
+                            </Style>
+                            <Style Selector="Button.frame:pressed /template/ ContentPresenter#PART_ContentPresenter">
+                                <Setter Property="BorderBrush" Value="Black"/>
+                            </Style>
+                        </TabControl.Styles>
+                        <!--
+                            "From here, you can Equip, Use, Drop and Examine items... To select an
+                            item to Equip, Use or Drop, click on the item and then on the
+                            associated button." (help, Items)
+                        -->
+                        <TabItem Header="Items">
+                            <Canvas Width="254" Height="170" Margin="5,2,0,0" HorizontalAlignment="Left" VerticalAlignment="Top">
+                                <!-- opaque buttons over the list, as in town (CityWindow.axaml) -->
+                                <Canvas.Resources>
+                                    <SolidColorBrush x:Key="ButtonBackground" Color="#3b3b40"/>
+                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#232328"/>
+                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#6c6c70"/>
+                                    <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#3b3b40"/>
+                                </Canvas.Resources>
+                                <!-- "As a shortcut (nice when in combat), you can use an item by double-clicking on it."
+                                     (help, Items) - and the Click Commands list says the same -->
+                                <ListBox x:Name="PackList" Canvas.Left="0" Canvas.Top="0" Width="233" Height="170"
+                                         ScrollViewer.VerticalScrollBarVisibility="Hidden" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         DoubleTapped="OnSheetUse">
+                                    <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Margin="0,-1,0,0"/></ItemsPanelTemplate></ListBox.ItemsPanel>
+                                </ListBox>
+                                <ScrollBar x:Name="PackScroll" Orientation="Vertical" Canvas.Left="234" Canvas.Top="0" Width="18" Height="168"/>
+                                <!-- the mods' commands (Quality of Life's Sort): the form has no room below
+                                     Info, so they stack upwards from Equip, the same size -->
+                                <StackPanel x:Name="PackModButtons" Canvas.Left="177" Canvas.Bottom="79"/>
+                                <Button Canvas.Left="177" Canvas.Top="91" Width="58" Height="20" Focusable="False" Content="Equip" Click="OnSheetEquip" x:Name="SheetEquipBtn"/>
+                                <Button Canvas.Left="177" Canvas.Top="110" Width="58" Height="20" Focusable="False" Content="Use" Click="OnSheetUse" x:Name="SheetUseBtn"/>
+                                <Button Canvas.Left="177" Canvas.Top="129" Width="58" Height="20" Focusable="False" Content="Drop" Click="OnSheetDrop" x:Name="SheetDropBtn"/>
+                                <Button Canvas.Left="177" Canvas.Top="148" Width="58" Height="20" Focusable="False" Content="Info" Click="OnSheetInfo" x:Name="SheetInfoBtn"/>
+                            </Canvas>
+                        </TabItem>
+
+                        <!--
+                            "From here, you can look up spells and cast them. You can also get
+                            information about a spell as well." Info there calls sub1560 with page
+                            9, which is the character window's Misc tab - so that is where the
+                            description goes. (FRMCHAR3.BAS:278-298)
+                        -->
+                        <!--
+                            FRMCHAR3's spell page as the form lays it out: "Spell Type" and cmbClass
+                            across the top; the headings "Spell Name", "Guild", "Lev" and "Points";
+                            five rows of lblName / lblGuild / lblLevel / lblPoints in elaSpells with
+                            vsbSpells beside them; then "Spell", txtSpell, &Cast and &Info along the
+                            bottom. sub2424 fills the rows (FRMCHAR3.BAS:681-712) from what
+                            cmbClass_Click lists (55-140).
+                        -->
+                        <TabItem Header="Spells">
+                            <Canvas Width="254" Height="172" Margin="5,3,0,0" HorizontalAlignment="Left" VerticalAlignment="Top">
+                                <TextBlock Canvas.Left="7" Canvas.Top="14" Width="68" Text="Spell Type" FontWeight="Bold" TextAlignment="Right"/>
+                                <ComboBox x:Name="SheetClassBox" Canvas.Left="85" Canvas.Top="12" Width="146" Height="20"/>
+                                <TextBlock Canvas.Left="9" Canvas.Top="40" Width="72" Text="Spell Name" FontWeight="Bold"/>
+                                <TextBlock Canvas.Left="125" Canvas.Top="40" Width="34" Text="Guild" FontWeight="Bold" TextAlignment="Right"/>
+                                <TextBlock Canvas.Left="153" Canvas.Top="40" Width="34" Text="Lev" FontWeight="Bold" TextAlignment="Right"/>
+                                <TextBlock Canvas.Left="193" Canvas.Top="40" Width="37" Text="Points" FontWeight="Bold" TextAlignment="Right"/>
+                                <!--
+                                    "When you click on a spell, it will be highlighted blue and
+                                    selected to cast" (help, Spells); it can be dragged to a buffer
+                                    the way the help says, and a double-click casts
+                                    (lblName_DblClick, FRMCHAR3.BAS:617-620).
+                                -->
+                                <ListBox x:Name="SheetSpellBox" Canvas.Left="11" Canvas.Top="55" Width="222" Height="71"
+                                         ScrollViewer.VerticalScrollBarVisibility="Hidden" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         DoubleTapped="OnSheetSpellDoubleTapped">
+                                    <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Margin="2,2,0,0"/></ItemsPanelTemplate></ListBox.ItemsPanel>
+                                </ListBox>
+                                <ScrollBar x:Name="SheetSpellScroll" Orientation="Vertical" Canvas.Left="233" Canvas.Top="55" Width="19" Height="72"/>
+                                <!-- txtSpell: what Cast and Info act on. A click on a spell writes its
+                                     name here (lblName_MouseDown, FRMCHAR3.BAS:622-636); a name can
+                                     also be typed, any spell at all (fn1725). -->
+                                <TextBlock x:Name="SheetSpellLabel" Canvas.Left="7" Canvas.Top="138" Width="34" Text="Spell" FontWeight="Bold"/>
+                                <TextBox x:Name="SheetSpellText" Canvas.Left="39" Canvas.Top="135" Width="126" Height="19"/>
+                                <Button Classes="frame" Canvas.Left="172" Canvas.Top="134" Width="40" Height="21" Focusable="False" Content="_Cast" Click="OnSheetCast"/>
+                                <Button Classes="frame" Canvas.Left="211" Canvas.Top="134" Width="40" Height="21" Focusable="False" Content="_Info" Click="OnSheetSpellInfo"/>
+                            </Canvas>
+                        </TabItem>
+
+                        <!--
+                            "the type of creature for a companion along with their hits... When you
+                            pick up a dead companion or character, their number (for companions) or
+                            name (for characters) will be displayed above the box containing the
+                            companion information." (help, Companions)
+                        -->
+                        <TabItem Header="Companions">
+                            <Canvas Width="254" Height="172" Margin="9,4,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" x:Name="CompanionPage">
+                                <!-- lblCarryInfo 90,30 3330x210, Arial 8.25 bold -->
+                                <TextBlock x:Name="SheetStates" Canvas.Left="6" Canvas.Top="2" Width="222" Height="14" Foreground="#8fd9d9"
+                                           app:UiFonts.Font="frmCharStat3.lblCarryInfo" FontWeight="Bold"/>
+                                <!--
+                                    "The buttons allow you to kick out a specific companion whenever
+                                    you wish and even turn and attack them... You can also Name your
+                                    companions and get information on a companions Special
+                                    Abilities." The buttons are cmdCompanion "1".."4"; a picture is
+                                    double-clicked for stats and right-clicked to attack, its name
+                                    clicked to name it. All placed in code at the form's rectangles
+                                    (CompanionsPage, ServiceForms.Companions).
+                                -->
+                            </Canvas>
+                        </TabItem>
+                    </TabControl>
+            </Border>
+        </Panel>
+        </Panel>
+    </DockPanel>
+</Window>

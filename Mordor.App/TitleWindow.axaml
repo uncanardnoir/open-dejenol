@@ -1,0 +1,93 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Mordor.App.TitleWindow"
+        Title=""
+        Width="599" Height="398" CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        RequestedThemeVariant="Light"
+        FontFamily="Microsoft Sans Serif, MS Sans Serif, Arial"
+        Background="#C0C0C0">
+    <!--
+      frmMenu, laid out from its form in MORDOR.EXE: 8985 x 5970 twips, at 15 twips to the pixel.
+      It has no caption. Image1 is a 600 x 400 picture at 0,-30 twips that covers the whole form
+      (the reaper, the dwarf, the dragon and the devil on stone); lblMordor and Label1 sit on it,
+      and cmdCommand(0..10) are 3D buttons in MS Sans Serif 9.75 bold, navy except Exit and About,
+      which are maroon. Everything below is those twips divided by 15.
+    -->
+    <Canvas x:Name="Form" Width="599" Height="398" ClipToBounds="True">
+        <Image x:Name="Backdrop" Canvas.Left="0" Canvas.Top="-2" Width="600" Height="400" Stretch="None"/>
+
+        <!-- lblMordor: 2715,345 3525x795, Times New Roman 24 bold, navy on the button face, centred -->
+        <Border Canvas.Left="181" Canvas.Top="23" Width="235" Height="53" Background="#F0F0F0">
+            <TextBlock Text="MORDOR" FontFamily="Times New Roman" FontSize="32" FontWeight="Bold"
+                       Foreground="#000080" HorizontalAlignment="Center"/>
+        </Border>
+        <!-- Label1: 3525,825 2535x240, MS Sans Serif 9.75 italic, maroon, right-aligned. The
+             TrueType Microsoft Sans Serif runs wider than the bitmap font, so the box is widened to
+             the left by 20 pixels; its right edge, where the text ends, is the form's. The slanted
+             face is drawn a few pixels right of where it is measured, and the box's own clip cut
+             the "l" of Dejenol off, so it does not clip: the white of lblMordor behind it runs on
+             to 416 and holds it -->
+        <TextBlock Canvas.Left="215" Canvas.Top="55" Width="189" Height="16" Text="The Depths of Dejenol"
+                   FontSize="13" FontStyle="Italic" Foreground="#800000" TextAlignment="Right" ClipToBounds="False"/>
+
+        <Button x:Name="CreateBtn" Canvas.Left="175" Canvas.Top="125" Width="250" Height="27" Click="OnCreateOrRun"
+                Classes="menu" Content="_Create Character"/>
+        <Button x:Name="PasswordBtn" Canvas.Left="175" Canvas.Top="217" Width="250" Height="27" Click="OnChangePassword"
+                Classes="menu" Content="Change _Password"/>
+        <Button x:Name="ExitBtn" Canvas.Left="175" Canvas.Top="359" Width="122" Height="27" Click="OnQuit"
+                Classes="menu maroon" Content="E_xit"/>
+        <Button x:Name="HelpBtn" Canvas.Left="175" Canvas.Top="326" Width="122" Height="27" Click="OnHelp"
+                Classes="menu" Content="_HelpLesson"/>
+        <Button x:Name="ExchangeBtn" Canvas.Left="175" Canvas.Top="186" Width="250" Height="27" Click="OnExchange"
+                Classes="menu" Content="_Exchange Items"/>
+        <Button x:Name="DeleteBtn" Canvas.Left="175" Canvas.Top="248" Width="250" Height="27" Click="OnDelete"
+                Classes="menu" Content="_Delete Character"/>
+        <Button x:Name="OptionsBtn" Canvas.Left="303" Canvas.Top="326" Width="122" Height="27" Click="OnOptions"
+                Classes="menu" Content="_Options..."/>
+        <!-- not the original's: the port's Mods page (docs/MODDING.md). On the form's own grid - the
+             column's 250 x 27, a row above HelpLesson and Options at their pitch of 33 (326 to 359) -
+             in the gap the form leaves between Delete Character (ends at 275) and HelpLesson -->
+        <Button x:Name="ModsBtn" Canvas.Left="175" Canvas.Top="293" Width="250" Height="27" Click="OnMods"
+                Classes="menu" Content="_Mods..."/>
+        <Button x:Name="LoadBtn" Canvas.Left="175" Canvas.Top="155" Width="250" Height="27" Click="OnLoad"
+                Classes="menu" Content="_Load Character"/>
+        <Button x:Name="AboutBtn" Canvas.Left="303" Canvas.Top="359" Width="122" Height="27" Click="OnAbout"
+                Classes="menu maroon" Content="_About..."/>
+        <Button x:Name="ListBtn" Canvas.Left="26" Canvas.Top="186" Width="120" Height="27" Click="OnCharacterList"
+                Classes="menu" Content="Character Li_st"/>
+        <Button x:Name="HallBtn" Canvas.Left="453" Canvas.Top="186" Width="120" Height="27" Click="OnHall"
+                Classes="menu" Content="Hall of _Records"/>
+
+        <!-- not the original's: where a failed delete's system message goes, since it has no box of its own -->
+        <TextBlock x:Name="StatusText" Canvas.Left="4" Canvas.Top="380" Width="160" Foreground="#800000"
+                   FontSize="11" TextWrapping="Wrap"/>
+    </Canvas>
+
+    <Window.Styles>
+        <Style Selector="Button.menu">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#000080"/>
+            <Setter Property="Background" Value="#C0C0C0"/>
+            <Setter Property="BorderBrush" Value="#808080"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.maroon">
+            <Setter Property="Foreground" Value="#800000"/>
+        </Style>
+        <!-- keep the 3D button's face and ink under the pointer, where the theme would change both -->
+        <Style Selector="Button.menu:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.menu:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#D0D0D0"/>
+            <Setter Property="BorderBrush" Value="#808080"/>
+            <Setter Property="Foreground" Value="#000080"/>
+        </Style>
+        <Style Selector="Button.maroon:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.maroon:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#800000"/>
+        </Style>
+    </Window.Styles>
+</Window>

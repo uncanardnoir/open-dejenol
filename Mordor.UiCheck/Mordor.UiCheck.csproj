@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Window behaviour that only shows with the real controls laid out: the Automap child resized,
+    paged and clicked, in Avalonia's headless platform. Nothing is put on screen, nothing is
+    played and nothing is written - run by tools/check.sh, MORDOR_CHECK_NO_UI or not.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Skia" Version="11.2.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Mordor.Core\Mordor.Core.csproj" />
+    <ProjectReference Include="..\Mordor.App\Mordor.App.csproj" />
+    <!-- the DPS Meter mod's window, driven headless -->
+    <ProjectReference Include="..\Mods\Mordor.Mod.DpsMeter\Mordor.Mod.DpsMeter.csproj" />
+  </ItemGroup>
+
+</Project>
