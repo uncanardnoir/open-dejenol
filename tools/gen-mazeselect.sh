@@ -1,5 +1,5 @@
 #!/bin/sh
-# Regenerates Mordor.Core/MazeSelect.g.cs and MazeSelectPrune.g.cs from the decompiled source.
+# Regenerates src/Mordor.Core/MazeSelect.g.cs and MazeSelectPrune.g.cs from the decompiled source.
 #
 # The slice is sub0980 in MODULE3.BAS (MAZEMOD), the procedure that decides what the dungeon view
 # shows. Boundaries, all verified against the listing:
@@ -14,7 +14,7 @@
 set -e
 here=$(dirname "$0")
 src="$here/../decompiled/MODULE3.BAS"
-out="$here/../Mordor.Core"
+out="$here/../src/Mordor.Core"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 

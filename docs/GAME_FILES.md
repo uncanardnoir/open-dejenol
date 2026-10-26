@@ -13,9 +13,9 @@ It plays either release:
 
 The only thing that keeps the game from starting is the files it needs being missing or unreadable.
 
-Code: `Mordor.Core/GameFiles.cs` (`GameFiles.Check`, `GameFolder`), `Mordor.Core/LimitedVersion.cs`
-(the limited build's behaviour), `Mordor.Core/Saves.cs` (the saves folder),
-`Mordor.App/GameFolderWindow.cs` (the first-run window), the start-up in `Mordor.App/App.axaml.cs`.
+Code: `src/Mordor.Core/GameFiles.cs` (`GameFiles.Check`, `GameFolder`), `src/Mordor.Core/LimitedVersion.cs`
+(the limited build's behaviour), `src/Mordor.Core/Saves.cs` (the saves folder),
+`src/Mordor.App/GameFolderWindow.cs` (the first-run window), the start-up in `src/Mordor.App/App.axaml.cs`.
 Checks: `selfcheck` ("the game files and the limited build") and `Mordor.UiCheck` ("the first-run
 window").
 
@@ -70,8 +70,50 @@ InstallMate 9):
 | MDATA3.MDR (46,103) | items; `Floor` per item | deepest 16 |
 | MDATA1/2/3/5 | open with a version string | "1.171" |
 
-No shareware copy was to hand to measure, so the shareware side rests on the texts above: three
-levels, and the monsters and items that go with them.
+### The shareware, measured (2026-10-25)
+
+The real shareware: `MORDOR11.ZIP` from the Internet Archive,
+<https://archive.org/details/MordorTheDepthsofDejenol_1020>, 106 files dated 10 June to 6 July
+1995 (MORDOR.EXE 6 July 1995, 14:40). Against the full 1.1 above, by SHA-256:
+
+| file | shareware | full 1.1 |
+|---|---|---|
+| MDATA1.MDR, MDATA2.MDR, MDATA3.MDR, MDATA5.MDR, MG11.DLL, CMDIALOG/MCI/MSGBLAST/THREED/VSVBX.VBX, WAVMIX16.DLL, all 71 WAVs and 16 MIDs | **identical** - e.g. MDATA5 `c26ebd92...5b1c8739`, MDATA3 `babf9ede...7988d7c7`, MDATA1 `b8086bf8...bc2d032f`, MDATA2 `cd811db2...001908dd`, MG11.DLL `b0a9dbd5...6c661680` | the same files |
+| MDATA11.MDR | 68,166 bytes, **3** levels, `f2498923...f8373c14` | 339,606 bytes, 15 levels, `866551e7...6dfadc16` |
+| MORDOR.EXE | 1,199,121 bytes, `bde2daac...d9356d14` | 1,199,377 bytes, `5284a6a7...0ba7d197` |
+| MORDOR.HLP | 861,890 bytes, `00db3697...df1889e0`, titled "Mordor HelpLesson" | 842,686 bytes, `631126a5...b988b6d8`, "M1: Depths of Dejenol Help Lesson" (the 2015 edition's, "1994 to 2015 Decklin's Domain") |
+| MORDOR.WRI | 8,320 bytes, "Mordor 1.1 Information (7/5/95)", `0f23e4d2...a107c58c` | 9,216 bytes, `d41ef39f...9dbefd66` |
+| only in one | SETUP.EXE, FH_BMP.DLL, MMSYSTEM.DLL, WAVEMIX.INI | VBRUN300.DLL, VBCTL3D.VBX, MORDOR.INI, SUPPORT.WRI (and the user's install has the 2015 edition's extras: cityw1.png, dmainw1.png, MORDOR.chm ...) |
+
+So **the shareware does not lack monsters or items in its data**: its bestiary (MDATA5) and its
+treasure (MDATA3) are the full game's byte for byte - the deepest monster found on level 16, the
+deepest item on 16 - and so are its races, guilds and spells (MDATA1, MDATA2), its pictures
+(MG11.DLL) and its sounds and music. Only the dungeon stops: MDATA11 holds three levels. The "more
+monsters, more items" of MORDOR.WRI and the order form are what a shareware player never meets
+below level 3, not what the files leave out. Its three levels have the same squares, secret doors
+(1, 12, 18) and teleporters (4, 4, 6) as the full game's first three, but MDATA11 is not cut from
+the full file byte for byte (no 64-byte run of it is in the full one). The level-3 teleporters with a fixed destination below (three) and its two chutes that
+drop past level 3 are all on level 3, where the limited build makes them do nothing.
+
+**The shareware's MORDOR.EXE is an earlier build**, not the full one with its switches flipped. It
+is dated 6 July 1995; About's date `gc0196` in it is "7/6/95", where the full build has "7/20/95";
+its order form says "$39.95", where the full build's (never shown) says "$39.99" - as its
+MORDOR.WRI does ("You can now order the full version of MORDOR for only $39.95 + S&H!"). Its other
+strings differ too: it has no "Please use the Mordor EXIT buttons to leave the game." or "Exit
+Mordor" (the full build's refusal of the close box), no "THANK YOU FOR PLAYING MORDOR!" box text but
+a "Thank you for playing MORDOR!", "If you would like to distribute the Shareware version of Mordor,
+you can find it on most game FTP sites, ...", "See MORDOR.WRI for more Information!", "PLEASE DO NOT
+DISTRIBUTE!" and "This is the Commercial version of Mordor, NOT the Shareware version.", and an
+older piracy line. Its p-code has not been decompiled, so what those do in it is not known; the
+port keeps to the full build's decompiled branches (below) and takes from the shareware's program
+only the two strings the limited build shows that differ: the price and the date. Every other line
+the limited build shows - the caption, the Public Version box, the LIMITED VERSION line, the dead
+chute and teleporter lines, the rest of the order form - is in the shareware's MORDOR.EXE word for
+word.
+
+`tools/check.sh` passes against this folder: the checks that hold figures of the full game's
+dungeon or help print "full game only (this folder is the shareware)" and are skipped, and what
+can be held to the shareware is checked instead.
 
 ## The check (`GameFiles.Check`)
 
@@ -87,7 +129,9 @@ In order; the first that fails is the answer, and the player is told which:
 5. Every data file parses with the port's own loaders. Not: refused as damaged.
 6. **Which release**: MDATA11 holds at least **15** levels (fn0A0B's own limit), some monster is
    found on level 15 or below, and some item likewise: the full game (`Full`). Less is the
-   shareware (`Limited`) - **played**, as the limited build.
+   shareware (`Limited`) - **played**, as the limited build. The real shareware is told by the
+   first of the three alone: its monsters and items reach level 16 as the full game's do (they
+   are the same files); the other two are for a copy cut down some other way.
 
 No whole-file hash is required: other full releases (1.0, CD against download) need not match
 byte for byte, but they will hold fifteen levels. The SHA-256 of the 1.1 MORDOR.EXE is kept
@@ -110,11 +154,14 @@ accepts a folder), and the port takes the limited build's branches:
 | TAKE on a chute on level 3: "You cannot take this Chute in the Limited Version." | `DungeonWindow`'s TAKE |
 | a chute walked onto on level 3: "There is a chute here, but it doesn't do anything in the Limited Version.", and the square routine goes on | the square routine |
 | a teleporter record whose Z2 is past 3: "..but it doesn't go anywhere in the limited version...", nobody moves, and the square routine goes on | the square routine |
-| About shows "Ordering Info", which opens "Mordor Ordering Information" (frmOrderInfo, laid out from FRMORDER.FRM, text from FRMORDER.BAS) | `AboutWindow`, `OrderInfoWindow` |
+| About shows "Ordering Info", which opens "Mordor Ordering Information" (frmOrderInfo, laid out from FRMORDER.FRM, text from FRMORDER.BAS), at the shareware MORDOR.EXE's price, "$39.95" (the full build's FRMORDER.BAS:18 says $39.99) | `AboutWindow`, `OrderInfoWindow`, `LimitedVersion.OrderInfo` |
+| About's "Version 1.1 (Last Edited 7/6/95)", the shareware MORDOR.EXE's `gc0196` (the full build's is 7/20/95, MAIN.TXT:36) | `AboutWindow`, `LimitedVersion.LastEdited` |
 
 **Values, and which are inference.** The full build's `mc015E` and `mc0624` are 15; the limited
-build's are taken as **3**, the shareware's depth in MORDOR.WRI ("limited to 3 dungeon levels") -
-in the full build both equal the deepest level, and the shareware's deepest is 3. `m009C` and
+build's are taken as **3**, the shareware's depth in MORDOR.WRI ("limited to 3 dungeon levels") and
+in its MDATA11 (measured, above) - in the full build both equal the deepest level, and the
+shareware's deepest is 3. The shareware's own program has not been decompiled, so its constants
+themselves are not read; the price and the About date are, from its strings. `m009C` and
 `m0622` are constants that are 0 in the full build and so True (-1) in the limited one. `m02A6` and
 `m0032` are variables nothing assigns in the full build's decompile; they are taken as on in the
 limited build, since their only effects are lines that say "limited version" and the order form.
@@ -218,13 +265,13 @@ outright. Checked with read-only scratch folders in `selfcheck` (the game files 
 ## The game's pictures and help: read from the player's copy
 
 Since October 2026 the port carries none of the game's pictures or help. On first run - and
-whenever the game files change - `Mordor.Core/Extraction/GameArt.cs` reads them out of the game
+whenever the game files change - `src/Mordor.Core/Extraction/GameArt.cs` reads them out of the game
 folder into a per-user cache, `%LOCALAPPDATA%\OpenDejenol\cache\<key>` (`MORDOR_ART_CACHE` moves
 it; the checks use scratch caches). The key is a hash of the extractor's version and of every
 source file present, so a cache is only ever used for the files it came from; it is written to a
-temporary folder and renamed into place when complete. `Mordor.App/Art.cs` loads every picture
+temporary folder and renamed into place when complete. `src/Mordor.App/Art.cs` loads every picture
 from there (`{app:Art name.png}` in a form); nothing falls back to a copy inside the program.
-`Mordor.DataDump <game> extract [dir]` writes the same files for a look.
+`Mordor.Tools <game> extract [dir]` writes the same files for a look.
 
 | file in the cache | from | how |
 |---|---|---|
@@ -239,7 +286,14 @@ from there (`{app:Art name.png}` in a form); nothing falls back to a copy inside
 Every picture is pixel for pixel the one the port used to carry (selfcheck holds their hashes,
 and compares the files of 498ef89 when git can show them). The WinHelp reader handles the 3.1
 file system, B+ trees, `|SYSTEM`, `|TOPIC` (LZ77 and phrase compression, display and table
-records, jumps), `|CONTEXT` and `|TTLBTREE`. The help used to be bundled from the CHM that the 2015
+records, jumps), `|CONTEXT` and `|TTLBTREE`. `|SYSTEM`'s CONTENTS record (type 3, a topic offset)
+names the topic WinHelp opens the file at for HELP_CONTENTS, which is what the original's Help
+asked for (FRMMAIN.BAS:75-76); help.json marks that topic (`"Contents":true`) and the help window
+opens there when no topic is asked for, the first topic in a file without the record. It is
+Welcome in both releases measured: offset 0, the first topic, in the full game's MORDOR.HLP, and
+0x26896D, the last of its 73 topics, in the shareware's (whose first is AutoMap). The art cache's
+key carries the extractor's version (`GameArt.Version`, 2 since the mark), so a cache made before
+it is made again. The help used to be bundled from the CHM that the 2015
 edition's help tool generated beside MORDOR.HLP; made from the .HLP it has the same 73 topics,
 titles, text, line layout, tab stops and 103 jumps, except:
 
@@ -262,11 +316,172 @@ MG11.DLL that holds none of the pictures. Anything else missing or unreadable be
 picture of the right size with a note in the crash log, and the game goes on; no MORDOR.HLP means
 the help window says the help is unavailable.
 
-**Shareware and other releases.** No shareware copy was to hand, so this is reasoned, not
-measured. The shareware is built from the same source (its "limited" switches are constants), so
-it should hold the same forms and resource names; it needs MG11.DLL as the full game does (sub10C5
-loads it at start, whatever the build), and its Help opens `App.HelpFile`, MORDOR.HLP, as the
-full game's does. If a picture is not where the extractor looks, it is the blank-and-note case
-above, not a failed start. What a 1995 release would lack is the 2015 edition's
-extras - `cityw1.png` and the help's `CITYW1.BMP` - so its city buttons are the program's own
-pictures scaled down, and its help is whatever its MORDOR.HLP holds.
+**Shareware and other releases.** Measured on the real shareware (above): its MG11.DLL is the full
+game's, and every one of the 30 pictures comes out of it and its MORDOR.EXE pixel for pixel the
+one the port used to carry (selfcheck), with nothing missing. It has no `cityw1.png`, but its
+MORDOR.HLP carries `CITYW1.BMP` as the full game's does, so its city buttons are the same pictures.
+Its help is its own MORDOR.HLP: another file from the full game's, titled "Mordor HelpLesson",
+with the same 73 topic titles and 103 jumps but its own text, layout and topic order (AutoMap first,
+Welcome last, and Welcome its Contents topic, where the help window opens). Another release whose
+picture is not where the extractor looks gets the blank-and-note case above, not a failed start;
+one with neither `cityw1.png` nor `CITYW1.BMP` gets the program's own city pictures scaled down.
+
+## Importing the original's saves
+
+A player who has played the original can bring the game across: **Options, File Backups, "Import
+Original Saves..."** (from the main menu only, as Backup and Restore are). It reads the original's
+`DATA` folder - or the game's folder with `DATA` inside it, as `BasePath + "DATA\"` (gc1C74) - and
+writes the port's JSON into the saves folder in use.
+
+Code: `src/Mordor.Core/Import/VbLayout.cs` (the record types and each file's `Len`),
+`src/Mordor.Core/Import/OriginalSaves.cs` (reading, field by field into the port's model),
+`src/Mordor.Core/Import/SaveImport.cs` (the plan, the backup, the writing), `src/Mordor.App/ImportWindow.cs`
+(the folder picker, the preview, the questions). Checks: `selfcheck`'s "importing the original's
+saves" sections, `Mordor.UiCheck`'s "the Import Original Saves preview", and the probe
+`Mordor.Tools <game> import [datadir]`, which prints every character and note.
+
+### The safe way round
+
+- The original's files are only read (opened read-only, never written; the checks compare their
+  sizes and times before and after).
+- Nothing is written until the preview's **Import**. The preview lists every character by name
+  with race, guild, hits, gold and where they are, the world files, the remembered parties, and
+  what the import has to say (below).
+- Before anything is written, every file at the top of the saves folder is copied into
+  `BACKUP\before-import-yyyyMMdd-HHmmss` inside it - a folder the Options window's **Restore** can
+  bring back (it holds character files, which is what Restore looks for). A copy that fails stops
+  the import before anything is written.
+- **Characters** are written one file each. A character whose name the saves folder already has
+  is unticked in the preview, and ticking it is asked about again, by name ("Replace
+  Character?", No the default), before that one file is replaced. The rest are left alone. New
+  characters go into `roster.json` in the original's record order.
+- **The shared world** - automap, rooms, store, Library, Hall of Records, guildmasters, pens, guild
+  log - is one tick box, ticked only when the saves folder has none of those files yet: importing
+  it replaces the port's (the backup keeps them). A fresh saves folder is therefore the simplest
+  case: everything is new and ticked.
+- A remembered party (MDATA12) is written as `party-<leader>.json` when its leader is imported.
+
+### Which file holds what
+
+The `Open` lines of the decompiled modules (gc1C10 to gc1C44, MAIN.TXT:580-593), checked by
+selfcheck against every `Open ... For Random ... Len =`:
+
+| file | Len | holds | the port's file |
+|---|---|---|---|
+| MDATA4 | 2900 | record 1 the version "1.1", record 2 the count, then a T5810 per character; a deleted one is blanked in place (mdrmazGetChars, fn04ED) | `<name>.json` each, `roster.json` |
+| MDATA6 | 16 | version, MDATA3's item-data stamp, count, then a T5755 shelf per item table index: Align(0-3) = U G N E counts | `store.json` (`"itemId:align"`) |
+| MDATA7 | 128 | version, then per guild a T564C: a variable-length name and a level | `guildmasters.json` |
+| MDATA8 | 10 | version, the deepest level anyone reached, then per level 900 Longs, one flag word per square, `(L-1)*900 + x + 30*(y-1) + 2` (fn0A34) | `automap.json`; the deepest level into `dungeon.json` |
+| MDATA9 | Binary | Integer count, then entries: Integer guild, Long day, Integer length, text (sub0578, HALL.BAS:25-50) | `MDATA9.MDR` in the port's own layout |
+| MDATA10 | 28 | record 1 = 15 levels, records 2-16 each level's respawn tally (fn0DDC), then per level 200 areas of four T4E8B Foes and a T4F0B Fight (fn0E38) | `dungeon.json` (`Rooms`, `Tally`) |
+| MDATA12 | 35 | an Integer count, then four variable-length names a party, the leader's first (fn179B) | `party-<leader>.json` |
+| MDATA13 | 100 | version, monster count, item count, monsters found, items found, then a T5BF1 per monster table index and per item table index (sub0F9A) | `library.json` (`"mr:index"`, `"i:itemId"`) |
+| MDATA14 | 45 | a T73E9 per record, record k+1 for record k (fn1C07); sub0595 writes record 1 over the version stamp | `records.json` |
+| MDATA15 | 16 | version, MDATA5's stamp, count, then a T5755 pen per monster table index: Align(0-2) = Good, Neutral, Evil | `confinement.json` (`"Ref:align"`, align one more) |
+
+MDATA1, 2, 3, 5 and 11 are the game's tables; the port reads its own game folder's, and the saves
+are read against them (item and monster table indexes). A DATA folder whose MDATA3 or MDATA5 count
+differs from the game folder's is warned about; the store, pens and Library are then matched by
+Id, as the original re-maps them (fn0425, mdrUpdateLibraryFile). `MDATA10.MDR<n>`, which fn0F88
+can open for another level, is a path no build of the game takes (gv1AEC is never above nought
+there) and is not looked for. Any file stamped with another version than "1.1" is refused, as
+fn0326 refuses it.
+
+Two things the port had been said to do and does not: `Roster.cs` does not walk MDATA4 - it
+stands in for MDATA4's record order, so the import writes it; and the port's `MDATA9.MDR` is not
+the original's layout - same fields, same order, but Int32 counts and lengths, an Int64 day and
+UTF-8 text (`GuildLog`), so the import converts the original's log rather than copying it.
+
+### How a record is read
+
+VB3 random files pack a type's fields with nothing between them: Integer 2 bytes, Long and Single
+4, Currency 8 (ten-thousandths), `String * n` its length padded with spaces, little endian, arrays
+from 0 so `Pack(40)` is 41 slots. Record n is at `(n - 1) * Len` and only as long as its type, so
+the last record of a file is short: MDATA4's last is 2887 bytes, the size of T5810, and every
+file's last record is checked to be exactly its type's size. Every field name in `VbLayout` is
+MAIN.TXT's own, and selfcheck compares each type field for field with MAIN.TXT. Offsets counted
+by hand are checked too, among them GuildsJoined at 1678 in a character record, the offset seen
+when a copy of MDATA4 was edited.
+
+### A character, field by field (T5810)
+
+| record | port | notes |
+|---|---|---|
+| Name (String*30) | `Name` | RTrim |
+| RaceIndex, CurrentGuild, GuildsJoined(0-15) | `Race`, `Guilds` | by name; Level > 0 is joined; the current guild first, the rest by index. A race or current guild not in MDATA1 refuses the character |
+| GuildsJoined(g).M579B, M55CB, M57A9, M57B2 | `Experience`, `QuestType`, `QuestTarget`, `QuestDone` | the current guild's experience is the character's own M579B, copied into its slot only when the guild changes (FRMCTYG.BAS:148-150) |
+| GuildsJoined(g).Att, Def | - | the port works guild A/D out from the level; a record that differs is warned about |
+| Alignment, M5829 | `Alignment`, `Sex` | 0 Good 1 Neutral 2 Evil; 0 Male 1 Female |
+| Age (Single) | `Age` | whole days |
+| Stats(0-5), StatMods | `Stats` | StatMods is worked out from the gear; a difference is warned about |
+| Hits, MaxHits, SpellPoints | `CurHits`, `MaxHits`, `CurSpellPoints` | `MaxSpellPoints` is (INT + WIS) * 5 |
+| DungeonLevel, X, Y, Facing, M59BB | `DungeonLevel`, `X - 1`, `Y - 1`, `Facing`, `Area` | X and Y are 1-based in the record, 0-based in the port |
+| Sanctuary, M59F4(0-2) | `SanctuaryX/Y/Level`, `LostLevel`, `LostPosition`, `LostFacing` | |
+| Gold, BankGold (Currency) | `GoldOnHand`, `GoldInBank` | to the ten-thousandth (`VbCurrency`) |
+| Pack(1-39) | `Pack` | Ref < 1 is empty; the item is the table's `Items(Ref).Id` (a disagreeing Id is warned about); Equipped, Charges, Alignment (U G N E), Cursed (the slot's own), IdLevel counted down: 0 = All, 3 = Barely |
+| M5860(0-39) | `Bank` | holes kept, trailing empties dropped |
+| Companions(0-3) | `Companions` | Ref > -1 is a companion; Ref, M57D4 (Id), Name, Hits, MaxHits, Alignment + 1, IdLevel, BindingLevel; an empty slot keeps what its last companion left |
+| M5943 | `CarryingCompanion` | 0-3; a carried body (4 and up) is put down, as fn04CD does when the record is next loaded |
+| Ailments(0-6) | `PoisonLevel`, `DiseaseLevel`, `ParalysisLevel`, `Levitating`, `InvisibleNow`, `SeeingInvisible`, `Protection` | |
+| SpellEffects, SpellResistances(0-10) | `SpellEffects`, `SpellResist` | |
+| DeathState | `IsDead`, `CauseOfDeath`, `Stoned` | the port writes 0 for an ordinary death (DeathStates) |
+| M58DC, M58E9, M58F9 | `RaiseKind`, `RaiseChance`, `RaisedBy` | a raise waiting for an answer |
+| M5906(0-6) | `Kills`, `Deaths`, `Complications`, `MonsterQuestsDone`, `ItemQuestsDone`, `PlaySeconds`, `CreatedOn` | |
+| M5914(0, 2-4), M5914(5) | `Options`, `CombatSetting` | |
+| M594C | `Password` | RTrim; none is the lone space |
+| M5958(0-19) | `Windows` | twips / 15 = pixels |
+| M59B0(0-9), M56AF | `Buffers`, `Swings` | |
+| Att, Def | `ADShift` | the running totals less base, best guild, stats and gear; kept when Att and Def agree, warned about when not |
+
+Worked out by the port and not imported (a stored figure that differs from the port's is a note):
+M5700 and M586D (hands and wear counts), M5997 (weapon slots), M5970 (the experience cap),
+M59A1 (the A/D interval cache), M5962 (the record number while loaded), ItemEffects,
+ItemResistances and Resistances. Fields nothing reads (M56F7, M587C, M588A, M58A6, M59CB, M59D9,
+Stats(6), Ailments(7), M5906(7-8), M59B0(10), M5958(20), Pack(40), M5860(40), Companions(4)) are
+noted when not empty. Per companion, the record's Att and Def: the port uses the monster's.
+
+### The world, and what has no place in the port
+
+- **Rooms**: every area with any record written is imported whole (the four Foes and the Fight:
+  groups, hits, the Single time stamp, the chest's gold to the ten-thousandth); the respawn
+  tallies too.
+- **Automap**: a flag word per square. The been-here bit (gc1D50, 23) becomes the port's explored
+  squares; the rest of the word its recorded flags, and the same bits its "already worked out"
+  set (the original asks one word both questions, mdrmazPerceiveSquare). The row stride is 30,
+  every level's width.
+- **Library**: each record with anything in it, by monster table index or item Id. Records 4 and
+  5, the counts of monsters and items found, have no place in `library.json` (the port does not
+  keep them) - a note.
+- **Hall of Records**: the twelve records; the thirteenth, "Nothing", is not one.
+- **Guildmasters**: name and level per guild; a guild with no name is left to the port's own
+  appointment.
+- Not in the DATA folder, and not imported: MORDOR.INI (the original's options, in the WINDOWS
+  folder) and BACKUP.
+
+### What the import says
+
+Every value it cannot keep as it is, or that does not agree with the game data, is a note:
+**Info** (expected - a field the port works out, a stale copy the original also ignores),
+**Warning** (kept as said, worth a look) and **Refused** (not imported: a file of another version,
+a character whose race or current guild is not in MDATA1). The preview shows them all.
+
+### Tests
+
+- Always: the layouts against hand-counted offsets; a DATA folder built byte by byte at those
+  offsets (two characters, a deleted record, one past the count, every world file) read back and
+  written into a scratch saves folder, field by field, then loaded by the port's own code;
+  importing over it again (the backup, a character not confirmed left alone).
+- With the decompiled source: every type against MAIN.TXT, every file's `Len` against every
+  `Open`.
+- With `MORDOR_ORIGINAL_DATA` naming a copy of an original DATA folder (never committed): sizes,
+  an import end to end, nothing refused and no warning, value plausibility for every character, a
+  second walk of MDATA4 by hand, the level at offset 1678, each character loaded and saved again
+  unchanged, every world file read back. Without it these print "skipped" and are not counted.
+- On screen against the original under OTVDM: a written procedure (private:
+  `docs/IMPORT-GROUND-TRUTH.md`).
+
+Imported from the developer's own original DATA folder (a copy): one character, Probe (Human Nomad
+1, 15/15 hits, 71 gold, in town, a Leather Cap worn), 54 store shelves holding 1,654 items, 10
+pens holding 21 creatures, the twelve guildmasters, 13 squares of level 1 walked, 4 rooms with
+records, 10 creature and 16 item Library records, the twelve Hall records and 15 guild log
+entries - with one note (the Library's found counts) and no warning.

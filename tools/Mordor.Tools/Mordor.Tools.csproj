@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The developer's tools: data dumps, rule probes and simulations that print (docs/TOOLS.md). It
+    references Mordor.Tests for the analyses selfcheck asserts on and these tools print in full.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Mordor.Core\Mordor.Core.csproj" />
+    <ProjectReference Include="..\..\tests\Mordor.Tests\Mordor.Tests.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

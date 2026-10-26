@@ -40,8 +40,10 @@ it, and remembers the choice in `%APPDATA%\OpenDejenol`.
 ## Building from source
 
 - The .NET 8 SDK.
-- `dotnet build Mordor.App -c Release` builds `Mordor.App/bin/Release/net8.0/OpenDejenol.exe`.
-- `dotnet run --project Mordor.App` builds the Debug configuration and starts it.
+- `dotnet build src/Mordor.App -c Release` builds `src/Mordor.App/bin/Release/net8.0/OpenDejenol.exe`.
+- `dotnet run --project src/Mordor.App` builds the Debug configuration and starts it.
+- `MORDOR_GAMEDIR=<path to your Mordor folder> dotnet test` runs the test suites under standard
+  test tooling (see `docs/TOOLS.md`).
 - `sh tools/check.sh <path to your Mordor folder>` runs the checks (Git Bash or another POSIX
   shell). A few of them read material that is not in this repository and say
   "skipped: decompiled source not present"; that is expected.
@@ -60,6 +62,8 @@ There are many ways to contribute:
 Please submit PRs! It is highly encouraged to use LLMs to understand and modify the codebase. Since this codebase was LLM-originated, it was not optimized for human readability. Please try to make any contributions reasonably high quality - test out changes as much as possible, ideally against the original version of the game. A decompiled version of the original game may help you in cross-checking details (getting your hands on such a decompiled version is left up to the reader). When opening a PR, please include what you did and how you validated - this will make things much easier for me to merge.
 
 Feel free to create your own mods as well, and submit for PR. If they are of reasonable quality and taste (at my discretion), I will merge them in.
+
+The only hardline rule I have for this project is that the base game **must be as faithful to the original as possible** (excepting UI look-and-feel that winforms provides - this is not a pixel-perfect recreation). Any changes to the game, even obvious bugfixes, must be done via a togglable mod.
 
 There are other possible extensions to OpenDejenol - mobile versions (need to figure out layout issues) and cloud saves would be an interesting idea. C#/Avalonia run on Linux and macOS, so a port to those OSes should be possible with some work as well. I will probably not prioritize any of these in the near future, but would be quite interested if someone else wants to work on it!
 

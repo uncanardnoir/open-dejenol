@@ -81,7 +81,7 @@ guess from dimensions. [`tools/NeRes`](../tools/NeRes) reads the table and print
 | `MONS` | 600 x 540 | the monster sprite sheet | - |
 | `MISC`, `PICS`, `ASMO` | | interface furniture | - |
 
-The port reads them out of the player's MG11.DLL at start (Mordor.Core/Extraction/GameArt.cs, docs/GAME_FILES.md)
+The port reads them out of the player's MG11.DLL at start (src/Mordor.Core/Extraction/GameArt.cs, docs/GAME_FILES.md)
 as `maze_corridor.png`, `maze_overlays.png`, `maze_backdrop.png`, `maze_dark.png`,
 `maze_water.png` and `maze_quicksand.png` in its art cache.
 
@@ -101,7 +101,7 @@ as `maze_corridor.png`, `maze_overlays.png`, `maze_backdrop.png`, `maze_dark.png
    the left-hand variant and bit 2 for the right.
 
 That is about five hundred conditionals. Rather than transcribe it, [`tools/VbToCs`](../tools/VbToCs)
-translates it mechanically into `Mordor.Core/MazeSelect.g.cs`; run
+translates it mechanically into `src/Mordor.Core/MazeSelect.g.cs`; run
 [`tools/gen-mazeselect.sh`](../tools/gen-mazeselect.sh) to regenerate. Anything the translator does
 not recognise becomes an `UNTRANSLATED` comment rather than passing silently, and the slice
 currently yields none.

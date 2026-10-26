@@ -35,7 +35,7 @@ answers (the `mods` probe).
 The Bank's Deposit and Withdraw buttons, its double-click and its multi-selection are the game's own (a deviation the user
 asked for, docs/FIDELITY.md 2026-09-28), there with mods on or off; the mod adds only the marks and Sort to the Bank.
 
-### The Quality of Life mod (`Mods/Mordor.Mod.QoL`, id `QoL`)
+### The Quality of Life mod (`src/Mods/Mordor.Mod.QoL`, id `QoL`)
 
 Version 1.12.0. Off until ticked on the Mods page; once on, all its toggles default on, and each is read live, so ticking one takes
 effect at once. Each toggle shows its label and one short line of description. Since 1.8.0 the four Party
@@ -164,7 +164,7 @@ with none of them keeps the default, Everyone's own bank - what the old defaults
 
 All seventeen conveniences are built (eleven toggles since 1.8.0, six since 1.9.0, the combat log turned into colour-coded Messages lines, four and a choice since 1.10.0); planned mods 1 to 8 are all in this mod, 1.2.0 adds four more (auto-deposit, the Store's hiding, the identification mark, the shelving line) and 1.3.0 one (the party covering a shortfall). 1.3.1 changes the XP bar to two stages (green to the next level, then purple to the pin), shows the amount to the pin in the Next column once the level is earned, and adds the Store's own "Hide unusable" box. 1.4.0 adds the Store's Slot and Worn columns and the pack's slot label. 1.5.0 adds the Store's sortable Item and Slot headers. 1.6.0 adds the identification mark in the Bank's list and the Bank's Sort button. 1.7.0 adds the quest marks in the Next column (Mark active quests) and widens Next from 44 to 50 pixels for them. 1.7.1 puts the XP tooltip on two lines and keeps two pixels inside the bar at either end of the Next figure (with the host's columns now growing with a larger Options font, "!Pinned" in bold no longer fills the bar).
 
-### The Kaizen mod (`Mods/Mordor.Mod.Kaizen`, id `Kaizen`)
+### The Kaizen mod (`src/Mods/Mordor.Mod.Kaizen`, id `Kaizen`)
 
 Version 1.2.0 (1.0.0 agreed with the user 2026-10-04; 1.1.0 the same day: one buff list per character, edited in
 the Kaizen window, in place of the Mods page's one table; 1.2.0, 2026-10-08, the user's request: the window's
@@ -247,7 +247,7 @@ put in, removed, retargeted) and that they are what is kept, `ctx.Game`, `AskCas
 `ModSettings.Changed`, and `Rules.SpellHealAverage` against 200,000 rolls of `Rules.SpellHeal`, against a stand-in
 for the dungeon's cast path (which the probe cannot open).
 
-### The DPS Meter mod (`Mods/Mordor.Mod.DpsMeter`, id `DpsMeter`)
+### The DPS Meter mod (`src/Mods/Mordor.Mod.DpsMeter`, id `DpsMeter`)
 
 Version 1.1.0 (1.0.0 2026-10-21, the user's request; 1.1.0 2026-10-25 the XP mode, API version 8 - a save tagged with 1.0.0 is not told a mod is missing, the tag being matched by id). Off until ticked on the Mods page; no toggles. It only listens
 (`ModEvents.DamageDealt`, and `ModEvents.ExperienceGained` for its XP mode) and changes nothing in the game. It is **not** held to the Quality of Life mod's "reveal
@@ -327,8 +327,8 @@ The loader looks, in this order, in
 
 1. `mods\` beside the game folder - beside `saves\`, where settings.ini lives. For the user's install that is
    `Desktop\mordor\mods\`. Put your own mods here.
-2. `mods\` beside the program (`Mordor.App\bin\<config>\net8.0\mods\`), where the build puts the mods that come with
-   the port (`Mods/ShipMods.targets`).
+2. `mods\` beside the program (`src\Mordor.App\bin\<config>\net8.0\mods\`), where the build puts the mods that come with
+   the port (`src/Mods/ShipMods.targets`).
 
 `MORDOR_MODS` (folders separated by `;`) replaces both. A mod id found twice is taken from the first folder.
 
@@ -395,7 +395,7 @@ page even while the mod is off.
 
 A .NET 8 class library referencing `Mordor.Modding` (the API) and, as needed, `Mordor.Core` (the game's types:
 `Character`, `Item`, `Party`...). Mark those references `Private="false"`: the game's own copies are used at run time.
-`Mods/Mordor.Mod.QoL/Mordor.Mod.QoL.csproj` is a working example.
+`src/Mods/Mordor.Mod.QoL/Mordor.Mod.QoL.csproj` is a working example.
 
 ```csharp
 public sealed class Entry : Mordor.Modding.IMod

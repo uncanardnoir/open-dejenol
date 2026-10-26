@@ -1,0 +1,34 @@
+<Project>
+  <!--
+    The mods that come with the port, built with whatever imports this (Mordor.App, and
+    Mordor.Tests for its mods suite) and copied into its output's mods folder, one folder per mod:
+    <OutDir>/mods/QoL/{Mordor.Mod.QoL.dll, mod.json}, <OutDir>/mods/Kaizen/{Mordor.Mod.Kaizen.dll,
+    mod.json}, <OutDir>/mods/DpsMeter/{Mordor.Mod.DpsMeter.dll, mod.json}. The loader looks there
+    (docs/MODDING.md).
+    Only the mod's own files are copied: the game's assemblies are the ones it runs against.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)Mordor.Mod.QoL\Mordor.Mod.QoL.csproj"
+                      ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)Mordor.Mod.Kaizen\Mordor.Mod.Kaizen.csproj"
+                      ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)Mordor.Mod.DpsMeter\Mordor.Mod.DpsMeter.csproj"
+                      ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+
+  <Target Name="ShipBundledMods" AfterTargets="Build">
+    <PropertyGroup>
+      <_QoLOut>$(MSBuildThisFileDirectory)Mordor.Mod.QoL\bin\$(Configuration)\net8.0\</_QoLOut>
+      <_KaizenOut>$(MSBuildThisFileDirectory)Mordor.Mod.Kaizen\bin\$(Configuration)\net8.0\</_KaizenOut>
+      <_DpsOut>$(MSBuildThisFileDirectory)Mordor.Mod.DpsMeter\bin\$(Configuration)\net8.0\</_DpsOut>
+    </PropertyGroup>
+    <ItemGroup>
+      <_QoLFiles Include="$(_QoLOut)Mordor.Mod.QoL.dll;$(_QoLOut)Mordor.Mod.QoL.pdb;$(_QoLOut)mod.json" />
+      <_KaizenFiles Include="$(_KaizenOut)Mordor.Mod.Kaizen.dll;$(_KaizenOut)Mordor.Mod.Kaizen.pdb;$(_KaizenOut)mod.json" />
+      <_DpsFiles Include="$(_DpsOut)Mordor.Mod.DpsMeter.dll;$(_DpsOut)Mordor.Mod.DpsMeter.pdb;$(_DpsOut)mod.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_QoLFiles)" DestinationFolder="$(OutDir)mods\QoL" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_KaizenFiles)" DestinationFolder="$(OutDir)mods\Kaizen" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_DpsFiles)" DestinationFolder="$(OutDir)mods\DpsMeter" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

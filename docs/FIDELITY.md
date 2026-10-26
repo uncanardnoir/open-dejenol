@@ -293,7 +293,7 @@ lines from `decompiled/` (the renamer adds header comments); a MODULE-style cita
 | Water and quicksand say nothing as you step in. They speak on the ailment clock, once a tick, for as long as you stand there: "You are Drowning!" and "You are Sinking!" | **decompiled source**, FRMDUNM.BAS:504-511, which writes them into the same `lblSquareInfo`. The port said "You wade through cold water." and "You struggle through quicksand." on the step - its own words, at a moment the original is silent |
 | A character is named in a list as "Tester (Level 5 Ninja)", with the state of the body in capitals after it if there is one | **decompiled source**, FRMCHARL.BAS:51-53 and `gv0814$` (MODULE1.BAS:449-457): Dead, Stoned, Destroyed, Immolated, Frozen, Annihalated, Melted, Rock. "Annihalated" is spelt that way in the game |
 | The Party Options buffer box lists 1 to 10 | **decompiled source**, FRMPINFO.BAS:35-37. The port had listed 1..9 then 0, on the grounds that Shift+0 fires the tenth - true of the key, not of this list |
-| **A spell is a COMBAT spell or a NON-COMBAT spell, and each can only be thrown at the right time.** "COMBAT spells can only be cast in combat while NON-COMBAT spells can only be cast when there are no monsters, or there are peaced monsters in the area" | **the original's help** (Spells), which labels every spell page one or the other, and **decompiled source**: `fn149E` (MAINMOD2.BAS:2908) computes it from MDATA2 rather than storing it - non-combat when `Damage2 = 0` or the school is 9 (Heal), combat otherwise, and "either" when the effect is Teleport or Cure Paralysis. The help has a third label too - Teleport's page reads "COMBAT & NON-COMBAT Spell" - and it falls exactly where the routine says "either". The two sources agree on all 91 spells the help labels and this port has, and disagree on none; `selfcheck` asserts both the nil disagreement and the count, so a matcher that quietly stopped finding labels cannot pass it by comparing nothing. The one spell they are not identical on is Cure Paralysis, where `fn149E` says either and the help says COMBAT - the help saying less than the routine rather than contradicting it. See `Mordor.DataDump castgate`. The port had no such rule |
+| **A spell is a COMBAT spell or a NON-COMBAT spell, and each can only be thrown at the right time.** "COMBAT spells can only be cast in combat while NON-COMBAT spells can only be cast when there are no monsters, or there are peaced monsters in the area" | **the original's help** (Spells), which labels every spell page one or the other, and **decompiled source**: `fn149E` (MAINMOD2.BAS:2908) computes it from MDATA2 rather than storing it - non-combat when `Damage2 = 0` or the school is 9 (Heal), combat otherwise, and "either" when the effect is Teleport or Cure Paralysis. The help has a third label too - Teleport's page reads "COMBAT & NON-COMBAT Spell" - and it falls exactly where the routine says "either". The two sources agree on all 91 spells the help labels and this port has, and disagree on none; `selfcheck` asserts both the nil disagreement and the count, so a matcher that quietly stopped finding labels cannot pass it by comparing nothing. The one spell they are not identical on is Cure Paralysis, where `fn149E` says either and the help says COMBAT - the help saying less than the routine rather than contradicting it. See `Mordor.Tools castgate`. The port had no such rule |
 | **Healing is a non-combat spell.** Once the monsters have engaged you cannot heal | the same two sources - school 9 is Heal, and every heal page in the help reads "NON-COMBAT Spell, will heal hits" |
 | Casting on an anti-magic **or an extinguish** square says "Anti-Magic area!", spends nothing, and forces the anti-magic bit onto your automap | **decompiled source**, MAINMOD2.BAS:520-525. The port let the cast begin, took the spell points, said "You begin X, but the anti-magic field swallows it." - a line of its own - and did not check the extinguish square at all |
 | A combat spell above level 7 cannot be thrown at monsters who have not engaged you: "X Takes too long to throw when peaced, Name." | **decompiled source**, MAINMOD2.BAS:536-540; at or below level 7 the cast goes through and starts the fight |
@@ -436,7 +436,7 @@ fault is only safe while the thing that neutralised it is also reproduced.
 
 **The help's Commands page, checked.** It lists 49 keys across game commands, the ten Ctrl tabs,
 party keys, automap keys and dungeon commands, plus the click, double-click and right-click actions.
-Every one is bound. That was traced by hand to its handler, and `Mordor.DataDump commands` prints
+Every one is bound. That was traced by hand to its handler, and `Mordor.Tools commands` prints
 the list beside what the source still binds so the tracing does not rot.
 
 The check is deliberately weak and says so. It scans the key handler's source for each binding
@@ -532,7 +532,7 @@ area's `LairId`, a `CompanionId`, a quest target - finds Morgul, because it come
 
 No lair or companion in the shipped data points at 307, so this has no effect anybody can observe;
 it is recorded because it is a genuine oddity in the data and because a join on monster id is
-wrong without it. `Mordor.DataDump selfcheck` asserts the pair and which of them a lookup finds.
+wrong without it. `Mordor.Tests selfcheck` asserts the pair and which of them a lookup finds.
 Companions and the Confinement pens, which the port had keyed by Id, are keyed by table index as
 the original keys them since 2026-10-18 - see "Companions and pens are keyed by the table index".
 
@@ -557,7 +557,7 @@ and then only where the area's spawn mask carries their class:
 | Minion of Death (floor 12) | 974 | 50 |
 
 Shadow Ninja is reachable from thirty squares, by the same route that leads to Asmodeus. Why the
-community says otherwise is still open; `Mordor.DataDump shadow` prints the table above, and the
+community says otherwise is still open; `Mordor.Tools shadow` prints the table above, and the
 answer is not the duplicated id.
 
 **The trap bit mapping, confirmed 400 ways.** Monster_Trap_Table gives every monster a YES or NO for
@@ -610,7 +610,7 @@ that differ both have an answer in the data:
 - **Vomitis Goo** lairs on level 2 and is not on their list, with no companion linkage or anything
   else in the data to explain it away. That one looks like an omission on the page.
 
-The coordinates themselves are not compared. `Mordor.DataDump lairs` reports the first square it
+The coordinates themselves are not compared. `Mordor.Tools lairs` reports the first square it
 scans in each area, which is rarely the square the page names, and the lair belongs to the area
 rather than to any one square of it - so the monster set is the honest comparison and the
 coordinates are printed for reading rather than for checking.
@@ -638,7 +638,7 @@ appears outside of its anti-magic lair". So it is on their list for a reason oth
 criterion - where it lives rather than what it is - and it is correct that the criterion does not
 derive it. The data says Aboleth is charmable, and the data is right.
 
-`Mordor.DataDump selfcheck` asserts the whole set by name. Changing the Charm Resistant bit from 3
+`Mordor.Tests selfcheck` asserts the whole set by name. Changing the Charm Resistant bit from 3
 to 1 drops it to 31 and pulls in Brown Tyke, Charmer, Dark Shape and others, so the check is
 sensitive to each of the four readings rather than just counting rows.
 
@@ -783,7 +783,7 @@ point wherever the accumulation lands on 17.999998 instead of 18". That is exact
 it is exactly what the original does. The evidence for the wrong conclusion was real: with a double
 accumulator, truncating *does* lose values. It was the pair that had to change.
 
-`Mordor.DataDump selfcheck` now asserts all 334, and `adcheck` names any value that parts company.
+`Mordor.Tests selfcheck` now asserts all 334, and `adcheck` names any value that parts company.
 
 
 **Where a community page and the source disagree, and the source wins.** Two of the pages state a
@@ -843,7 +843,7 @@ Kinds 0, 2, 1 with Level >= 7: sub09DE gc205A   ' 43 EXPLOS.WAV as well
 ```
 
 The numbers are MAIN.TXT:766-788's Global Consts, and the files MODULE1.BAS:308-379's
-`SoundFiles` table. That table now lives once in the port (`SoundFiles`, Mordor.Core/SoundFiles.cs),
+`SoundFiles` table. That table now lives once in the port (`SoundFiles`, src/Mordor.Core/SoundFiles.cs),
 and the Credits window draws its random sounds from it too. So Poison, Death, Movement and every
 other school play MAGIC, and Heal plays MAGIC2. A Fire, Cold or Electric spell of level 7 or
 higher adds EXPLOS. No Sound FX silences both sounds, as it does every sub09DE sound.
@@ -875,7 +875,7 @@ timed round skipped those lines before their sounds. It played only a monster's 
 MonstersRound played all of it. So in an ordinary fight these were never heard: a companion's
 death cry, a monster's spell, and DRAIN, STONE, STEAL and BYE for a member not on screen. A
 companion's breath or spit on the monsters was silent too. Now every line goes through one rule,
-`CombatSounds.Of` (Mordor.Core/CombatSounds.cs), on both paths. What `sub0E85` plays, in order,
+`CombatSounds.Of` (src/Mordor.Core/CombatSounds.cs), on both paths. What `sub0E85` plays, in order,
 and whether the `(M5F48 = True And pv0442 = Me) Or M5F48 = False` test guards it:
 
 | Where | Sound | No Party Sound test |
@@ -1046,7 +1046,7 @@ The community's Guild_Crests page is what turned this up: its second table says 
 Scavenger's crests cast Charm of Opening, and the port said they cast nothing. Two rows of a
 twelve-row table, and behind them five more items the table does not mention.
 
-`Mordor.DataDump selfcheck` now asserts what all twelve crests cast, and names the seven items a
+`Mordor.Tests selfcheck` now asserts what all twelve crests cast, and names the seven items a
 `SpellId` gate would drop - so the distinction between the two fields is written into a check rather
 than into a comment somebody can read past.
 
@@ -1177,7 +1177,7 @@ until the store. So `CastGate.Unfit` rounds the exact product half to even, as
 fraction; the shipped rates are 1, 1.25, 2, 3, 4, 5, 6, 9 and 12, and `selfcheck` finds no guild
 and spell of its school where they differ (0 of 290).
 
-**The x87's 80-bit intermediates against the port's Doubles - scanned 2026-10-21.** `Mordor.DataDump
+**The x87's 80-bit intermediates against the port's Doubles - scanned 2026-10-21.** `Mordor.Tools
 x87` evaluates every formula whose inputs are all shipped data three ways - the port's code, the
 reading above step by step (each x87 operation exact and then rounded to a 64-bit mantissa, Log
 correctly rounded to 64 bits, a Variant step rounded to its Variant's type, and every store rounded
@@ -1266,7 +1266,7 @@ learned at by a particular guild is listed after the guild name". The help then 
 hand - "the Charm of Opening spell, which is Spell Level 3 for the Thief's guild, but Spell Level 12
 for the Nomad's guild" - and Charm of Opening is base level 1 in MDATA2 with a Thief rate of 3 and a
 Nomad rate of 12, so `Int(1 * 3) = 3` and `Int(1 * 12) = 12`. Both are asserted in
-`Mordor.DataDump selfcheck`, along with the guild level 22/23 boundary either side of Teleport,
+`Mordor.Tests selfcheck`, along with the guild level 22/23 boundary either side of Teleport,
 which is the one place the corrected rule and the invented one give different answers.
 
 **Six lines the Bank never says** - **invented, removed 2026-09-21**. `FRMCITYB` has four strings
@@ -1301,8 +1301,8 @@ not a box that stays ticked.
 
 | Rule | Status | Evidence |
 |---|---|---|
-| Dungeon view: which squares are visible, which wall slabs are lit, which background column each half shows | **decompiled source** | MODULE3.BAS `sub0980`, lines 846-1288, 1291-1312 and 1315-1351, translated mechanically by [`tools/VbToCs`](../tools/VbToCs) into `Mordor.Core/MazeSelect.g.cs`. Regenerate with [`tools/gen-mazeselect.sh`](../tools/gen-mazeselect.sh); the translator emits `UNTRANSLATED` for anything it does not recognise, and the slice currently produces none |
-| Dungeon view: where each of the eight wall slabs lands, and the water and quicksand strips | **decompiled source** | MODULE3.BAS lines 1354-1460, read into `Mordor.App/MazeView.cs`. Slab sizes and source columns from MODULE1.BAS:577-600 |
+| Dungeon view: which squares are visible, which wall slabs are lit, which background column each half shows | **decompiled source** | MODULE3.BAS `sub0980`, lines 846-1288, 1291-1312 and 1315-1351, translated mechanically by [`tools/VbToCs`](../tools/VbToCs) into `src/Mordor.Core/MazeSelect.g.cs`. Regenerate with [`tools/gen-mazeselect.sh`](../tools/gen-mazeselect.sh); the translator emits `UNTRANSLATED` for anything it does not recognise, and the slice currently produces none |
+| Dungeon view: where each of the eight wall slabs lands, and the water and quicksand strips | **decompiled source** | MODULE3.BAS lines 1354-1460, read into `src/Mordor.App/MazeView.cs`. Slab sizes and source columns from MODULE1.BAS:577-600 |
 | Automap legend: "stairs / chute / pit / blue = water / grey = rock / orange = a door you have found..." | **invented, removed 2026-09-21** | FRMAUTOM carries four controls - picMaze, hsbLevel, lblLevel and lblInfo (FRMAUTOM.BAS:105-120) - and none of them is a legend; the help's AutoMap page has none either. The port printed a paragraph under the map explaining every colour, which took up a third of the window. Gone, and `lblInfo` - "You are at 8,10,1 facing North.", which the port never had at all - is in its place |
 | Automap: fog takes a square off your map and says "Thick fog swirls around you; you cannot map this spot." | **invented, removed 2026-09-21** | Fog costs you the square's **edges**, not the square. MAZEMOD.BAS:1630 sets the mapped bit whether you are in fog or not, and only the wall and door bits sit behind `If testBit(BitDark, ...) = False` (1590-1596, 1646, 1671). The help says as much from the other side: the grey explore squares can make "other map items (i.e. fog, water, etc) ... look strange", so a fogged square is on the map to look strange. The original has no message for it at all - what fog does, it does to the Dungeon window |
 | "A chest lies among the remains." - and the same sentence again in the chest panel, with "(o to open)" after it | **invented, removed 2026-09-21** | `monOpenChest` writes one of three bare captions into lblTrap and says nothing anywhere else (MONSMOD.BAS:3503-3510, 3650); picTrap itself carries lblTrap and lblDisarm and no third label (4171-4177). The port had wrapped each caption in a sentence of its own and put it in the combat log, and had written a line of explanation above the panel. The chest announces itself by being drawn |
@@ -1364,7 +1364,7 @@ guild level that scales it down is **`Chars(0)`**, the first character in the pa
 Experience is meant to be worth less to a character who is already powerful. Here the "already
 powerful" is read off somebody else. A level 1 character opening a Goblin's chest at a 60% disarm
 chance earns 299 experience when they are alone or first in the party, and 150 for the identical
-disarm when the party is led by a level 333 character. `Mordor.DataDump chest` prints that table.
+disarm when the party is led by a level 333 character. `Mordor.Tools chest` prints that table.
 
 It is the same species of fault as the window-size *readers*, which all use character 0: a routine
 that means "the current character" and writes `Chars(0)`. (This sentence used to say "writers",
@@ -1394,7 +1394,7 @@ clamp differently:
 
 So a monster 10 or more points of Dex ahead attacks 98% of the time when you take the stairs and
 100% of the time when you walk. Both are the original, which is why the page could not settle on one
-number. `Mordor.DataDump selfcheck` asserts the pair through `CombatEngine.AttackChance`, so a later
+number. `Mordor.Tests selfcheck` asserts the pair through `CombatEngine.AttackChance`, so a later
 tidy-up cannot quietly make the two paths agree.
 
 It is also not an initiative roll. Nothing in `sub0A64` decides who goes first: it decides whether
@@ -1433,13 +1433,13 @@ Protection gained through items: Added Defense = 3 * LN(SL)^2. For Protection ga
 Spells: Added Defense = 3 * LN(Int(SL / 2) + 1)^2", with "Buggy" written against the second - and
 the two expressions are these two writes.
 
-Reproduced. `Mordor.DataDump selfcheck` casts Protection on a Wizard 26, asserts the 7, calls
+Reproduced. `Mordor.Tests selfcheck` casts Protection on a Wizard 26, asserts the 7, calls
 `Effects.Recompute`, and asserts the 14, so it stays a fault that is deliberately carried rather
 than one that quietly settles on a single value.
 
 **The help's spell pages disagree with MDATA2 on eight numbers.** Every spell entry in the original
 help prints a header - `Base Level: 6  Guilds: Sor, Wiz (18)` and `Required Stats: 18 Int, ...` -
-and `Mordor.DataDump spellhelp` reads all 92 of them back against the data the program actually
+and `Mordor.Tools spellhelp` reads all 92 of them back against the data the program actually
 runs on. Most of it agrees exactly: the guild lists match on all 92 entries, which is the strongest
 of the four checks because the list is not stored per spell anywhere - it falls out of each guild's
 MDATA1 row - and the bracketed spell levels match on 190 of 191 guild/spell pairs.
@@ -1632,7 +1632,7 @@ So the `+ 1` is the whole of the fault, wherever it sits. Whether the author mea
 not something the source says, and the old sentence guessed. Confirmed by removing it: Strength is
 then drained about a sixth of the time and the check below fails.
 
-Reproduced in `CombatEngine.GroupAttacks` (MONSMOD.BAS:3142-3168). `Mordor.DataDump drain` reports
+Reproduced in `CombatEngine.GroupAttacks` (MONSMOD.BAS:3142-3168). `Mordor.Tools drain` reports
 who loses what over three thousand rounds - nothing else in a monster's turn moves a stat, so this
 one can be watched from outside rather than needing the draw pulled out.
 
@@ -1694,7 +1694,7 @@ are the only things in the game you may wear any number of at once. The port rep
 tests `!= 0` rather than the tidier `< 1` precisely so it does.
 
 MDATA1 holds twenty-four wear classes and three maxima: 1 for the fifteen you wear one of, 0 for
-the eight consumables, and -1 for Miscellaneous Object alone. `Mordor.DataDump classdump` prints
+the eight consumables, and -1 for Miscellaneous Object alone. `Mordor.Tools classdump` prints
 that table, which nothing else did. Changing the test to `> 0` fails the checks, and six of the
 seven Miscellaneous Items going onto one character at once is what proves the fault is live rather
 than merely written down.
@@ -1840,7 +1840,7 @@ turns it; an Evil one turns three times in four; a Neutral one about one time in
 companion of a Good master has no clause that can fire at all. Counted over twenty thousand rolls
 with a Good master, the port gives 0%, 15.3% and 100% for Good, Neutral and Evil - the last being
 certain because the alignment gap has already decided it before the 75% is reached
-(`Mordor.DataDump ... companionpage`).
+(`Mordor.Tools ... companionpage`).
 
 **A fight already under way can veto the whole thing.** If the monsters on the square are two
 alignment steps from the companion, it "refuses to join the current monsters!" and nothing happens -
@@ -1945,7 +1945,7 @@ weak master slips fast. Each has a floor - half a point content, a whole point b
 is ever held completely still, and a binding of `gc1D78` (bound for life) is not touched at all.
 
 Measured over four hundred runs each with a Dwarven Lord on a level-10 master
-(`Mordor.DataDump ... companionpage`), the median wait before it leaves, in rounds of one second:
+(`Mordor.Tools ... companionpage`), the median wait before it leaves, in rounds of one second:
 
 | binding | drift | rounds |
 |---|---|---|
@@ -2046,7 +2046,7 @@ whoever lands in it. Neither can be reached by walking onto a teleporter.
 All 86 across the fifteen levels were checked against MDATA11. Forty-eight name a square, and
 every one of those is on a level between 1 and 15 and is not rock; twenty-seven of them change
 level. The other thirty-eight carry no destination at all and are re-drawn on the current level
-until the square is not rock, so they cannot be fatal either. `Mordor.DataDump teleports` lists
+until the square is not rock, so they cannot be fatal either. `Mordor.Tools teleports` lists
 every one and what is at the other end.
 
 So the two deaths are reachable only from the Teleport and Displacement spells, which ask you for
@@ -2352,7 +2352,7 @@ the two agree exactly, which is why it went unnoticed for so long; the moment an
 sold, banked or swapped the pack has holes, and then they disagree about which item goes and about
 whether anything goes at all. With three things in slots 5, 20 and 37, the old reading destroyed
 one of them on a roll of 1, 2 or 3 and never touched them on a roll of 5, 20 or 37
-(`Mordor.DataDump ... slotroll`).
+(`Mordor.Tools ... slotroll`).
 
 The same mistake had already turned up in three other places and been fixed there: an item buffer's
 description, the city's items page, and the bank's pack list. It is worth grepping for
@@ -2986,7 +2986,7 @@ The port has no house rules: no rule of the game departs from the original on pu
 no switch to choose between the original's behaviour and a corrected one. Where the original is faulty, the
 fault is reproduced as written and recorded in this document.
 
-There was one. `Mordor.Core/HouseRules.cs` held `NinjaTitlesReachable`, which gave the two
+There was one. `src/Mordor.Core/HouseRules.cs` held `NinjaTitlesReachable`, which gave the two
 unreachable Ninja titles invented thresholds; it was turned off on 2026-10-18 and removed, with the
 file, on 2026-10-25. See [the fault it covered](#a-fault-in-the-original-that-the-port-reproduces-two-ninja-titles-are-unreachable).
 
@@ -3928,7 +3928,7 @@ out in the Pro font, unlike every other tab. frmCharStat1's form data (MORDOR.EX
 as separate labels in `elaTabFrame(0)`: `lblStatInfo`, `lblRaceInfo`, `lblGuildInfo` and `lblSpecial`
 store no font, so they are MS Sans Serif 8.25 bold (the NonPro font, bold); `elaGroupInfo` ("You are
 Alone") is MS Sans Serif 8.25 plain; only `lblStat`'s figures are Courier New 8.25 (the Pro font), set
-right. bm13.png agrees. The page now places each at its rectangle (`Mordor.Core/CharStatForm.cs`),
+right. bm13.png agrees. The page now places each at its rectangle (`src/Mordor.Core/CharStatForm.cs`),
 stacked as Form_Resize stacks the loaded copies (FRMCHAR1.BAS:124-183): half a row more before Spells
 and Hits, a whole row before Strength, the stats' figures 400 twips wide right after their captions,
 and the line above Strength (`elaBorder`) and the "You are Alone" box drawn as the form's Elastics. The
@@ -4924,7 +4924,7 @@ data in MORDOR.EXE: the Guilds, the Bank, the Morgue, the Seer, Confinement & Ho
   (MODULE1.BAS:606-648). That is the form's outer size: its Fixed Double border and its caption.
 - **Every control at its rectangle.** Controls sit at the form's own rectangle, in twips over 15. Each sits in its
   container: elaElastic(0), which covers the client and a pixel beyond, or the smaller Elastics inside it.
-  `Mordor.Core/ServiceForms.cs` holds every rectangle. `tools/check.sh` reads each one back out of MORDOR.EXE, and
+  `src/Mordor.Core/ServiceForms.cs` holds every rectangle. `tools/check.sh` reads each one back out of MORDOR.EXE, and
   each form's client too. It also checks that each page places every rectangle.
   - **The Guild.** lstGuilds is 3360,630 1755x1980. The buttons are Make Level 180,2415, Exp. Info 1725,2415,
     Join 180,2730 and Read Guild Log 1725,2730, all 1450-1455x300. Visit is 3375,2715 1755x285. Visit the Library
@@ -4982,7 +4982,7 @@ screen keeps the port's heading strip, and hides the strip's EXIT, as before.
 back - corrected 2026-09-28.** The three were the port's own roomy layouts: the Library a 300-pixel list beside a
 scrolling page, the Guild Log a 420-pixel list, both under the port's EXIT strip, and the Hall a dialog 8 pixels
 narrower and 7 shorter than its form, with its controls a pixel off. The Library had no Search box at all. Now each
-is its form in MORDOR.EXE, read the same way as the six services (`Mordor.Core/ServiceForms.cs`, held to the EXE
+is its form in MORDOR.EXE, read the same way as the six services (`src/Mordor.Core/ServiceForms.cs`, held to the EXE
 by `tools/check.sh`):
 
 | Form | RCDATA | Client (twips) | Client (pixels) | Elastic |
@@ -5018,7 +5018,7 @@ modal dialog.
     and more than one "ambiguous!", both MsgBox 64 titled "Search", and then the box's text is selected. The
     Enter goes no further (txtSearch_KeyPress). An empty box matches every entry, so it is "ambiguous!" unless the
     list has one line. A whole name that starts another ("Orc", "Orc Lord") is ambiguous too, as in the original.
-    `Mordor.Core/LibrarySearch.cs` holds the search, and check.sh tests one, none and several.
+    `src/Mordor.Core/LibrarySearch.cs` holds the search, and check.sh tests one, none and several.
   - **Exit** is "Exit", with no access key, and its Cancel is True (property 14 = FF), so Escape presses it
     anywhere in the form. The port's strip had given it Alt+X, which the form never had. The port's Escape had
     worked only while the focus was inside the page; it now goes through the window's key preview, as the Guild's
@@ -6436,7 +6436,7 @@ defaults, whose Courier New counts are 12 pixels tall. About seven rows show ins
 The port's text was a mix of the theme's face at several sizes, Cascadia Mono, and faces and sizes written into each
 window, so sizes looked uneven: in the Store the item names and the Slot and Worn columns were larger than the counts
 and the labels. The original gives every form's text its font through three routines, and the port now does the same
-for every game window, through one place (`Mordor.App/UiFonts.cs`, the rule in `Mordor.Core/DesignFonts.cs`):
+for every game window, through one place (`src/Mordor.App/UiFonts.cs`, the rule in `src/Mordor.Core/DesignFonts.cs`):
 - **sub0784** (MAINMOD.BAS:1862-1898), from Form_Load: nothing at all while all four settings are the defaults.
   Otherwise the form and each control but lines and scroll bars: a Courier New one takes the Pro face and ProSize, an
   MS Sans Serif one the NonPro face and NonProSize - in that order, the second test reading the name the first may have
@@ -6457,7 +6457,7 @@ for every game window, through one place (`Mordor.App/UiFonts.cs`, the rule in `
   (Courier New 8.25 bold, RCDATA 8 offset 56): bm13.png shows its unfonted captions (lblStatInfo, lblRaceInfo) in a
   bold sans serif, not Courier New. The Tag is a string property; the welcomes of the Guild, the Bank, the Morgue and
   the Seer are ":12". `DesignFonts` lists every control whose text the port draws with a font of its own, and the
-  default-font ones its own text stands for; `selfcheck` reads each back out of MORDOR.EXE (`Mordor.DataDump/FormFonts.cs`,
+  default-font ones its own text stands for; `selfcheck` reads each back out of MORDOR.EXE (`tests/Mordor.Tests/FormFonts.cs`,
   also the `formfonts` probe, which prints every form's), and checks that every control of `ServiceForms` with a font
   of its own is listed.
 - **What the defaults give.** A zooming form's MS Sans Serif text is 8 points, which Windows draws at 11 pixels as it
@@ -6644,7 +6644,7 @@ default fonts and with Consolas 10 / Segoe UI 10 found text run together or agai
   the Store's usable rows - came out smeared, their letters touching. Windows made the original's bold by drawing the
   bitmap letters twice a pixel apart, each letter a pixel wider. Grey antialiasing looked the same, and aliased text
   dropped the made-up bold altogether. The port's MS Sans Serif is now a font collection of its own
-  (`Mordor.App/SansStandIn.cs`): the plain letters are Microsoft Sans Serif's, the bold ones Tahoma Bold's, a real
+  (`src/Mordor.App/SansStandIn.cs`): the plain letters are Microsoft Sans Serif's, the bold ones Tahoma Bold's, a real
   bold drawn for these sizes. Tahoma is Windows' own stand-in for MS Sans Serif in dialogs ("MS Shell Dlg 2"), and
   its bold is about as wide as the original's doubled letters: at 11 pixels "Uncurse Items" measures 81 pixels in
   Tahoma Bold and 71 in the made-up bold (the plain width), where the doubled letters make about 84 (71 and a pixel
@@ -6771,7 +6771,7 @@ original. If it is wanted, it fits as a Quality of Life toggle.
 port played every WAV through winmm's `PlaySound`, which plays one sound at a time, so each new sound cut off whatever
 was playing. The original plays them through WAVMIX16.DLL (MODULE13.BAS:7-18). `fn1A08` (MUSIC.BAS:376-399) configures
 a session mono at 22 kHz, opens all eight channels (`WaveMixOpenChannel(gv20C8, 0, 1)`, WMIX_OPENALL) and activates it.
-The port now does the same thing in software: `WaveMixChannels` (Mordor.Core/WaveMix.cs) is eight queues of waves summed
+The port now does the same thing in software: `WaveMixChannels` (src/Mordor.Core/WaveMix.cs) is eight queues of waves summed
 into one stream, with clipping and no scaling, at 22,050 Hz; `WaveOutStream` (Mordor.App) plays that stream through
 winmm's `waveOut` in buffers of about 17 ms, four ahead. No library was added. Every WAV the game ships is 8-bit mono 22,050 Hz,
 WaveMix's own format, so nothing is resampled.
@@ -6892,7 +6892,7 @@ spell's companion branch.
 
 The character record keeps `Gold` and `BankGold` as **Currency** (MAIN.TXT:332, 335). Currency is a 64-bit integer
 counting ten-thousandths: four decimal places, exact sums, a range of ±922,337,203,685,477.5807. The port had kept
-whole gold in a `long`. It now keeps a `VbCurrency` (Mordor.Core/VbCurrency.cs) that behaves as VB's does:
+whole gold in a `long`. It now keeps a `VbCurrency` (src/Mordor.Core/VbCurrency.cs) that behaves as VB's does:
 - Currency with an Integer, Long or Currency is exact.
 - Currency with a Single or Double is worked in Double. Storing the result in a Currency rounds it to four places,
   half to even.
@@ -7042,7 +7042,7 @@ shareware) was taken out the same day.
 its limited MORDOR.EXE is the same source compiled with a few constants changed - so the port goes
 by the data: fewer than fifteen levels in MDATA11, or monsters or items that stop short of the
 fifteenth, is the shareware ("limited to 3 dungeon levels", MORDOR.WRI). With it, the limited
-build's branches are taken (`Mordor.Core/LimitedVersion.cs`):
+build's branches are taken (`src/Mordor.Core/LimitedVersion.cs`):
 
 | the full build's constant | the limited build | port |
 |---|---|---|
@@ -7060,6 +7060,15 @@ they are taken as on in the limited build. Not switched: the "PUBLIC BETA" notic
 `Limited=True` to MORDOR.INI (MODULE1.BAS:932-940) hangs on `gv0180`, a beta flag whose text speaks
 of `gc0182` = 15 levels - not the shareware's; and frmWelcome's "Limited " (FRMWELCO.BAS:14-16), a
 splash the port does not have. Details in `docs/GAME_FILES.md`.
+
+**Measured against the real shareware - 2026-10-25.** `MORDOR11.ZIP` (archive.org,
+MordorTheDepthsofDejenol_1020): its MDATA1, 2, 3 and 5, MG11.DLL and sounds are the full 1.1's byte
+for byte, so its monsters and items are not reduced in the data; MDATA11 has 3 levels. Its
+MORDOR.EXE is an earlier build (6 July 1995) whose strings differ from the full one's: the limited
+build now shows its order-form price, "$39.95" (the full EXE's unshown form says $39.99), and its
+About date, "Last Edited 7/6/95" (the full EXE's `gc0196` is 7/20/95). Every other line the limited
+build shows is in that EXE word for word. The help opens at the .HLP's Contents topic, as WinHelp
+did: Welcome in both releases, which is the shareware help's last topic rather than its first.
 
 Saves: a folder of the player's own (`%APPDATA%\OpenDejenol\saves`) unless `saves` beside the game
 folder already holds something, which is then kept as it always was; `MORDOR_SAVES` before both.

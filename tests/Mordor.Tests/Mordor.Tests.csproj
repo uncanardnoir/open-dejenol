@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The test suites (selfcheck, mods, citations): the checks that assert. Run by tools/check.sh and,
+    under `dotnet test`, by Mordor.Tests.Runner. The probes that only print are in Mordor.Tools.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Mordor.Core\Mordor.Core.csproj" />
+    <ProjectReference Include="..\..\src\Mordor.Modding\Mordor.Modding.csproj" />
+  </ItemGroup>
+
+  <!-- the bundled mods beside the suites too, so the mods suite loads the real QoL build -->
+  <Import Project="..\..\src\Mods\ShipMods.targets" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

@@ -3,14 +3,17 @@
 #
 # Two passes, and they answer different questions:
 #
-#   selfcheck  - do the numbers still match what dejenol.com, the help and the MG11.DLL resources
-#                say they should be? This one asserts, and its exit code means something.
-#   the sweep  - does every other probe still run at all? They print rather than assert, so this
-#                catches a crash or a signature that rotted, and nothing finer.
+#   the suites - selfcheck, mods (Mordor.Tests) and the headless window checks (Mordor.UiCheck):
+#                do the numbers still match what dejenol.com, the help and the MG11.DLL resources
+#                say they should be, and do the mods and the windows behave? These assert, and
+#                their exit codes mean something.
+#   the sweep  - does every tool (Mordor.Tools, docs/TOOLS.md) still run at all? They print rather
+#                than assert, so this catches a crash or a signature that rotted, and nothing finer.
 #
-# Neither touches saves or the game files; the probes only read.
+# Neither touches saves or the game files; the suites and the tools only read.
 #
-#   sh tools/check.sh [gamedir]      (gamedir defaults to ../game_files)
+#   sh tools/check.sh [gamedir]      (gamedir defaults to ../game_files; with no Mordor there it
+#                                    says so and stops before building anything)
 #
 # The game folder is the player's own copy of Mordor (docs/GAME_FILES.md): nothing of the game's
 # is in this tree. The .NET SDK is $DOTNET if set, else $DOTNET_ROOT/dotnet, else
@@ -24,6 +27,24 @@
 # would skip the sweep and report less than it knows.
 cd "$(dirname "$0")/.." || exit 1
 GAME="${1:-../game_files}"
+
+# Every check reads the game's own files, so without a Mordor folder each would only fail in turn,
+# with a stack trace apiece. Say so once and stop: here, before anything is built, for a folder that
+# is not there or has no MORDOR.EXE or MDATA11.MDR in it; and after the build with the app's own
+# test of the folder (GameFiles.Check, the "gamefolder" tool) for anything subtler.
+game_stop() {
+    echo "  FAIL  $1"
+    echo "        pass your Mordor folder as the first argument, e.g. sh tools/check.sh /path/to/Mordor"
+    echo; echo "SOMETHING IS WRONG"; exit 1
+}
+if [ ! -d "$GAME" ]; then
+    if [ -n "${1:-}" ]; then game_stop "there is no folder $GAME"
+    else game_stop "no game folder was given, and there is none at ../game_files"; fi
+fi
+for f in MORDOR.EXE MDATA11.MDR; do
+    ls -1 "$GAME" 2>/dev/null | tr -d "\r" | grep -qix "$f" || game_stop "$GAME is not a Mordor folder: there is no $f in it"
+done
+
 if [ -z "${DOTNET:-}" ]; then
     for d in "${DOTNET_ROOT:-}" "${USERPROFILE:+$(cygpath -u "$USERPROFILE" 2>/dev/null)/.dotnet}" "$HOME/.dotnet"; do
         [ -n "$d" ] || continue
@@ -42,63 +63,96 @@ else
     echo "         the checks that read it say so below and are not counted"
 fi
 
-echo "building the probe harness"
+# the projects, and where each Release build puts its program (docs/TOOLS.md)
+TESTS_PROJ=tests/Mordor.Tests/Mordor.Tests.csproj
+TOOLS_PROJ=tools/Mordor.Tools/Mordor.Tools.csproj
+UI_PROJ=tests/Mordor.UiCheck/Mordor.UiCheck.csproj
+APP_PROJ=src/Mordor.App/Mordor.App.csproj
+TESTS_EXE=./tests/Mordor.Tests/bin/Release/net8.0/Mordor.Tests.exe
+TOOLS_EXE=./tools/Mordor.Tools/bin/Release/net8.0/Mordor.Tools.exe
+UI_EXE=./tests/Mordor.UiCheck/bin/Release/net8.0/Mordor.UiCheck.exe
+APP_OUT=./src/Mordor.App/bin/Release/net8.0
+
+echo "building the test suites and the tools"
 # the build's own exit status, not the grep's: a failed build would otherwise leave the last
 # good exe in place, and every check below would run against code that is not this tree's
-BUILD_OUT=$("$DOTNET" build -c Release Mordor.DataDump/Mordor.DataDump.csproj 2>&1)
+BUILD_OUT=$("$DOTNET" build -c Release "$TESTS_PROJ" 2>&1)
 BUILD_RC=$?
 echo "$BUILD_OUT" | grep -E "error|Build succeeded" | head -5
 if [ "$BUILD_RC" -ne 0 ]; then
-    echo "  FAIL  the probe harness did not build (exit $BUILD_RC): nothing was checked"
+    echo "  FAIL  the test suites did not build (exit $BUILD_RC): nothing was checked"
     echo; echo "SOMETHING IS WRONG"; exit 1
 fi
-EXE=./Mordor.DataDump/bin/Release/net8.0/Mordor.DataDump.exe
+TOOLS_OUT=$("$DOTNET" build -c Release "$TOOLS_PROJ" 2>&1)
+TOOLS_RC=$?
+echo "$TOOLS_OUT" | grep -E "error|Build succeeded" | head -5
+if [ "$TOOLS_RC" -ne 0 ]; then
+    echo "  FAIL  the tools did not build (exit $TOOLS_RC): nothing was checked"
+    echo; echo "SOMETHING IS WRONG"; exit 1
+fi
+
+# the folder as the app's start sees it: the full game, the shareware (played as the limited build,
+# its checks of the full game's data skipped with a "full game only" line), or nothing to play
+if ! FOLDER=$("$TOOLS_EXE" "$GAME" gamefolder 2>&1); then
+    game_stop "$GAME has no Mordor to play: $(echo "$FOLDER" | head -1)"
+fi
+echo "the game folder: $FOLDER"
+case "$FOLDER" in
+    Limited*) echo "  it is the shareware: the checks that hold the full game's data and help say \"full game only\" and are skipped" ;;
+esac
 
 echo
 echo "== the numbers that have a source to be checked against =="
-if "$EXE" "$GAME" selfcheck; then CHECKED=0; else CHECKED=1; fi
+if "$TESTS_EXE" "$GAME" selfcheck; then CHECKED=0; else CHECKED=1; fi
 
 echo
 echo "== the mod system: loader, default answers, the Quality of Life mod (docs/MODDING.md) =="
-if "$EXE" "$GAME" mods; then MODS=0; else MODS=1; fi
+if "$TESTS_EXE" "$GAME" mods; then MODS=0; else MODS=1; fi
 
 echo
 echo "== the windows, headless: the Automap resized, paged and enlarged (Mordor.UiCheck) =="
 # Avalonia's headless platform: the real controls laid out and real pointer input routed through
 # them, with nothing put on screen and nothing written, so it runs under MORDOR_CHECK_NO_UI too
-UI_BUILD=$("$DOTNET" build -c Release Mordor.UiCheck/Mordor.UiCheck.csproj 2>&1)
+UI_BUILD=$("$DOTNET" build -c Release "$UI_PROJ" 2>&1)
 UI_RC=$?
 echo "$UI_BUILD" | grep -E " error |Build succeeded" | head -5
 if [ "$UI_RC" -ne 0 ]; then
     echo "  FAIL  the window checks did not build (exit $UI_RC)"
     UI=1
-elif timeout 120 ./Mordor.UiCheck/bin/Release/net8.0/Mordor.UiCheck.exe "$GAME"; then UI=0; else UI=1; fi
+elif timeout 120 "$UI_EXE" "$GAME"; then UI=0; else UI=1; fi
 
 echo
-echo "== every other probe, for a crash =="
-# left out: extract/art/pics/wallart write files, autoload needs a saves directory and a leader,
-# play is a simulation with no end condition
+echo "== every tool, for a crash (Mordor.Tools, docs/TOOLS.md) =="
+# the tools' own table names them (Mordor.Tools --sweep-list): every tool but the ones that write
+# files (extract), need a saves folder and a leader (autoload) or do not end soon (play); and the
+# citations listing beside them, which exits 1 on a citation that misses
 BROKE=""
-for c in abilities adcheck adinterval ailments aligns areaid areas asmodeus audio bits castgate spellhelp lairs rarity traptable shadow hands racetable crestspells spellzero recordzero locks reach classspells orphans commands acid drain stateleak fate uncurse deepest classdump handover citations helpquotes \
-         chest combat companionpage companions depth drops dropsim effects equip exchange \
-         exchangeswap gamedata gearcheck gold goldbug goldfactor goldsim groups guildad guildlog \
-         guildmaster hall itemlayout itemspells itemtypes join library lost magic map maze mdata1 \
-         mflags misid mix monsterattack orient pack party password perceive price quests raise \
-         rating rescue resist respawn rooms rules rulescheck save seer slotroll spawnsim spellcaps \
-         spellgate spellinfo spells spellstuff statmods store swings teleports trade \
-         trapread traps use uselevel; do
-    if ! out=$(timeout 90 "$EXE" "$GAME" "$c" 2>&1); then
+SWEEP=$("$TOOLS_EXE" --sweep-list 2>&1 | tr -d "\r")
+if [ "$(echo "$SWEEP" | grep -c .)" -lt 20 ]; then
+    BROKE=" sweep-list"
+    echo "  FAIL  the tools did not list themselves: $(echo "$SWEEP" | head -2)"
+    SWEEP=""
+fi
+for c in $SWEEP; do
+    # x87 compares tens of thousands of cases and takes about 90 s alone; the rest finish in seconds
+    limit=90; [ "$c" = x87 ] && limit=300
+    if ! out=$(timeout $limit "$TOOLS_EXE" "$GAME" "$c" 2>&1); then
         BROKE="$BROKE $c"
         echo "  CRASHED  $c"
         echo "$out" | grep -iE "exception|error" | head -2
     fi
 done
+if ! out=$(timeout 90 "$TESTS_EXE" "$GAME" citations 2>&1); then
+    BROKE="$BROKE citations"
+    echo "  CRASHED  citations"
+    echo "$out" | grep -iE "exception|error|@" | head -4
+fi
 
-if [ -z "$BROKE" ]; then echo "  every probe ran"; fi
+if [ -z "$BROKE" ]; then echo "  every tool ran ($(echo "$SWEEP" | grep -c .) and the citations)"; fi
 
 echo
 echo "== start-up smoke: the Release app in town and in the dungeon, for a crash =="
-# The probes never open a window, so a crash in a window's start-up (a theme resource of the
+# The suites and the tools never open a real window, so a crash in a window's start-up (a theme resource of the
 # wrong type, say, which took down every tab strip once) got past all of the above. This starts
 # a Release copy of the app in MORDOR_TEST=city and then MORDOR_TEST=dungeon, gives each ten
 # seconds, and fails if it is gone by then or wrote an exception to its crash log.
@@ -152,19 +206,19 @@ smoke_run() {
     echo "building the app (Release)"
     # the build's exit status is kept: a failed or locked build would leave the last exe in place,
     # and the smoke would pass on an app that is not this tree's
-    build_out=$("$DOTNET" build -c Release Mordor.App/Mordor.App.csproj 2>&1)
+    build_out=$("$DOTNET" build -c Release "$APP_PROJ" 2>&1)
     build_rc=$?
     echo "$build_out" | grep -E " error |Build succeeded" | head -5
     if [ "$build_rc" -ne 0 ]; then
         if echo "$build_out" | grep -qE "MSB3026|MSB3027|MSB3021|being used by another process"; then
             echo "  FAIL  the Release build could not write its files: they are locked, most likely because the"
-            echo "        Release app (Mordor.App/bin/Release) is running. Close it and run check.sh again."
+            echo "        Release app ($APP_OUT) is running. Close it and run check.sh again."
         else
             echo "  FAIL  the Release build failed (exit $build_rc): the smoke would test a stale exe"
         fi
         return 1
     fi
-    OUT=./Mordor.App/bin/Release/net8.0
+    OUT=$APP_OUT
     if [ ! -f "$OUT/OpenDejenol.exe" ] || [ ! -d "$OUT/mods" ]; then
         echo "  FAIL  no Release build with its mods folder at $OUT"
         return 1
