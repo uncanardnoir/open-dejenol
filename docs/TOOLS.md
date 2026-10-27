@@ -10,6 +10,7 @@ it: pass the game folder as the first argument. None of it opens a window on scr
 | `tests/Mordor.Tests.Runner` | the suites and the window checks under `dotnet test` | `MORDOR_GAMEDIR=<gamedir> dotnet test` |
 | `tools/Mordor.Tools` | data dumps, rule probes and simulations that print and never assert | `Mordor.Tools <gamedir> <tool> [args]` |
 | `tools/check.sh` | the full gate: builds and runs all of the above but the runner, and ends in `all good` | `sh tools/check.sh <gamedir>` |
+| `tools/pack-release.sh` | the release packages (installer, update package, portable zip): no game folder, nothing uploaded (docs/RELEASING.md) | `sh tools/pack-release.sh <out folder>` |
 
 `dotnet run --project tests/Mordor.Tests -c Release -- <gamedir> selfcheck`, or
 `dotnet run --project tools/Mordor.Tools -c Release -- <gamedir> lairs`, runs one from the source.
@@ -21,8 +22,10 @@ it: pass the game folder as the first argument. None of it opens a window on scr
     src/      Mordor.Core (the rules, no UI), Mordor.Modding (the mod API and loader),
               Mordor.App (the program, OpenDejenol.exe), Mods/ (the bundled mods, ShipMods.targets)
     tests/    Mordor.Tests, Mordor.UiCheck, Mordor.Tests.Runner
-    tools/    Mordor.Tools, NeRes, NameMap, VbToCs, check.sh, gen-mazeselect.sh
+    tools/    Mordor.Tools, NeRes, NameMap, VbToCs, check.sh, gen-mazeselect.sh, pack-release.sh
     docs/     this and the rest
+    .github/workflows/   CI (build and test) and the release from a tag (docs/RELEASING.md)
+    .config/dotnet-tools.json   the pinned Velopack CLI (vpk) the release packs with
 
 The checks read the port's own source from the tree they were built in: `PortTree.Root` (in
 Mordor.Tests) is the nearest folder above the build that holds `Mordor.sln`.
@@ -73,7 +76,7 @@ sweeps the tools and starts the app.
 | Suite | What it checks |
 |---|---|
 | `selfcheck` | the numbers that have a source to be checked against: dejenol.com's formulas, the help, the game data, the forms in MORDOR.EXE, the decompiled source, the port's own code where a rule lives in it |
-| `mods` | the mod system: the loader, the default answers, the bundled QoL, Kaizen and DPS Meter mods (docs/MODDING.md) |
+| `mods` | the mod system: the loader, the default answers, the bundled QoL, Kaizen, DPS Meter and Cartographer mods (docs/MODDING.md) |
 | `citations` | every `FILE.BAS:LINE` citation in docs/FIDELITY.md and the code, against the routine it names (selfcheck asserts the same count; this lists each problem) |
 
 Each prints one `ok` or `FAIL` line per check and exits 1 when anything failed. Some analyses the

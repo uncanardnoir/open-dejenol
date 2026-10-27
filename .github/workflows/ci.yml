@@ -1,0 +1,55 @@
+# Build and test every push and pull request (docs/RELEASING.md).
+#
+# There is no copy of Mordor here, and none may be put here: the suites under `dotnet test`
+# (tests/Mordor.Tests.Runner) all read the game's own files and skip themselves without
+# MORDOR_GAMEDIR, so this checks that the whole solution builds with no warning, that the test
+# project runs, and that the release packages can be made from the tree. The full gate,
+# tools/check.sh, is run locally against a game folder.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        id: dotnet
+        with:
+          dotnet-version: 8.0.x
+
+      # the runner has newer SDKs too; build with the .NET 8 one just installed, as the project does
+      - name: Pin the .NET 8 SDK
+        run: dotnet new globaljson --sdk-version "${{ steps.dotnet.outputs.dotnet-version }}" --force
+
+      - name: Restore
+        run: dotnet restore Mordor.sln
+
+      - name: Build (Release, warnings are errors)
+        run: dotnet build Mordor.sln -c Release --no-restore -warnaserror
+
+      # every suite skips itself here, with no game folder: this shows the test project builds and runs
+      - name: Test
+        run: dotnet test Mordor.sln -c Release --no-build
+
+      # what a release would hold, checked and packed, and thrown away (tools/pack-release.sh)
+      - name: Package (not uploaded)
+        shell: bash
+        run: sh tools/pack-release.sh "$RUNNER_TEMP/release"

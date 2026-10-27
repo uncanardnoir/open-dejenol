@@ -34,16 +34,17 @@ switched on. In the full `MORDOR.EXE` each is a constant False, or 15, or a vari
 | `m02A6` | a teleporter to past the last level: "..but it doesn't go anywhere in the limited version..." | MAZEMOD.BAS:1794-1796, `If m02A6 = True And Z2 > mc015E` | a Static (1535) nothing sets |
 | `m02A6` | a chute walked onto on the last level: "There is a chute here, but it doesn't do anything in the Limited Version." | MAZEMOD.BAS:1840-1841, `If m02A6 = True And DungeonLevel = mc015E` | the same |
 | `m0032` | About's "Ordering Info" button (FRMABOUT.FRM: at 90,1080, 1425x285, hidden), which opens frmOrderInfo (FRMORDER.BAS) | FRMABOUT.BAS:24, `If m0032 = True Then cmdInfo.Visible = True` | a Dim nothing sets |
-| `gv0180` | "PUBLIC BETA ... only n dungeon levels" notice, writes `Limited=True` to MORDOR.INI | MODULE1.BAS:932-940 | never set |
+| `m00A8` | the main menu's About button captioned "Ordering/&About" | FRMMENU.BAS:162, at the end of Form_Load | a Static never set |
+| `gv0180` | "Limitation Notice": "PUBLIC BETA ... only n dungeon levels", then `Limited=True` written to MORDOR.INI, shown until that key holds a "T" (the shareware sets it, with n = 3: observed in the original shareware 2026-10-26) | MODULE1.BAS:932-940, sub03E3, called from Sub Main at 6437 before the data is read | never set (and `gc0182` = 15) |
 | `m002E` | "Limited " before the version on the splash | FRMWELCO.BAS:14-16, a Static | never set |
 
 Every one of those strings is still in the full MORDOR.EXE (checked with `strings`): the VB3
 compiler kept both branches. So there is no string in the program that marks a release, and the
 constants live in p-code that only the decompiler reads. The program is not a usable test.
 
-`[Loading Information] Limited` in MORDOR.INI is not one either: only the beta branch above ever
-writes it (and only `True`), the full build never clears it, so a player who once ran such a build
-keeps `Limited=True` in the Windows folder's MORDOR.INI for good. (The user's own install has
+`[Loading Information] Limited` in MORDOR.INI is not one either: only the `gv0180` branch above -
+the shareware's Limitation Notice - ever writes it (and only `True`), the full build never clears it,
+so a player who once ran the shareware keeps `Limited=True` in the Windows folder's MORDOR.INI for good. (The user's own install has
 `Limited=False` in its folder's MORDOR.INI, written by its installer, not the game.)
 
 ## What the shareware lacks
@@ -148,12 +149,17 @@ accepts a folder), and the port takes the limited build's branches:
 | behaviour | port |
 |---|---|
 | the city and dungeon frames are captioned "Mordor 1.1 (Limited Version)" | `CityWindow`, `DungeonWindow` constructors |
+| the main menu too is captioned "Mordor 1.1 (Limited Version)": frmMain's caption, set by MDIForm_Load before the menu comes up (FRMMAIN.BAS:148-152), observed over the shareware's menu 2026-10-26. The port's menu stands in for the frame there; with the full game's data it keeps frmMenu's empty caption | `TitleWindow` constructor |
+| the help window is captioned "Mordor HelpLesson", the shareware help's own title (the TITLE in the help file's internal SYSTEM file, as WinHelp captioned it; observed in the original shareware 2026-10-26). Not a switch: the help window takes the title of whichever MORDOR.HLP it reads - the full 1.1's is "M1: Depths of Dejenol Help Lesson" | `HelpWindow`, `GameArt.HelpTitle` |
 | no "THANK YOU FOR PLAYING MORDOR!" box on the way out | `OriginalBox.ThankYou` (the menu's Exit, a session end) |
+| the main menu's close box asks "Exit Mordor?" (Yes and No, captioned "EXIT") and a Yes quits, with no goodbye box - the full build refuses it with "Please use the Mordor EXIT buttons to leave the game." (FRMMAIN.BAS:171-175). Observed in the original shareware 2026-10-26, at the menu only: the city's and the dungeon's close box were not tried there, so they keep the full build's refusal | `TitleWindow`, `OriginalBox.RefuseCloseBox`, `LimitedVersion.CloseBoxAsksToExit` |
+| the "Limitation Notice" (MsgBox 48): "NOTICE!", "Because this is a PUBLIC BETA version of MORDOR, only 3 dungeon levels are currently available.", "This message will not appear again." - first of all, before the Public Version box, and then never again | `TitleWindow` on opening. The original writes `Limited=True` to the Windows folder's MORDOR.INI after it; the port writes the same key to the saves folder's `settings.ini`, as it does `NotFirstTime`. Seen in the original shareware 2026-10-26 first thing on every run, because under OTVDM the INI write did not last
 | the "Public Version" box (MsgBox 64) once a run, before the menu's own welcome | `TitleWindow` on opening. The original shows it before its frame comes up; the port has no frame apart from the menu, so it comes over the menu |
 | a level past 3 asked for: "LIMITED VERSION: Request to go to Level n is Denied." in the message list, and level 3 instead. Levels past 15, or below nought, are left alone as fn0A0B leaves them | `DungeonWindow.ChangeLevel` (stairs, teleporters, Sanctuary); a chute's landing, a line for each member who goes down, as sub08F5 calls fn0A0B for each (MAZEMOD.BAS:114-115); the Teleport spell clamps before its fall and rock tests, as fn0A0B comes before them (MAINMOD2.BAS:5823). Stairs down on level 3 still go to fn0A0B, which denies them |
 | TAKE on a chute on level 3: "You cannot take this Chute in the Limited Version." | `DungeonWindow`'s TAKE |
 | a chute walked onto on level 3: "There is a chute here, but it doesn't do anything in the Limited Version.", and the square routine goes on | the square routine |
 | a teleporter record whose Z2 is past 3: "..but it doesn't go anywhere in the limited version...", nobody moves, and the square routine goes on | the square routine |
+| the main menu's About button reads "Ordering/&About" (frmMenu's Form_Load, FRMMENU.BAS:162, `If m00A8 = True`, a Static the full build never sets; observed in the original shareware 2026-10-26), and opens frmAbout as ever (117) | `TitleWindow`, `LimitedVersion.AboutReadsOrdering` |
 | About shows "Ordering Info", which opens "Mordor Ordering Information" (frmOrderInfo, laid out from FRMORDER.FRM, text from FRMORDER.BAS), at the shareware MORDOR.EXE's price, "$39.95" (the full build's FRMORDER.BAS:18 says $39.99) | `AboutWindow`, `OrderInfoWindow`, `LimitedVersion.OrderInfo` |
 | About's "Version 1.1 (Last Edited 7/6/95)", the shareware MORDOR.EXE's `gc0196` (the full build's is 7/20/95, MAIN.TXT:36) | `AboutWindow`, `LimitedVersion.LastEdited` |
 
@@ -166,9 +172,10 @@ themselves are not read; the price and the About date are, from its strings. `m0
 `m0032` are variables nothing assigns in the full build's decompile; they are taken as on in the
 limited build, since their only effects are lines that say "limited version" and the order form.
 
-**Not switched**, on purpose: the `gv0180` "PUBLIC BETA" notice and its `Limited=True` write - a beta
-build's flag, whose text names `gc0182` = 15 levels, not the shareware's three; and frmWelcome's
-"Limited " - the port has no splash screen.
+**Not switched**, on purpose: frmWelcome's "Limited " - the port has no splash screen. The `gv0180`
+"PUBLIC BETA" notice was left out too until 2026-10-26, as a beta build's flag whose text named
+`gc0182` = 15 levels; the real shareware shows it, saying 3 (observed in the original shareware
+2026-10-26), so it is switched with the rest.
 
 ## Where the port looks (`GameFolder.Resolve`)
 
@@ -237,6 +244,13 @@ the folder is made if need be, a place that refuses is passed over, and nothing 
 | `CHARSTAT.TXT` (Shift-F6) | beside the saves folder when the saves are not the per-user ones - `Desktop\mordor\CHARSTAT.TXT`, where the port has always put it - else the game folder, the original's "Root Mordor directory" | the game folder, then `%APPDATA%\OpenDejenol` |
 | the pictures and the help | `%LOCALAPPDATA%\OpenDejenol\cache` (below) | - |
 | the chosen game folder | `%APPDATA%\OpenDejenol\settings.ini` | - |
+| the update check's choices (`[Updates] Check=`, `Prereleases=`; docs/RELEASING.md) | `%APPDATA%\OpenDejenol\settings.ini`, only read | - |
+
+**An installed copy.** The installer (docs/RELEASING.md) puts the program in
+`%LOCALAPPDATA%\OpenDejenol.Game` (the program itself in its `current\`), a folder of its own,
+which an update replaces and an uninstall removes. Nothing above is in it: the saves, the
+settings, the crash log, the cache and the mods beside the game folder stay where the table puts
+them through updates and an uninstall alike.
 
 **The per-user folders' old name.** Before the program was named OpenDejenol, the per-user
 folders were `%APPDATA%\Mordor Port` and `%LOCALAPPDATA%\Mordor Port`. At start (not on a

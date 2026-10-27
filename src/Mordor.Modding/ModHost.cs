@@ -946,6 +946,73 @@ public sealed class ModHost
     public bool IsShown(LoadedMod lm, ModWindow w) =>
         lm.Running && (w.IsShown == null || Guard(lm, "window " + w.Title + ".IsShown", w.IsShown, false));
 
+    // ------------------------------------------------------------------------- the Automap
+
+    /// <summary>
+    /// Whether any running mod has an Automap hook (<see cref="ModUI.AutomapMenu"/>, its marks, hover or
+    /// click). False with no mod: the Automap does nothing more than the original's.
+    /// </summary>
+    public bool AutomapHooked => Live.Any(lm => lm.Context.UI is { } ui
+        && (ui.AutomapMenu != null || ui.AutomapMarks != null || ui.AutomapHover != null || ui.AutomapClick != null));
+
+    /// <summary>The view one mod is handed: a pick's callback guarded for that mod, and not called once it has stopped.</summary>
+    private AutomapView ViewFor(LoadedMod lm, AutomapView view) =>
+        view.WithPickGuard(done => sq => { if (lm.Running) Guard(lm, "Automap pick", () => done(sq)); });
+
+    /// <summary>
+    /// The right-click menu's items for a square, every running mod's in load order (separators kept),
+    /// or an empty list: the original's right-click, a re-plot at once. A mod that throws is disabled
+    /// and adds nothing.
+    /// </summary>
+    public List<(LoadedMod Mod, AutomapMenuItem Item)> AutomapMenu(AutomapView view, AutomapSquare square)
+    {
+        var all = new List<(LoadedMod, AutomapMenuItem)>();
+        foreach (var lm in Live.ToList())
+        {
+            if (lm.Context.UI.AutomapMenu is not { } ask) continue;
+            var items = Guard<IReadOnlyList<AutomapMenuItem>?>(lm, "AutomapMenu", () => ask(ViewFor(lm, view), square), null);
+            if (items == null || lm.Faulted) continue;
+            all.AddRange(items.Where(i => i != null).Select(i => (lm, i)));
+        }
+        // a menu of separators alone is no menu
+        return all.Any(p => !p.Item2.IsSeparator) ? all : new List<(LoadedMod, AutomapMenuItem)>();
+    }
+
+    /// <summary>A mod's Automap menu item was chosen. Nothing for a mod no longer running or a separator; a throw disables the mod.</summary>
+    public void RunAutomapItem(LoadedMod lm, AutomapMenuItem item)
+    {
+        if (lm.Running && !item.IsSeparator && item.IsEnabled) Guard(lm, "Automap menu " + item.Label, item.Run);
+    }
+
+    /// <summary>Every running mod's marks for the level the view shows, in load order. Empty with no mod.</summary>
+    public List<AutomapMark> AutomapMarks(AutomapView view)
+    {
+        var all = new List<AutomapMark>();
+        foreach (var lm in Live.ToList())
+        {
+            if (lm.Context.UI.AutomapMarks is not { } ask) continue;
+            var marks = Guard<IReadOnlyList<AutomapMark>?>(lm, "AutomapMarks", () => ask(ViewFor(lm, view)), null);
+            if (marks != null && !lm.Faulted) all.AddRange(marks.Where(m => m != null));
+        }
+        return all;
+    }
+
+    /// <summary>The pointer moved onto another square of the map, or off it (null): every running mod is told.</summary>
+    public void AutomapHover(AutomapView view, AutomapSquare? square)
+    {
+        foreach (var lm in Live.ToList())
+            if (lm.Context.UI.AutomapHover is { } hover) Guard(lm, "AutomapHover", () => hover(ViewFor(lm, view), square));
+    }
+
+    /// <summary>A left click on a square of the map: every running mod is told; true when any acted.</summary>
+    public bool AutomapClick(AutomapView view, AutomapSquare square)
+    {
+        bool any = false;
+        foreach (var lm in Live.ToList())
+            if (lm.Context.UI.AutomapClick is { } click) any |= Guard(lm, "AutomapClick", () => click(ViewFor(lm, view), square), false);
+        return any;
+    }
+
     // ------------------------------------------------------------------------------ save tags
 
     /// <summary>What a save records: "id@version" for each mod running now. Null with none.</summary>

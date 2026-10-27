@@ -38,6 +38,11 @@ public partial class TitleWindow : Window
     public TitleWindow()
     {
         InitializeComponent();
+        // frmMain's caption, which MDIForm_Load sets before the menu is shown (FRMMAIN.BAS:148-152):
+        // the shareware's frame reads "Mordor 1.1 (Limited Version)" at the main menu already
+        // (observed in the original shareware 2026-10-26). The port's menu stands in for the frame
+        // there; with the full game's data it keeps frmMenu's own empty caption, as it always has.
+        if (LimitedVersion.On) Title = LimitedVersion.FrameCaption;
         // The guild table has no stand-in: without MDATA1 there are no guilds, no spell tables and
         // no game. Main's startup says so and stops - MsgBox "Error reading " + path + "!" and
         // "Is BasePath in MORDOR.INI correct?", captioned "ERROR!", then End (MAINMOD.BAS:1193-1196).
@@ -65,11 +70,25 @@ public partial class TitleWindow : Window
 
         // at the menu gv1B52 is False (FRMMENU.BAS:144), so a session end only asks "Exit Mordor?"
         // (FRMMAIN.BAS:178-181) - there is no party to unload
-        OriginalBox.RefuseCloseBox(this, () => OriginalBox.YesNo(this, "EXIT", "Exit Mordor?"));
+        // The shareware's close box asks that same question at the menu instead of refusing, and a Yes
+        // quits (observed in the original shareware 2026-10-26; LimitedVersion.CloseBoxAsksToExit)
+        OriginalBox.RefuseCloseBox(this, () => OriginalBox.YesNo(this, "EXIT", "Exit Mordor?"),
+                                   closeBoxAsks: () => LimitedVersion.CloseBoxAsksToExit);
 
         // Form_Load (FRMMENU.BAS:142): the focus starts on cmdCommand(0)
         Opened += async (_, _) =>
         {
+            // Sub Main's sub03E3 (MAINMOD2.BAS:6437), before the data is read and so before any box
+            // of the menu's: the limited build's "Limitation Notice" (MsgBox 48), and then
+            // Limited=True, so that it is not shown again (MODULE1.BAS:932-940; LimitedVersion). The
+            // original keeps the key in MORDOR.INI; the port in the saves directory's PortSettings,
+            // as it keeps NotFirstTime. A box closed by the program ending leaves the key unwritten.
+            if (LimitedVersion.ShowsLimitationNotice && !PortSettings.Load(SavesDir).LimitationNoticeSeen)
+            {
+                await OriginalBox.Tell(this, LimitedVersion.LimitationNoticeTitle, LimitedVersion.LimitationNoticeText);
+                if (!OriginalBox.CanOwn(this)) return;
+                PortSettings.Write(SavesDir, "Limited", "True");
+            }
             if (loadFailed != null)
             {
                 await OriginalBox.Tell(this, "ERROR!", loadFailed);
@@ -89,12 +108,44 @@ public partial class TitleWindow : Window
             // the program may have shut down under the box, closing the menu: nothing more is shown
             if (!OriginalBox.CanOwn(this)) return;
             await Welcome();
+            // Form_Load's last line, after the welcome: "If m00A8 = True Then cmdCommand(mc002A).Caption =
+            // "Ordering/&About"" (FRMMENU.BAS:162), m00A8 a Static the full build never sets. The
+            // shareware's About button reads "Ordering/&About" (observed in the original shareware
+            // 2026-10-26). It opens frmAbout as ever (117), whose Ordering Info the limited build shows.
+            if (LimitedVersion.AboutReadsOrdering) AboutBtn.Content = "Ordering/_About";
             if (!OriginalBox.CanOwn(this)) return;
             // a character marked "Preload Character" goes straight in, password and all
-            if (_preloadTried) return;
+            if (_preloadTried) { MenuReady(); return; }
             _preloadTried = true;
             if (Preloaded() is Character ready) { _loaded = ready; ShowMenuState(); await Play(ready); }
+            MenuReady();
         };
+        // the port's own: a newer version found by the check at start (Updates) is offered here,
+        // once the menu's own boxes are done and while nothing else is up over it
+        Activated += (_, _) => OfferUpdate();
+        Updates.Found += OfferUpdate;
+        Closed += (_, _) => Updates.Found -= OfferUpdate;
+    }
+
+    /// <summary>The menu's start-up boxes are over: an update found can be offered from now on.</summary>
+    private bool _menuReady;
+
+    private void MenuReady()
+    {
+        _menuReady = true;
+        OfferUpdate();
+    }
+
+    /// <summary>
+    /// <see cref="Updates.Offer"/> over the menu, when there is something to offer and the menu is
+    /// up, in front and has no window of its own open over it (a game being played hides the menu,
+    /// so the offer waits until the party is back at the menu).
+    /// </summary>
+    private async void OfferUpdate()
+    {
+        if (!Updates.Pending || !_menuReady || !IsVisible || !IsActive || OwnedWindows.Count > 0 || !OriginalBox.CanOwn(this)) return;
+        try { await Updates.Offer(this); }
+        catch (Exception ex) { CrashLog.Write("the update offer", ex); }
     }
 
     /// <summary>

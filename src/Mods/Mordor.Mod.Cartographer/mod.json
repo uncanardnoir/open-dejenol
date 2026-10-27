@@ -1,0 +1,11 @@
+{
+  "id": "Cartographer",
+  "name": "Cartographer",
+  "version": "1.0.0",
+  "author": "OpenDejenol",
+  "gameVersion": "1.1",
+  "assembly": "Mordor.Mod.Cartographer.dll",
+  "entryType": "Mordor.Mod.Cartographer.CartographerMod",
+  "description": "Mark squares on the automap with colours and waypoints",
+  "settings": []
+}

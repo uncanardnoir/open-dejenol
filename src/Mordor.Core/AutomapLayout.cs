@@ -269,4 +269,18 @@ public static class AutomapLayout
     /// </summary>
     public static bool OnMaze(double mapX, double mapY, double gutterLeft, int mazeW, int mazeH) =>
         mapX >= gutterLeft && mapX < gutterLeft + mazeW && mapY >= 0 && mapY < mazeH;
+
+    /// <summary>
+    /// The square a point on picMaze is in (for the mods' Automap hooks, API version 13; the original
+    /// asks picMaze for no square): <paramref name="mazeX"/> and <paramref name="mazeY"/> in map pixels
+    /// from picMaze's top left. Squares are laid <see cref="Pitch"/> apart, the level drawn north up
+    /// (<c>(Height - Y) * 14</c>, FRMAUTOM.BAS:226-232), so the top row is the level's last; the shared
+    /// edge line counts as the square east of it, or south of it. X and Y from nought, held to the level.
+    /// </summary>
+    public static (int X, int Y) SquareAt(double mazeX, double mazeY, int levelWidth, int levelHeight)
+    {
+        int x = Math.Clamp((int)Math.Floor(mazeX / Pitch), 0, Math.Max(0, levelWidth - 1));
+        int row = Math.Clamp((int)Math.Floor(mazeY / Pitch), 0, Math.Max(0, levelHeight - 1));
+        return (x, levelHeight - 1 - row);
+    }
 }

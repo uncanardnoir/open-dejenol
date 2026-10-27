@@ -38,9 +38,10 @@ public static class GameArt
 {
     /// <summary>
     /// Bumped whenever what is extracted changes, so an old cache is not reused. 2: help.json marks
-    /// the help file's Contents topic (<see cref="HelpBundle.Topic.Contents"/>).
+    /// the help file's Contents topic (<see cref="HelpBundle.Topic.Contents"/>). 3: the manifest keeps
+    /// the help file's title (<see cref="HelpTitle"/>).
     /// </summary>
-    public const int Version = 2;
+    public const int Version = 3;
 
     public const string HelpFile = "help.json";
     public const string ManifestFile = "extracted.json";
@@ -198,6 +199,22 @@ public static class GameArt
         catch (JsonException) { return false; }
     }
 
+    /// <summary>
+    /// The help file's own title - |SYSTEM's TITLE record (<see cref="WinHelpFile.Title"/>), which
+    /// WinHelp put in its window's caption - as the extraction kept it in the cache's manifest; null
+    /// when no help was made or the file has no title.
+    /// </summary>
+    public static string? HelpTitle(string cacheDir)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(cacheDir, ManifestFile)));
+            return doc.RootElement.TryGetProperty("helpTitle", out var t) && t.ValueKind == JsonValueKind.String
+                   && t.GetString() is { Length: > 0 } s ? s : null;
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { return null; }
+    }
+
     private static IReadOnlyList<string> ReadNotes(string manifest)
     {
         try
@@ -331,6 +348,7 @@ public static class GameArt
             made = DateTime.UtcNow.ToString("u"),
             pictures = Pictures.Select(p => new { name = p.Name, from = p.From }),
             help = File.Exists(Path.Combine(outDir, HelpFile)),
+            helpTitle = File.Exists(Path.Combine(outDir, HelpFile)) ? hlp?.Title : null,
             notes,
         };
         File.WriteAllText(Path.Combine(outDir, ManifestFile), JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));

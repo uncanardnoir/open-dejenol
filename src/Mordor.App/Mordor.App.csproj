@@ -12,6 +12,12 @@
     <Product>OpenDejenol</Product>
     <AssemblyTitle>OpenDejenol</AssemblyTitle>
     <Description>OpenDejenol - a faithful engine for Mordor: The Depths of Dejenol, played from the player's own copy</Description>
+    <!-- The program's version, set here and nowhere else (docs/RELEASING.md): SemVer, with a
+         suffix for a test release (0.2.0-beta.1). A release is tagged v + this exactly, and the
+         release workflow refuses a tag that differs. It names the installer's package, is what
+         the update check compares, and is shown on the Mods page. Only the program carries it:
+         Mordor.Core and Mordor.Modding, which mods are built against, keep their own. -->
+    <Version>0.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,6 +26,9 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.3" />
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.2.3" />
+    <!-- installs and updates (docs/RELEASING.md): the install/update hooks at the top of Main,
+         and the update check against the GitHub releases (Updates.cs) -->
+    <PackageReference Include="Velopack" Version="1.2.161" />
     <PackageReference Include="Avalonia.Diagnostics" Version="11.2.3">
       <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
@@ -31,7 +40,13 @@
     <ProjectReference Include="..\Mordor.Modding\Mordor.Modding.csproj" />
   </ItemGroup>
 
-  <!-- the mods that come with the port, into bin/<config>/net8.0/mods (docs/MODDING.md) -->
+  <!-- the licence goes with every copy given out: into the publish folder, and from there into the
+       installer's package and the portable zip (docs/RELEASING.md) -->
+  <ItemGroup>
+    <None Include="..\..\LICENSE" Link="LICENSE.txt" CopyToPublishDirectory="PreserveNewest" CopyToOutputDirectory="Never" Visible="false" />
+  </ItemGroup>
+
+  <!-- the mods that come with the port, into bin/<config>/net8.0/mods and a publish's mods (docs/MODDING.md) -->
   <Import Project="..\Mods\ShipMods.targets" />
 
   <!-- No pictures or help of the game's own are built in: they are read out of the player's copy at

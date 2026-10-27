@@ -143,7 +143,11 @@ public partial class CityWindow : Window
         // not run. That comes only when the party later walks out ("frmCityMain.Show",
         // MAINMOD2.BAS:3957-3958), which is EnterDungeon's RestOnArrival. The port had opened
         // everyone in the city and rested them there first.
-        bool below = _ch.DungeonLevel > 0 && !_ch.IsDead;
+        // A dead character below ground goes there too: "If Chars(Me).DungeonLevel > 0 Or
+        // Chars(Me).DeathState > 0 Then frmDungeonMain.Show" (MAINMOD2.BAS:3174-3175), then sub0930 Me
+        // (3181-3182) in the dungeon window, which keeps its readout and buttons with the dead screen
+        // in it (DungeonWindow.Begun). The port had put a dead one in the city's dead screen at any depth.
+        bool below = _ch.DungeonLevel > 0;
         if (!below && !_ch.IsDead) RestOnArrival();
         // then mdrmulLoadParty (MAINMOD2.BAS:6306), after sub14E0 has shown the city or the dungeon
         // (3171): so frmCityMain's Form_Load rests the one character run and nobody the autoload
@@ -159,14 +163,14 @@ public partial class CityWindow : Window
         }
         RefreshSummary();
         if (below) Opened += (_, _) => { _enteringFromLoad = true; EnterDungeon(null, null!); };
-        // DEVIATION, kept: sub14E0 shows frmDungeonMain for the dead even at level 0, with lblDead and
+        // DEVIATION, kept, at level 0: sub14E0 shows frmDungeonMain for the dead even at level 0, with lblDead and
         // cmdWait (MAINMOD2.BAS:3170-3182, sub0930 3016-3131). The port's dungeon window cannot stand
         // at level 0, so the same label, button and boxes are a window of their own, captioned
         // "Dungeon (Name)" and placed as the Dungeon is (ShowDead), and the town's window is hidden
         // while it is up, as sub14E0 shows the one or the other (MAINMOD2.BAS:3170-3180; corrected
         // 2026-10-19). What differs is only that it is not the dungeon window itself, so the
         // dungeon's toolbar and buttons are not about it. No rest is given (see above) until a raise.
-        if (_ch.IsDead) ArriveDeadSub0930();
+        if (_ch.IsDead && !below) ArriveDeadSub0930();
         // FRMCTYM's own lines (see RestOnArrival) are said while gv1B52 is still False on the way in,
         // so sub085B drops them (MAINMOD2.BAS:3198-3199, 6305-6308); the first line of the game is
         // gc018A, "Welcome to MORDOR 1.1!" (MAIN.TXT:34), said once gv1B52 is True (MAINMOD2.BAS:6309)
@@ -348,6 +352,8 @@ public partial class CityWindow : Window
         if (OriginalBox.IsCloseChord(e)) { base.OnKeyDown(e); return; }
         // below ground every key is the dungeon's, which sorts out its own fields and lists
         if (_below != null) { _below.KeyFromFrame(e); return; }
+        // Escape gives up a mod's pick waiting on the Automap (API version 13); never so with no mod
+        if (AutomapKeys.CancelPick(e.Key, _automap)) { e.Handled = true; return; }
         // never steal a keystroke someone is typing into a field
         if (FocusManager?.GetFocusedElement() is TextBox) { base.OnKeyDown(e); return; }
         // nor one meant for a combo box: Objects & Spells leaves every key but Escape to its Spell
@@ -2823,11 +2829,12 @@ public partial class CityWindow : Window
         // the original never shows a dead character the town (sub14E0, MAINMOD2.BAS:3166-3182); the
         // nearest this port has is the morgue screen - "You are dead. Visit the Morgue to be revived
         // first." was the port's
-        if (DeadScreenOwed) { ShowDead(); return; }
+        // a dead character loaded below ground is the one exception: sub14E0 shows them the dungeon
+        if (DeadScreenOwed && !_enteringFromLoad) { ShowDead(); return; }
         // Unload frmCityMain unloads every service with it (FRMCTYM.BAS:169-179): a store or a bank
         // left open - a click on the Dungeon picture reaches past it - does not go down too
         CloseAllServices();
-        if (_ch.CurHits <= 0) _ch.CurHits = 1;
+        if (_ch.CurHits <= 0 && !_ch.IsDead) _ch.CurHits = 1;
 
         var dungeon = MdrLoader.LoadDungeon(System.IO.Path.Combine(_gameDir, "MDATA11.MDR"));
         // a walk down from town, not a character loaded below ground nor a raise below (both of

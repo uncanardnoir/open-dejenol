@@ -236,6 +236,7 @@ public sealed class GameOptions
 /// <code>
 /// [Loading Information]
 /// NotFirstTime   frmMenu's Form_Load shows "Welcome to Mordor 1.1!" until it is set (FRMMENU.BAS:146-160)
+/// Limited        sub03E3 shows the limited build's "Limitation Notice" until it is set (MODULE1.BAS:932-940)
 /// LastBackup     fn0662's Date after a backup or a restore (MAINMOD.BAS:1032)
 /// Character      the leader to preload, written by sub16CC (MAINMOD2.BAS:5948-5953), read at start (MAINMOD.BAS:1266)
 /// Frame          the port's own: where the frame window was left (see <see cref="FramePlacement"/>)
@@ -252,6 +253,7 @@ public sealed class PortSettings
     public static string PathFor(string savesDir) => Path.Combine(savesDir, FileName);
 
     public string NotFirstTime { get; set; } = "";
+    public string Limited { get; set; } = "";
     public string LastBackup { get; set; } = "";
     public string Character { get; set; } = "";
 
@@ -261,12 +263,16 @@ public sealed class PortSettings
     /// <summary><c>InStr(value, "T")</c> - case-sensitive, as VB's default text compare is binary.</summary>
     public bool Welcomed => NotFirstTime.Contains('T', StringComparison.Ordinal);
 
+    /// <summary>The Limitation Notice has been shown: <c>InStr(Limited, "T")</c> (MODULE1.BAS:933).</summary>
+    public bool LimitationNoticeSeen => Limited.Contains('T', StringComparison.Ordinal);
+
     public static PortSettings Load(string savesDir)
     {
         var ini = Ini.Read(PathFor(savesDir));
         return new PortSettings
         {
             NotFirstTime = ini.Text(Section, "NotFirstTime"),
+            Limited = ini.Text(Section, "Limited"),
             LastBackup = ini.Text(Section, "LastBackup"),
             Character = ini.Text(Section, "Character"),
             HasCharacter = ini.Has(Section, "Character"),

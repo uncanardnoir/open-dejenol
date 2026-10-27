@@ -159,7 +159,10 @@ public static partial class SelfCheckProbe
             var topics = hlp.Topics();
             var titles = hlp.Titles();
             Check("MORDOR.HLP is WinHelp 3.1 (|SYSTEM minor 21), uncompressed", $"{hlp.Minor} {hlp.Flags}", "21 0");
-            FullCheck("its title", hlp.Title, "M1: Depths of Dejenol Help Lesson");
+            // |SYSTEM's TITLE, WinHelp's caption: the full 1.1's, and the shareware's as its help window
+            // was captioned (observed in the original shareware 2026-10-26)
+            Check("its title", hlp.Title, _shareware ? "Mordor HelpLesson" : "M1: Depths of Dejenol Help Lesson");
+            Check("the manifest keeps that title for the help window's caption (GameArt.HelpTitle)", GameArt.HelpTitle(outDir), hlp.Title);
             Check("topic offsets worked out from |TOPIC match |TTLBTREE's", topics.Zip(titles).Count(z => z.First.Offset != z.Second.Offset), 0);
             FullCheck("|TTLBTREE topics (the last an untitled empty one)", $"{titles.Count} {titles[^1].Title.Length}", "74 0");
             // cityw1.png is an extra of the 1.1 install, not a file the port needs (GameFiles.Required):

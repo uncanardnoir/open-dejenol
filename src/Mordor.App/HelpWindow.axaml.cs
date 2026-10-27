@@ -19,8 +19,10 @@ namespace Mordor.App;
 ///
 /// The original handed F1 and the Help buttons to WinHelp on MORDOR.HLP (MAIN.TXT:596, the
 /// WinHelp declaration at MODULE1.BAS:42), so it had no help window of its own. The title and the
-/// header are the help's own heading, "Mordor 1.1 (M1 Depths of Dejenol) Help Lesson" (its Welcome
-/// page). The topic list and the search box are port chrome standing in for WinHelp's Contents and
+/// header are the help file's own title, |SYSTEM's TITLE record, which WinHelp put in its caption:
+/// "M1: Depths of Dejenol Help Lesson" in the full 1.1, "Mordor HelpLesson" in the shareware (observed
+/// in the original shareware 2026-10-26). They had been the full game's Welcome heading for both.
+/// The topic list and the search box are port chrome standing in for WinHelp's Contents and
 /// Search, and are kept to a bare list and a box.
 ///
 /// What that chrome says is the port's, and is kept on purpose because it has no original to copy:
@@ -103,6 +105,11 @@ public partial class HelpWindow : Window
         BodyScroll.AddHandler(KeyDownEvent, OnBodyKey, RoutingStrategies.Tunnel);
         Load();
         Filter("");
+        // WinHelp's caption: the help file's TITLE, kept by the extraction (GameArt.HelpTitle); "Help"
+        // is the stand-in's own word for a help file without one, or none read
+        string caption = HelpCaption();
+        Title = caption;
+        HelpHeading.Text = caption;
 
         // no topic named: the help file's Contents topic, where WinHelp opened it for the original's
         // HELP_CONTENTS (FRMMAIN.BAS:75-76); MORDOR.HLP's |SYSTEM names it (HelpBundle.ContentsIndex)
@@ -110,6 +117,13 @@ public partial class HelpWindow : Window
         TopicList.SelectedIndex = start < 0 ? 0 : start;
         // Filter() already selected row 0, so the assignment above may not raise SelectionChanged
         Show(TopicList.SelectedIndex);
+    }
+
+    /// <summary>The help file's own title, as the extraction kept it, or "Help" when there is none.</summary>
+    private static string HelpCaption()
+    {
+        try { return Mordor.Core.Extraction.GameArt.HelpTitle(System.IO.Path.GetDirectoryName(Art.PathOf(Mordor.Core.Extraction.GameArt.ManifestFile))!) ?? "Help"; }
+        catch (InvalidOperationException) { return "Help"; }
     }
 
     private void Load()

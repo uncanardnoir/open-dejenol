@@ -64,6 +64,9 @@
                 <Canvas x:Name="MapArea" Background="Transparent"/>
             </Viewbox>
             <Image x:Name="MapImage" Stretch="Fill" RenderOptions.BitmapInterpolationMode="None"/>
+            <!-- the mods' marks (API version 13), laid over picMaze: hidden, and drawing nothing, with no
+                 mod marking anything (AutomapOverlay) -->
+            <app:AutomapOverlay x:Name="MapMarks" IsVisible="False"/>
         </Canvas>
     </Panel>
 </Window>

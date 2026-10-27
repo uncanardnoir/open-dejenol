@@ -25,6 +25,10 @@ OpenDejenol comes bundled with a few mods. These include:
 
 <p align="center"><img src="docs/images/dps-meter-xp.png" width="400" alt="The DPS Meter in XP mode: experience gained per character, split into Damage and Chests"></p>
 
+**Cartographer** - Annotate the minimap to denote areas of interest and waypoints. Right-click squares to highlight them with a color, or link it to a destination square. Hover or click waypoints to interact with them.
+
+<p align="center"><img src="docs/images/cartographer.png" width="450" alt="The automap with Cartographer: coloured squares and a waypoint's arrow to its destination"></p>
+
 ## Requirements
 
 - Your own copy of Mordor: The Depths of Dejenol - the full version or the shareware. The full version can be purchased from [Decklin's Domain](https://www.decklinsdemise.com/mordor.htm).

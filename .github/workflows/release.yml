@@ -1,0 +1,115 @@
+# Make a release from a pushed tag vX.Y.Z (docs/RELEASING.md).
+#
+#   - the tag must be "v" + the <Version> in src/Mordor.App/Mordor.App.csproj (tools/pack-release.sh
+#     refuses anything else);
+#   - builds and tests the solution as CI does, then publishes and packs with Velopack:
+#     OpenDejenol.Game-win-Setup.exe, OpenDejenol.Game-win-Portable.zip,
+#     OpenDejenol.Game-<version>-full.nupkg, RELEASES and releases.win.json (plus a delta package
+#     against the previous release, when there is one);
+#   - uploads them to a GitHub release for the tag (vpk upload github), with this workflow's own
+#     GITHUB_TOKEN. A tag with a suffix (v0.2.0-beta.1, v0.3.0-alpha) is published at once as a
+#     pre-release, which installed test releases are offered; a plain tag (v1.0.0) becomes a
+#     draft, which nobody is offered until it is published by hand on GitHub.
+# Code signing is not set up (see "Sign" below and docs/RELEASING.md).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        id: dotnet
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Pin the .NET 8 SDK
+        run: dotnet new globaljson --sdk-version "${{ steps.dotnet.outputs.dotnet-version }}" --force
+
+      - name: Build (Release, warnings are errors)
+        run: dotnet build Mordor.sln -c Release -warnaserror
+
+      - name: Test
+        run: dotnet test Mordor.sln -c Release --no-build
+
+      - name: Kind of release
+        id: kind
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          case "$TAG" in
+            *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT"; echo "a test release: published at once as a pre-release" ;;
+            *)   echo "prerelease=false" >> "$GITHUB_OUTPUT"; echo "a stable release: left as a draft to publish by hand" ;;
+          esac
+
+      # the latest release already up, so vpk can make a delta package against it (none the first time)
+      - name: Previous release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          PRERELEASE: ${{ steps.kind.outputs.prerelease }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/release/releases"
+          dotnet tool restore
+          pre=""
+          if [ "$PRERELEASE" = "true" ]; then pre="--pre"; fi
+          dotnet vpk download github --repoUrl "$REPO_URL" --token "$GITHUB_TOKEN" $pre \
+            --channel win --outputDir "$RUNNER_TEMP/release/releases" --skip-updates --legacyConsole \
+            || echo "no earlier release to make a delta package against"
+
+      # Code signing: off. When a certificate or a SignPath project is set up, sign here (or pass
+      # VPK_SIGN_PARAMS / VPK_SIGN_TEMPLATE to the Package step, which hands them to vpk) - see
+      # docs/RELEASING.md, "Signing". Until then this step does nothing, and the step fails the run
+      # if signing has been switched on (the repository variable SIGNING) without being filled in.
+      - name: Sign (not set up)
+        if: vars.SIGNING == 'true'
+        shell: bash
+        run: |
+          echo "::error::SIGNING is true, but the signing step in release.yml is still the placeholder (docs/RELEASING.md)"
+          exit 1
+
+      - name: Package
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: sh tools/pack-release.sh "$RUNNER_TEMP/release"
+
+      - name: Upload to the GitHub release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ steps.kind.outputs.prerelease }}
+        run: |
+          version="${TAG#v}"
+          set -- --repoUrl "$REPO_URL" --token "$GITHUB_TOKEN" --outputDir "$RUNNER_TEMP/release/releases" --channel win \
+            --tag "$TAG" --releaseName "OpenDejenol $version" --targetCommitish "$GITHUB_SHA"
+          if [ "$PRERELEASE" = "true" ]; then set -- "$@" --pre --publish; fi
+          dotnet vpk upload github "$@" --skip-updates --legacyConsole
+
+      # the same files on the run's page, for a look before a draft is published
+      - uses: actions/upload-artifact@v7
+        with:
+          name: OpenDejenol-${{ github.ref_name }}
+          path: ${{ runner.temp }}/release/releases/
+          retention-days: 14

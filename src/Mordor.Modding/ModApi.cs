@@ -948,6 +948,160 @@ public sealed class ModUI
 
     public IReadOnlyList<ObjectsCommand> ObjectsCommands => _objects;
     public IReadOnlyList<ModWindow> Windows => _windows;
+
+    // ------------------------------------------------------------------ the Automap (API version 13)
+
+    /// <summary>
+    /// The items a right-click on a square of the Automap's map offers (picMaze; not the grey round it,
+    /// the numbers or the level row), or null for none. While any running mod answers with at least
+    /// one item, the right-click opens a small menu whose first item is the original's own right-click,
+    /// <c>picMaze_MouseDown</c>'s re-plot ("Redraw/Refresh Level", FRMAUTOM.BAS:600-602), and then each
+    /// mod's items in load order; with none it re-plots at once, as the original. Asked at each
+    /// right-click, with the square under the pointer. An item's <see cref="AutomapMenuItem.Run"/> is
+    /// called when it is chosen, and the marks are asked for again after it.
+    /// </summary>
+    public Func<AutomapView, AutomapSquare, IReadOnlyList<AutomapMenuItem>?>? AutomapMenu { get; set; }
+
+    /// <summary>
+    /// What to draw over the level the Automap shows (<see cref="AutomapView.ShownLevel"/>): square
+    /// tints, frames and arrows (<see cref="AutomapMark"/>), drawn by the game on the map's own squares
+    /// at the size the map is drawn, on whole device pixels. Asked whenever the level is drawn, paged,
+    /// hovered, clicked, after a menu item and after <see cref="AutomapView.Refresh"/>; null or empty:
+    /// nothing. The marks of every running mod are drawn, in load order.
+    /// </summary>
+    public Func<AutomapView, IReadOnlyList<AutomapMark>?>? AutomapMarks { get; set; }
+
+    /// <summary>
+    /// The pointer came onto another square of the map, or off the map (null). Told once per change of
+    /// square, then the marks are asked for again.
+    /// </summary>
+    public Action<AutomapView, AutomapSquare?>? AutomapHover { get; set; }
+
+    /// <summary>
+    /// A left click on a square of the map (not while a <see cref="AutomapView.PickSquare"/> is waiting,
+    /// which takes the click). The original does nothing with a single click on picMaze, so this adds to
+    /// nothing; a double click still resizes the window as the original's does. Return true when the mod
+    /// did something. Every running mod is told; the marks are asked for again after.
+    /// </summary>
+    public Func<AutomapView, AutomapSquare, bool>? AutomapClick { get; set; }
+}
+
+// ---------------------------------------------------------------------------------------- automap
+
+/// <summary>
+/// A square of the Automap: the dungeon level and its place on it, counted from nought - X east and Y
+/// north, as the port keeps squares (the Automap's own readout, "You are at 5,7,1", adds one to each).
+/// </summary>
+public sealed record AutomapSquare(int Level, int X, int Y);
+
+/// <summary>What an <see cref="AutomapMark"/> draws.</summary>
+public enum AutomapMarkKind
+{
+    /// <summary>The square's inside, inside its edge lines, filled with the colour at about 60% (the map shows through).</summary>
+    Tint,
+    /// <summary>A ring of the colour just inside the square's edge lines, with a dark line inside it so it reads on grey and on black.</summary>
+    Frame,
+    /// <summary>An arrow from the middle of one square to the middle of another on the same level, outlined dark.</summary>
+    Arrow,
+}
+
+/// <summary>
+/// Something a mod draws over the Automap's level (<see cref="ModUI.AutomapMarks"/>). The game draws it
+/// on the map's own squares, at the size and place the map is drawn now, its edges on whole device
+/// pixels: the square edges the map's own bitmap has (<c>AutomapLayout.DeviceEdges</c>). The square's
+/// edge lines - its walls and doors - are never covered by a tint or a frame.
+/// </summary>
+/// <param name="Kind">What is drawn.</param>
+/// <param name="X">The square (an arrow's start), from nought, east.</param>
+/// <param name="Y">The square (an arrow's start), from nought, north.</param>
+/// <param name="Colour">Its colour (red, green, blue).</param>
+/// <param name="ToX">An arrow's end, east.</param>
+/// <param name="ToY">An arrow's end, north.</param>
+/// <param name="Bold">A frame half as thick again.</param>
+public sealed record AutomapMark(AutomapMarkKind Kind, int X, int Y, (byte R, byte G, byte B) Colour, int ToX = 0, int ToY = 0, bool Bold = false)
+{
+    /// <summary>The square's inside filled with the colour, the map showing through.</summary>
+    public static AutomapMark Tint(int x, int y, (byte R, byte G, byte B) colour) => new(AutomapMarkKind.Tint, x, y, colour);
+    /// <summary>A ring of the colour inside the square's edge lines.</summary>
+    public static AutomapMark Frame(int x, int y, (byte R, byte G, byte B) colour, bool bold = false) => new(AutomapMarkKind.Frame, x, y, colour, Bold: bold);
+    /// <summary>An arrow from one square's middle to another's, on the level shown.</summary>
+    public static AutomapMark Arrow(int fromX, int fromY, int toX, int toY, (byte R, byte G, byte B) colour) =>
+        new(AutomapMarkKind.Arrow, fromX, fromY, colour, toX, toY);
+}
+
+/// <summary>An item of the Automap's right-click menu (<see cref="ModUI.AutomapMenu"/>).</summary>
+/// <param name="Label">What it says.</param>
+/// <param name="Run">Chosen: what it does. Guarded as every call into a mod.</param>
+/// <param name="Swatch">A small square of this colour before the label, or null.</param>
+/// <param name="IsEnabled">False: shown greyed, and cannot be chosen.</param>
+public sealed record AutomapMenuItem(string Label, Action Run, (byte R, byte G, byte B)? Swatch = null, bool IsEnabled = true)
+{
+    /// <summary>A line between items, not an item.</summary>
+    public bool IsSeparator { get; init; }
+
+    /// <summary>A line between two groups of items.</summary>
+    public static AutomapMenuItem Separator { get; } = new("-", () => { }) { IsSeparator = true };
+}
+
+/// <summary>
+/// The Automap open now, as a mod's Automap hooks see it (API version 13): the level shown, a way to
+/// show another, to ask the player to pick a square, and to have the marks drawn again. Valid while
+/// that map is open; the game makes it, a probe may make one of its own.
+/// </summary>
+public sealed class AutomapView
+{
+    private readonly Func<int> _shown, _deepest;
+    private readonly Func<int, (int Width, int Height)> _size;
+    private readonly Action<int> _show;
+    private readonly Action _refresh, _cancel;
+    private readonly Action<string, Action<AutomapSquare?>> _pick;
+    private readonly Func<bool> _picking;
+
+    /// <param name="shownLevel">The level the map shows now (hsbLevel.Value).</param>
+    /// <param name="deepestLevel">The deepest it can be paged to (hsbLevel.Max).</param>
+    /// <param name="levelSize">A level's width and height in squares.</param>
+    /// <param name="showLevel">Page the map to a level, as its level bar does (clamped to 1 and the deepest).</param>
+    /// <param name="refresh">Ask the mods for their marks again and draw them.</param>
+    /// <param name="pick">Put up a prompt and wait for the player to click a square (see <see cref="PickSquare"/>).</param>
+    /// <param name="cancelPick">Give up a pick that is waiting (its callback gets null).</param>
+    /// <param name="picking">Whether a pick is waiting.</param>
+    public AutomapView(Func<int> shownLevel, Func<int> deepestLevel, Func<int, (int Width, int Height)> levelSize,
+                       Action<int> showLevel, Action refresh, Action<string, Action<AutomapSquare?>> pick,
+                       Action cancelPick, Func<bool> picking)
+    {
+        _shown = shownLevel; _deepest = deepestLevel; _size = levelSize; _show = showLevel;
+        _refresh = refresh; _pick = pick; _cancel = cancelPick; _picking = picking;
+    }
+
+    /// <summary>The level shown now.</summary>
+    public int ShownLevel => _shown();
+    /// <summary>The deepest level the map can be paged to: the deepest anyone has reached.</summary>
+    public int DeepestLevel => _deepest();
+    /// <summary>A level's size in squares (0 by 0 for a level the game does not have).</summary>
+    public (int Width, int Height) LevelSize(int level) => _size(level);
+    /// <summary>Page the map to <paramref name="level"/>, as its level bar does (held to 1 and <see cref="DeepestLevel"/>).</summary>
+    public void ShowLevel(int level) => _show(level);
+    /// <summary>Ask every mod for its marks again and draw them (after the mod's own data changed).</summary>
+    public void Refresh() => _refresh();
+    /// <summary>Whether a <see cref="PickSquare"/> is waiting.</summary>
+    public bool Picking => _picking();
+
+    /// <summary>
+    /// Ask the player to pick a square: <paramref name="prompt"/> takes the place of the Automap's
+    /// status line (lblInfo) until it is answered; the level bar and &lt; &gt; still page the map; the
+    /// next left click on a square of the map answers <paramref name="done"/> with that square, and
+    /// Escape or a right-click answers null. One pick at a time: a second one first answers the first
+    /// with null. <paramref name="done"/> is guarded as every call into a mod, and is not called for a
+    /// mod no longer running.
+    /// </summary>
+    public void PickSquare(string prompt, Action<AutomapSquare?> done) => _pick(prompt, done);
+
+    /// <summary>Give up a pick that is waiting: its callback is answered with null.</summary>
+    public void CancelPick() => _cancel();
+
+    /// <summary>The same map, with a pick's callback wrapped (the host's guard for one mod).</summary>
+    internal AutomapView WithPickGuard(Func<Action<AutomapSquare?>, Action<AutomapSquare?>> wrap) =>
+        new(_shown, _deepest, _size, _show, _refresh, (p, d) => _pick(p, wrap(d)), _cancel, _picking);
 }
 
 // ------------------------------------------------------------------------------------------- log

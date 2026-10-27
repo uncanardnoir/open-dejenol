@@ -52,6 +52,24 @@ public static partial class SelfCheckProbe
             Check("the Public Version box as sub10F8 has it, gc0186 = \"1.1\"",
                   main2.Contains("\"Public Version\"") && main2.Contains("\"Order the full commercial release now for hundreds of additional monsters, items and over a dozen more levels to explore!\"")
                   && LimitedVersion.PublicBoxText.StartsWith("This is the PUBLIC version of Mordor 1.1, so please feel free to give it to your friends", StringComparison.Ordinal), true);
+            // sub03E3's notice: on gv0180, never set in this build, its count gc0182 = 15 here; the
+            // shareware's says 3 (observed in the original shareware 2026-10-26). Before the data is
+            // read, and so before the Public Version box (MAINMOD2.BAS:6437, 6455)
+            string mod1 = PortSource("decompiled-named", "MODULE1.BAS");
+            string mainTxt = PortSource("decompiled-named", "MAIN.TXT");
+            Check("the Limitation Notice as sub03E3 has it, on gv0180, with the INI's Limited key (MODULE1.BAS:932-940)",
+                  mod1.Contains("If  gv0180 Then") && mod1.Contains("\"Loading Information\", \"Limited\"), \"T\") = False Then")
+                  && mod1.Contains("l06E2 = \"NOTICE!\" + Chr(13)")
+                  && mod1.Contains("\"Because this is a PUBLIC BETA version of MORDOR, only \" + CStr(gc0182) + \" dungeon levels are currently available.\" + Chr(13)")
+                  && mod1.Contains("l06E2 = l06E2 + \"This message will not appear again.\"")
+                  && mod1.Contains("MsgBox l06E2, mc06E4, \"Limitation Notice\"")
+                  && mod1.Contains("extfn0184(\"Loading Information\", \"Limited\", \"True\""), true);
+            Check("gv0180 is a Global nothing sets, gc0182 15 in the full build (MAIN.TXT:27-28)",
+                  mainTxt.Contains("Global gv0180 As Integer") && mainTxt.Contains("Global Const gc0182 = 15 ")
+                  && !System.Text.RegularExpressions.Regex.IsMatch(string.Join("\n", Directory.GetFiles(PortTree.At("decompiled-named"), "*.BAS").Select(File.ReadAllText)), @"gv0180\s*="), true);
+            Check("Sub Main: sub03E3 before the data and the Public Version box (MAINMOD2.BAS:6437, 6455)",
+                  main2.IndexOf("sub03E3 False", StringComparison.Ordinal) is int n03 && n03 > 0
+                  && n03 < main2.IndexOf("mdrReadAllData", n03, StringComparison.Ordinal) && n03 < main2.IndexOf("If  m0622 Then sub10F8", StringComparison.Ordinal), true);
             string order = PortSource("decompiled-named", "FRMORDER.BAS");
             Check("the order form's last line as FRMORDER has it (&& shows as &)",
                   order.Contains("\"Order the full version of MORDOR now && see just how far you can take adventure!\"")
@@ -70,16 +88,16 @@ public static partial class SelfCheckProbe
         {
             LimitedVersion.On = false;
             Check("full: the frame is captioned Mordor 1.1", LimitedVersion.FrameCaption, "Mordor 1.1");
-            Check("full: goodbye box, no Public Version box, no Ordering Info",
-                  (LimitedVersion.SaysGoodbye, LimitedVersion.ShowsPublicBox, LimitedVersion.ShowsOrderingInfo), (true, false, false));
+            Check("full: goodbye box, no Public Version box, no Ordering Info, no Limitation Notice",
+                  (LimitedVersion.SaysGoodbye, LimitedVersion.ShowsPublicBox, LimitedVersion.ShowsOrderingInfo, LimitedVersion.ShowsLimitationNotice), (true, false, false, false));
             Check("full: level 4 and level 15 are not denied", (LimitedVersion.Clamp(4), LimitedVersion.Clamp(15)), ((4, (string?)null), (15, (string?)null)));
             Check("full: chutes and teleporters on and to level 3 and below work",
                   (LimitedVersion.ChuteIsDeadToTake(3), LimitedVersion.ChuteIsDeadUnderfoot(3), LimitedVersion.TeleporterIsDead(9)), (false, false, false));
 
             LimitedVersion.On = true;
             Check("limited: the frame is captioned Mordor 1.1 (Limited Version)", LimitedVersion.FrameCaption, "Mordor 1.1 (Limited Version)");
-            Check("limited: no goodbye box, the Public Version box, Ordering Info",
-                  (LimitedVersion.SaysGoodbye, LimitedVersion.ShowsPublicBox, LimitedVersion.ShowsOrderingInfo), (false, true, true));
+            Check("limited: no goodbye box, the Public Version box, Ordering Info, the Limitation Notice",
+                  (LimitedVersion.SaysGoodbye, LimitedVersion.ShowsPublicBox, LimitedVersion.ShowsOrderingInfo, LimitedVersion.ShowsLimitationNotice), (false, true, true, true));
             Check("limited: levels 1 to 3 are not denied", (LimitedVersion.Clamp(1).Said, LimitedVersion.Clamp(3)), ((string?)null, (3, (string?)null)));
             Check("limited: level 4 is denied, and the party stays on 3", LimitedVersion.Clamp(4), (3, "LIMITED VERSION: Request to go to Level 4 is Denied."));
             Check("limited: level 15 is denied too", LimitedVersion.Clamp(15).Level, 3);
@@ -419,6 +437,18 @@ public static partial class SelfCheckProbe
         foreach (string f in new[] { "App.axaml.cs", "TitleWindow.axaml.cs", "MainWindow.axaml.cs", "Program.cs", "GameFolderWindow.cs" })
             Check($"Mordor.App/{f} names no user's folder", System.Text.RegularExpressions.Regex.IsMatch(PortSource("src/Mordor.App", f), @"[A-Za-z]:[\\/]+Users[\\/]+[A-Za-z]", System.Text.RegularExpressions.RegexOptions.IgnoreCase), false);
         Check("the per-user folders are named for the program", (UserFolders.Name, UserFolders.OldName), ("OpenDejenol", "Mordor Port"));
+
+        // the installed copy's update check, as the launch settings set it (UpdateSettings, docs/RELEASING.md)
+        var noLines = Ini.Parse(Array.Empty<string>());
+        Check("updates: checked unless the launch settings say [Updates] Check=False",
+              (UpdateSettings.CheckEnabled(noLines), UpdateSettings.CheckEnabled(Ini.Parse(new[] { "[Updates]", "Check=False" })),
+               UpdateSettings.CheckEnabled(Ini.Parse(new[] { "[Updates]", "Check=True" }))), (true, false, true));
+        Check("updates: with no Prereleases line, test releases are offered only to a test release",
+              (UpdateSettings.Prereleases("0.1.0", noLines), UpdateSettings.Prereleases("0.2.0-beta.1", noLines),
+               UpdateSettings.Prereleases("0.2.0+build-7", noLines), UpdateSettings.Prereleases(null, noLines)), (false, true, false, false));
+        Check("updates: Prereleases=True or False is the player's word either way",
+              (UpdateSettings.Prereleases("0.1.0", Ini.Parse(new[] { "[Updates]", "Prereleases=True" })),
+               UpdateSettings.Prereleases("0.2.0-beta.1", Ini.Parse(new[] { "[updates]", "prereleases=false" }))), (true, false));
     }
 
     /// <summary>

@@ -333,6 +333,9 @@ public static partial class ModProbe
             // ---- the DPS Meter mod and DamageDealt (ModProbe.DpsMeter.cs) ----
             DpsChecks(dir, scratch, bundled, items, Lookup);
 
+            // ---- the Cartographer mod and the Automap hooks (ModProbe.Cartographer.cs) ----
+            CartographerChecks(scratch, bundled);
+
             // ---- switching mods on and off on the main menu (ModProbe.Switch.cs) ----
             SwitchChecks(scratch, bundled, items, Lookup);
 

@@ -215,7 +215,7 @@
                     <Button Classes="frame" Focusable="False" x:Name="DropBodyBtn" Content="Drop" Canvas.Left="243" Canvas.Top="180" Width="40" Height="19" Click="OnDropBody"/>
                     <Button Classes="frame" Focusable="False" x:Name="FightBtn" Content="Fight" Canvas.Left="285" Canvas.Top="180" Width="33" Height="19" Click="OnAttack"/>
                     <Button Classes="frame" Focusable="False" x:Name="SpellBtn" Content="Spell" Canvas.Left="317" Canvas.Top="180" Width="33" Height="19" Click="OnShowSheetSpells"/>
-                    <Button Classes="frame" Focusable="False" x:Name="TakeBtn" Content="Take" Canvas.Left="352" Canvas.Top="180" Width="40" Height="19" Click="OnShowSheet"/>
+                    <Button Classes="frame" Focusable="False" x:Name="TakeBtn" Content="Take" Canvas.Left="352" Canvas.Top="180" Width="40" Height="19" Click="OnTakeStairs"/>
                     <Button Classes="frame" Focusable="False" x:Name="OpenBtn" Content="Open" Canvas.Left="394" Canvas.Top="180" Width="40" Height="19" Click="OnOpenChest"/>
                     <Button Classes="frame" Focusable="False" x:Name="ExitBtn" Content="Exit" Canvas.Left="436" Canvas.Top="180" Width="40" Height="19" Click="OnExitToTown"/>
                 </Canvas>

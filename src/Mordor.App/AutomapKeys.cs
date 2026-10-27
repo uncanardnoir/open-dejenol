@@ -47,6 +47,18 @@ public static class AutomapKeys
     /// Pages the frame's automap child, and says whether it did. Nothing happens when the map is
     /// closed or minimised, which is <c>gv1D64</c>'s two states.
     /// </summary>
+    /// <summary>
+    /// Escape while a mod's pick is waiting on the map (<c>AutomapView.PickSquare</c>, API version 13):
+    /// the pick is given up and the key goes no further. Nothing at all otherwise - with no pick waiting,
+    /// which is always so with no mod, Escape is the game's as before.
+    /// </summary>
+    public static bool CancelPick(Key key, AutomapWindow? map)
+    {
+        if (key != Key.Escape || map is not { Picking: true }) return false;
+        map.CancelPick();
+        return true;
+    }
+
     public static bool Handle(Key key, KeyModifiers mods, MdiChild? child, AutomapWindow? map)
     {
         if (PageBy(key, mods) is not int delta) return false;

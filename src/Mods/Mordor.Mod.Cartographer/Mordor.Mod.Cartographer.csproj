@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The Cartographer mod (docs/MODDING.md). Built with the game: src/Mods/ShipMods.targets copies its .dll
+       and mod.json into <program>/mods/Cartographer, where the loader finds it. It draws nothing itself -
+       the game draws its marks on the Automap (ModUI.AutomapMarks) - so it needs no Avalonia. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- the game's own copies are used at run time, so none is copied beside the mod -->
+    <ProjectReference Include="..\..\Mordor.Modding\Mordor.Modding.csproj" Private="false" />
+    <ProjectReference Include="..\..\Mordor.Core\Mordor.Core.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="mod.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

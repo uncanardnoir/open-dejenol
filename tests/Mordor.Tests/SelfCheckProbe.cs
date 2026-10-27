@@ -6600,7 +6600,7 @@ public static partial class SelfCheckProbe
             Check("a leaving goes through it first", Between(dw, "private void FinishWonFight()", "private bool _holdingKeys").Contains("RunPendingTreasure(_pendingTreasure);"), true);
             Check("keys wait through sub07E2 (sub0456's queue)", dw.Contains("try { if (KeyMustWait(e)) return; }"), true);
             Check("the buffer, Spell, Take and Map buttons queue as their keys do (FRMDUNM.BAS:76-122)",
-                  dw.Contains("ButtonMustWait(() => FireBuffer(which))") && dw.Contains("ButtonMustWait(ShowSheet)")
+                  dw.Contains("ButtonMustWait(() => FireBuffer(which))") && dw.Contains("private void OnTakeStairs(object? s, Avalonia.Interactivity.RoutedEventArgs e) => Press(Key.T);") && dw.Contains("private void Press(Key k, KeyModifiers mods = KeyModifiers.None)")
                   && dw.Contains("ButtonMustWait(() => OnShowSheetSpells(s, e))") && dw.Contains("ButtonMustWait(() => OnOpenAutomap(s, e))"), true);
             Check("a chest holds the keys until its treasure is given", dw.Contains("HoldUntil(AfterChestOpened(goldLine, treasure));"), true);
             Check("a held box waits for its answer before the next held key (a mod's window is a child in the frame, not a window it owns)", dw.Contains("while (!_ended && DialogOwner.OwnedWindows.Any(w => w.IsVisible))"), true);
@@ -6704,6 +6704,25 @@ public static partial class SelfCheckProbe
                 var at = System.Text.RegularExpressions.Regex.Match(xaml, $"x:Name=\"{btn}\"[^>]*Canvas.Left=\"(\\d+)\" Canvas.Top=\"180\" Width=\"(\\d+)\"");
                 Check($"{btn} where its cmdAction is, in pixels", at.Success ? $"{at.Groups[1].Value} {at.Groups[2].Value}" : "missing",
                       $"{(45 + left) / 15} {width / 15}");
+            }
+            // cmdAction_Click (FRMDUNM.BAS:76-109) hands each button's key to sub0456: Fight (0) f,
+            // Spell (1) c, Take (2) t, Open (3) o, Pickup (4) p, Drop (5) l, Map (6) F8, Exit (7) q.
+            // Each button does what its key does: it presses the key, or calls the very handler the
+            // key's case calls. Take had opened Objects & Spells (found on screen 2026-10-26).
+            string dcs = PortSource("src/Mordor.App", "DungeonWindow.axaml.cs");
+            foreach (var (btn, key) in new[] { ("FightBtn", "F"), ("SpellBtn", "C"), ("TakeBtn", "T"), ("OpenBtn", "O"),
+                                               ("PickupBtn", "P"), ("DropBodyBtn", "L"), ("MapBtn", "F8"), ("ExitBtn", "Q") })
+            {
+                var click = System.Text.RegularExpressions.Regex.Match(xaml, $"x:Name=\"{btn}\"[^>]*Click=\"(\\w+)\"");
+                string handler = click.Success ? click.Groups[1].Value : "";
+                bool presses = dcs.Contains($"private void {handler}(object? s, Avalonia.Interactivity.RoutedEventArgs e) => Press(Key.{key});");
+                bool sameAsKey = handler switch
+                {
+                    "OnOpenAutomap" => dcs.Contains("case Key.F8: OnOpenAutomap(null, null!); e.Handled = true; return;"),
+                    "OnShowSheetSpells" => dcs.Contains("if (!_ch.IsDead) OnShowSheetSpells(null, null!);"),
+                    _ => false,
+                };
+                Check($"{btn} (cmdAction) does what the {key} key does", handler != "" && (presses || sameAsKey), true);
             }
             foreach (var file in new[] { "CityWindow", "DungeonWindow" })
             {

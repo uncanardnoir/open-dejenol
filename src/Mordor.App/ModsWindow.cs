@@ -155,6 +155,9 @@ public sealed class ModsWindow : Window
                 {
                     new ScrollViewer { MaxHeight = 560, Content = body, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled },
                     close,
+                    // the program's own version (Mordor.App.csproj), for a bug report or a mod's
+                    // requirements; the original's "Mordor 1.1" is its own and stays where it is
+                    new TextBlock { Text = "OpenDejenol " + Updates.Version, Foreground = Faint, FontSize = 10, HorizontalAlignment = HorizontalAlignment.Right },
                 },
             },
         };

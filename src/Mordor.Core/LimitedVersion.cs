@@ -26,6 +26,9 @@ namespace Mordor.Core;
 ///   (1840-1841).</item>
 /// <item><c>m0032</c> (FRMABOUT.BAS:8, 24, never set in the full build): About's "Ordering Info"
 ///   button, which opens frmOrderInfo (FRMORDER.BAS).</item>
+/// <item><c>gv0180</c> (MAIN.TXT:27, never set in the full build): sub03E3's "Limitation Notice"
+///   (MODULE1.BAS:932-940), until MORDOR.INI's Limited key holds a "T". The shareware build has it
+///   set: observed in the original shareware 2026-10-26.</item>
 /// </list>
 /// <para>The limited value of <c>mc015E</c> and <c>mc0624</c> is the shareware's depth, 3:
 /// "the Shareware version is limited to 3 dungeon levels" (MORDOR.WRI). The full build's are 15.</para>
@@ -65,6 +68,46 @@ public static class LimitedVersion
         "This is the PUBLIC version of Mordor 1.1, so please feel free to give it to your friends and distribute it as you wish!\n\n"
         + "Order the full commercial release now for hundreds of additional monsters, items and over a dozen more levels to explore!\n\n"
         + "For information on Ordering, see the About/Ordering Information section from the Main Menu!";
+
+    /// <summary>
+    /// sub03E3 "If gv0180 Then" (MODULE1.BAS:932-940), called from Sub Main before the data is read
+    /// (MAINMOD2.BAS:6437) and so before the "Public Version" box (6455): unless MORDOR.INI's
+    /// [Loading Information] Limited holds a "T", MsgBox 48 captioned "Limitation Notice", then
+    /// Limited=True is written and the box is not shown again. The full build never sets gv0180;
+    /// the shareware does - observed in the original shareware 2026-10-26: this box, first thing on
+    /// every run there (under OTVDM its INI write did not last), its count gc0182 being 3, where
+    /// the full build's MAIN.TXT:28 has 15.
+    /// </summary>
+    public static bool ShowsLimitationNotice => On;
+
+    public const string LimitationNoticeTitle = "Limitation Notice";
+
+    /// <summary>MODULE1.BAS:934-937, with gc0182 the shareware's 3 (observed in the original shareware 2026-10-26).</summary>
+    public static string LimitationNoticeText =>
+        "NOTICE!\n"
+        + "Because this is a PUBLIC BETA version of MORDOR, only " + LastLevel + " dungeon levels are currently available.\n"
+        + "\n"
+        + "This message will not appear again.";
+
+    /// <summary>
+    /// The close box at the main menu. The full build's MDIForm_QueryUnload refuses an UnloadMode of
+    /// 0 - the close box, the system menu, Alt+F4 - with "Please use the Mordor EXIT buttons to leave
+    /// the game." (FRMMAIN.BAS:171-175). The shareware does not: at the main menu its close box asks
+    /// "Exit Mordor?" (Yes and No, captioned "EXIT") and a Yes quits, with no goodbye box (observed
+    /// in the original shareware 2026-10-26) - the rest of that QueryUnload (176-192) with the
+    /// limited build's silent MDIForm_Unload, as its earlier program has no refusal. Its program is
+    /// not decompiled, and the evidence is the menu's alone, so the city and the dungeon keep the
+    /// full build's refusal.
+    /// </summary>
+    public static bool CloseBoxAsksToExit => On;
+
+    /// <summary>
+    /// frmMenu's Form_Load ends "If m00A8 = True Then cmdCommand(mc002A).Caption = "Ordering/&amp;About""
+    /// (FRMMENU.BAS:162), m00A8 a Static nothing sets in the full build. The shareware's main menu
+    /// reads "Ordering/&amp;About" (observed in the original shareware 2026-10-26). The button still
+    /// opens frmAbout (FRMMENU.BAS:117), where the limited build shows Ordering Info.
+    /// </summary>
+    public static bool AboutReadsOrdering => On;
 
     /// <summary>MAINMOD2.BAS:3998.</summary>
     public const string ChuteCannotBeTaken = "You cannot take this Chute in the Limited Version.";

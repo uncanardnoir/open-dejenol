@@ -9,6 +9,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia;
 using Mordor.Core;
+using Mordor.Modding;
 
 namespace Mordor.App;
 
@@ -172,14 +173,23 @@ public partial class AutomapWindow : Window
         };
         child.PointerPressed += (_, e) =>
         {
-            if (!e.GetCurrentPoint(child).Properties.IsRightButtonPressed) return;
+            var button = e.GetCurrentPoint(child).Properties;
+            if (button.IsLeftButtonPressed) { current()?.LeftPress(e); return; }
+            if (!button.IsRightButtonPressed) return;
+            // a mod's pick waiting (API version 13): the right button anywhere on the form gives it up
+            if (current() is { Picking: true } picking) { picking.CancelPick(); e.Handled = true; return; }
             // picMaze_MouseDown's (600-602), and only picMaze's: picPicture, the scroll bar and the
             // labels have no MouseDown of their own. Found by where the click is on the map at the
             // size it is drawn, not by which control took it (see OnPicMaze)
             if (current() is not { } map || !map.OnPicMaze(e)) return;
-            map.RedrawLevel();
+            // with a mod offering items for the square, the re-plot is the first item of a menu;
+            // with none, it is done at once, as the original
+            if (!map.OfferMenu(e)) map.RedrawLevel();
             e.Handled = true;
         };
+        // the pointer over the map, for the mods' hover (nothing at all with none hooked)
+        child.PointerMoved += (_, e) => current()?.HoverAt(e);
+        child.PointerExited += (_, _) => current()?.HoverOff();
     }
 
     /// <summary>
@@ -309,7 +319,186 @@ public partial class AutomapWindow : Window
             if (ev.Property == TitleProperty && _child != null) _child.Title = Title ?? "Automap";
         };
 
+        _view = new AutomapView(() => _level, () => _deepest,
+                                lv => FloorFor(lv) is { } f ? (f.Width, f.Height) : (0, 0),
+                                lv => Go(lv), RefreshMarks, StartPick, () => FinishPick(null), () => _pick != null);
+        // a mod disabled for throwing, or a setting of one changed: its marks are asked for again
+        FormArea.AttachedToVisualTree += (_, _) => Listen(ModHost.Active);
+        FormArea.DetachedFromVisualTree += (_, _) => Listen(null);
+
         Plot();
+    }
+
+    // ------------------------------------------------------------------ the mods' Automap (API version 13)
+    //
+    // Nothing here is the original's, and none of it does anything unless a running mod has an Automap
+    // hook (ModHost.AutomapHooked): no menu (the right button re-plots at once), no marks (the overlay
+    // is hidden), no hover, no click. See docs/MODDING.md, "The Automap".
+
+    /// <summary>The map as the mods' hooks see it.</summary>
+    private readonly AutomapView _view = null!;
+
+    /// <summary>The host listened to while the map is on screen.</summary>
+    private ModHost? _host;
+
+    private void Listen(ModHost? host)
+    {
+        if (ReferenceEquals(host, _host)) return;
+        if (_host != null) _host.Changed -= OnModsChanged;
+        _host = host;
+        if (_host != null) _host.Changed += OnModsChanged;
+    }
+
+    private void OnModsChanged() => Avalonia.Threading.Dispatcher.UIThread.Post(RefreshMarks);
+
+    /// <summary>A mod's pick waiting for a square: the prompt in lblInfo's place, and whom to answer.</summary>
+    private (string Prompt, Action<AutomapSquare?> Done)? _pick;
+
+    /// <summary>Whether a mod's pick is waiting for the player to click a square.</summary>
+    public bool Picking => _pick != null;
+
+    /// <summary>The square the pointer is over, as last told to the mods.</summary>
+    private AutomapSquare? _hover;
+
+    /// <summary>The right-click menu last opened, for Mordor.UiCheck.</summary>
+    private ContextMenu? _menu;
+
+    /// <summary>The first item of the menu: the original's right-click, the help's "Automap - Redraw/Refresh Level".</summary>
+    public const string RedrawItem = "Redraw/Refresh Level";
+
+    private void StartPick(string prompt, Action<AutomapSquare?> done)
+    {
+        if (_pick != null) FinishPick(null);
+        _pick = (prompt ?? "", done);
+        InfoLabel.Text = _pick.Value.Prompt;
+        MapClip.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Cross);
+        RefreshMarks();
+    }
+
+    /// <summary>A pick answered: with the square clicked, or null (Escape, the right button, or another pick).</summary>
+    private void FinishPick(AutomapSquare? square)
+    {
+        if (_pick is not { } pick) return;
+        _pick = null;
+        InfoLabel.Text = WhereYouAre();
+        MapClip.Cursor = null;
+        pick.Done(square);
+        RefreshMarks();
+    }
+
+    /// <summary>Escape, or the right button: a waiting pick given up.</summary>
+    public void CancelPick() => FinishPick(null);
+
+    /// <summary>
+    /// The square of the level shown under the pointer, or null off picMaze - where the pointer is on the
+    /// map at the size it is drawn, as <see cref="OnPicMaze"/> finds it.
+    /// </summary>
+    private AutomapSquare? SquareAt(Avalonia.Input.PointerEventArgs e)
+    {
+        var p = e.GetPosition(MapClip);
+        if (p.X < 0 || p.Y < 0 || p.X >= MapClip.Bounds.Width || p.Y >= MapClip.Bounds.Height) return null;
+        var (mx, my) = AutomapLayout.ToMap(p.X, p.Y, _mazeLeft, _mazeTop, _zoom);
+        if (!AutomapLayout.OnMaze(mx, my, GutterLeft, _mazeW, _mazeH) || FloorFor(_level) is not { } fl) return null;
+        var (x, y) = AutomapLayout.SquareAt(mx - GutterLeft, my, fl.Width, fl.Height);
+        return new AutomapSquare(_level, x, y);
+    }
+
+    /// <summary>
+    /// A right-click on picMaze with a mod offering items for the square: the menu, its first item the
+    /// original's re-plot. False, and nothing shown, when no running mod offers any.
+    /// </summary>
+    private bool OfferMenu(Avalonia.Input.PointerEventArgs e)
+    {
+        var host = ModHost.Active;
+        if (!host.AutomapHooked || SquareAt(e) is not { } square) return false;
+        var items = host.AutomapMenu(_view, square);
+        if (items.Count == 0) return false;
+        var menu = new ContextMenu();
+        UiFonts.Set(menu, DesignFonts.AutoMap);
+        var redraw = new MenuItem { Header = RedrawItem };
+        redraw.Click += (_, _) => RedrawLevel();
+        menu.Items.Add(redraw);
+        menu.Items.Add(new Separator());
+        foreach (var (mod, item) in items)
+        {
+            if (item.IsSeparator) { menu.Items.Add(new Separator()); continue; }
+            var mi = new MenuItem { Header = item.Label, IsEnabled = item.IsEnabled };
+            if (item.Swatch is { } c)
+                mi.Icon = new Border
+                {
+                    Width = 12, Height = 12, BorderThickness = new Thickness(1),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(0x20, 0x20, 0x20)),
+                    Background = new SolidColorBrush(Color.FromRgb(c.R, c.G, c.B)),
+                };
+            mi.Click += (_, _) => { ModHost.Active.RunAutomapItem(mod, item); RefreshMarks(); };
+            menu.Items.Add(mi);
+        }
+        _menu?.Close();
+        _menu = menu;
+        menu.Open(MapImage);
+        return true;
+    }
+
+    /// <summary>A left press on the form: a waiting pick takes the square; otherwise the mods are told of the click.</summary>
+    private void LeftPress(Avalonia.Input.PointerEventArgs e)
+    {
+        if (_pick == null && !ModHost.Active.AutomapHooked) return;
+        if (SquareAt(e) is not { } square) return;
+        if (_pick != null) { FinishPick(square); return; }
+        ModHost.Active.AutomapClick(_view, square);
+        RefreshMarks();
+    }
+
+    /// <summary>The pointer moved over the form: the mods are told when it comes onto another square.</summary>
+    private void HoverAt(Avalonia.Input.PointerEventArgs e)
+    {
+        if (_pick == null && !ModHost.Active.AutomapHooked) return;
+        Hover(SquareAt(e));
+    }
+
+    private void HoverOff()
+    {
+        if (_pick == null && !ModHost.Active.AutomapHooked) return;
+        Hover(null);
+    }
+
+    private void Hover(AutomapSquare? square)
+    {
+        if (Equals(square, _hover)) return;
+        _hover = square;
+        ModHost.Active.AutomapHover(_view, square);
+        RefreshMarks();
+    }
+
+    /// <summary>
+    /// The mods' marks for the level shown, asked for again and laid over picMaze; and the square a
+    /// waiting pick would take, framed. Hidden, with nothing asked, when no mod is hooked.
+    /// </summary>
+    private void RefreshMarks()
+    {
+        var host = ModHost.Active;
+        // on screen, the host the game asks now is the one listened to (it is set once, at start-up)
+        if (_host != null) Listen(host);
+        var fl = FloorFor(_level);
+        if (fl == null || _mazeW <= 0 || (!host.AutomapHooked && _pick == null))
+        {
+            if (MapMarks.IsVisible || MapMarks.Marks.Count > 0) MapMarks.Set(Array.Empty<AutomapMark>(), null, 0, 0, 0, 1);
+            return;
+        }
+        var marks = host.AutomapHooked ? host.AutomapMarks(_view) : new List<AutomapMark>();
+        (int, int)? pickAt = _pick != null && _hover is { } h && h.Level == _level ? (h.X, h.Y) : null;
+        MapMarks.Set(marks, pickAt, fl.Height, _mazeW, _mazeH, _zoom);
+        SyncMarks();
+    }
+
+    /// <summary>The overlay laid exactly where picMaze is, at its size.</summary>
+    private void SyncMarks()
+    {
+        Canvas.SetLeft(MapMarks, Canvas.GetLeft(MapImage));
+        Canvas.SetTop(MapMarks, Canvas.GetTop(MapImage));
+        MapMarks.Width = MapImage.Width;
+        MapMarks.Height = MapImage.Height;
+        MapMarks.Rescale(_zoom);
     }
 
     /// <summary>
@@ -576,7 +765,7 @@ public partial class AutomapWindow : Window
         // the original's own caption, FRMAUTOM.BAS:405
         Title = $"Automap (Level {_level})";
         LevelLabel.Text = $"Level {_level} of {_deepest}";
-        InfoLabel.Text = WhereYouAre();
+        InfoLabel.Text = _pick is { } waiting ? waiting.Prompt : WhereYouAre();
         DeeperBtn.IsEnabled = _level < _deepest;
         ShallowerBtn.IsEnabled = _level > 1;
 
@@ -587,6 +776,7 @@ public partial class AutomapWindow : Window
             _mazeW = _mazeH = 0;
             _drawnAt = double.NaN;
             SetDrawn(null, null);
+            RefreshMarks();
             return;
         }
 
@@ -659,6 +849,7 @@ public partial class AutomapWindow : Window
         // another level, lost, or in town picMaze stays where it was (328-342). Every redraw had
         // centred it again, so a small map paged to another level jumped back to the middle.
         Place(adjust: AutomapLayout.CursorRecentres(_you?.level ?? 0, _lost, _level));
+        RefreshMarks();
     }
 
     /// <summary>
@@ -938,6 +1129,12 @@ public partial class AutomapWindow : Window
     /// </summary>
     private void PlaceImage(double rs, bool resizing)
     {
+        PlaceImageCore(rs, resizing);
+        SyncMarks();
+    }
+
+    private void PlaceImageCore(double rs, bool resizing)
+    {
         Canvas.SetLeft(MapImage, AutomapLayout.Snap(_mazeLeft + GutterLeft * _zoom, rs));
         Canvas.SetTop(MapImage, AutomapLayout.Snap(_mazeTop, rs));
         if (_pxWith == null || _mazeW <= 0 || _mazeH <= 0) return;
@@ -1005,5 +1202,6 @@ public partial class AutomapWindow : Window
         MapImage.Width = _drawnW / rs;
         MapImage.Height = _drawnH / rs;
         SetDrawn(with, without);
+        SyncMarks();
     }
 }

@@ -385,6 +385,236 @@ Console.WriteLine("\nthe enlarged map at large sizes, dragged by the grip, at 10
     Scaling(1);
     top.Width = 1400; top.Height = 1100; Pump();
 }
+
+// ---- the Cartographer mod on the Automap (src/Mods/Mordor.Mod.Cartographer, API version 13): with
+// mods off the right button re-plots at once and nothing is drawn; with the mod on, a right-click on a
+// square opens a menu whose first item is that re-plot, then the colours and the waypoint items; a
+// waypoint picked on another level (the status line's prompt, the level bar, a click; Escape and the
+// right button giving up); the hover's arrow on the same level only; a click going to the destination
+// and highlighting it; cartographer.json read back by a new host; the marks drawn on the map's own
+// device-pixel squares at 1x, enlarged, and at 125% ----
+Console.WriteLine("\nthe Cartographer mod on the Automap (API version 13):");
+{
+    string scratch = Path.Combine(Path.GetTempPath(), "mordor-uicheck-carto-" + Guid.NewGuid().ToString("N")[..8]);
+    Directory.CreateDirectory(scratch);
+    var hostWas = Mordor.Modding.ModHost.Active;
+    var impl = top.PlatformImpl!;
+    void Scaling(double s)
+    {
+        impl.GetType().GetField("<RenderScaling>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(impl, s);
+        ((Action<double>?)impl.GetType().GetProperty("ScalingChanged")!.GetValue(impl))?.Invoke(s);
+        Pump();
+    }
+    try
+    {
+        string? root = AppContext.BaseDirectory;
+        while (root != null && !File.Exists(Path.Combine(root, "Mordor.sln"))) root = Path.GetDirectoryName(root.TrimEnd(Path.DirectorySeparatorChar));
+        string? modsDir = root == null ? null : new[] { "Release", "Debug" }
+            .Select(c => Path.Combine(root, "src/Mordor.App", "bin", c, "net8.0", "mods"))
+            .FirstOrDefault(d => Directory.Exists(Path.Combine(d, "Cartographer")));
+        if (modsDir == null) throw new DirectoryNotFoundException("no build of Mordor.App with the Cartographer mod in its mods folder");
+
+        var overlay = Named<AutomapOverlay>("MapMarks");
+        var image = Named<Image>("MapImage");
+        var info = Named<TextBlock>("InfoLabel");
+        var flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        int H() => floors.First(f => f.LevelNum == Level()).Height;
+        Point At(int x, int y)
+        {
+            double z = Field<double>("_zoom");
+            return image.TranslatePoint(new Point((x * AutomapLayout.Pitch + 7.5) * z, ((H() - 1 - y) * AutomapLayout.Pitch + 7.5) * z), top)!.Value;
+        }
+        ContextMenu? Menu() => (ContextMenu?)typeof(AutomapWindow).GetField("_menu", flags)!.GetValue(win);
+        void NoMenu() => typeof(AutomapWindow).GetField("_menu", flags)!.SetValue(win, null);
+        void Refresh() => typeof(AutomapWindow).GetMethod("RefreshMarks", flags)!.Invoke(win, null);
+        void Press(Point p, MouseButton b) { Apart(); top.MouseDown(p, b); top.MouseUp(p, b); Pump(); }
+        string Headers() => Menu() is not { } m ? "no menu" : string.Join(" | ", m.Items.Select(i => i is Separator ? "-" : ((MenuItem)i!).Header as string));
+        void Choose(string label)
+        {
+            var mi = Menu()?.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header as string == label);
+            if (mi == null) { Check($"the menu has {label}", Headers(), label); return; }
+            mi.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+            Menu()?.Close();
+            Pump();
+        }
+        string Hex((byte R, byte G, byte B) c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+        string Marks() => !overlay.IsVisible ? "" : string.Join(" ", overlay.Marks.Select(k =>
+            $"{k.Kind}({k.X},{k.Y}{(k.Kind == Mordor.Modding.AutomapMarkKind.Arrow ? $"->{k.ToX},{k.ToY}" : "")}){Hex(k.Colour)}{(k.Bold ? "!" : "")}"));
+        bool Plotted(int x, int y) => Field<HashSet<(int x, int y)>>("_plotted").Contains((x, y));
+        void Step(int x)
+        {
+            map.Merge(1, new[] { (x, 5) }, width);
+            win.Walked((1, x, 5, Facing.North), lost: false, lostLevel: false, deepestReached: 3, autoChangeLevel: false);
+            Pump();
+        }
+
+        Settle(); child.PlaceAt(new Rect(40, 40, fullW, fullH)); Pump(); Settle();
+        win.Page(-5); Pump();
+        Check("on level 1, at 1x", (Level(), Field<double>("_zoom")), (1, 1d));
+
+        // ---- mods off: the original's right-click, nothing drawn ----
+        Mordor.Modding.ModHost.Active = Mordor.Modding.ModHost.Empty();
+        Step(9);
+        NoMenu();
+        Press(At(2, 3), MouseButton.Right);
+        Check("mods off: a right-click on a square re-plots at once (picMaze_MouseDown), no menu", (Plotted(9, 5), Menu() == null), (true, true));
+        Apart(); top.MouseMove(At(2, 3)); Pump();
+        Press(At(2, 3), MouseButton.Left);
+        Check("mods off: hover and click draw nothing (the marks hidden)", (overlay.IsVisible, overlay.Marks.Count, Level()), (false, 0, 1));
+
+        // ---- the mod on ----
+        var modHost = new Mordor.Modding.ModHost(new Mordor.Modding.ModSettingsStore(Path.Combine(scratch, "settings.ini")), _ => { });
+        modHost.Discover(new[] { modsDir });
+        modHost.LoadEnabled();
+        Mordor.Modding.ModHost.Active = modHost;
+        Check("Cartographer switched on (main menu)", modHost.Switch("Cartographer", true), Mordor.Modding.ModSwitchResult.Now);
+        Step(10);
+        NoMenu();
+        Press(At(2, 3), MouseButton.Right);
+        Check("mod on: a right-click on a square opens the menu, and does not re-plot by itself", (Menu()?.IsOpen, Plotted(10, 5)), ((bool?)true, false));
+        Check("the menu: the original's right-click first, then the colours and Add waypoint...",
+              Headers(), $"{AutomapWindow.RedrawItem} | - | Blue | Orange | Red | Purple | No colour | - | Add waypoint...");
+        Check("each colour with its swatch, No colour greyed",
+              string.Join(" ", Menu()!.Items.OfType<MenuItem>().Skip(1).Take(5).Select(m =>
+                  (m.Icon is Border { Background: Avalonia.Media.ISolidColorBrush b } ? $"#{b.Color.R:X2}{b.Color.G:X2}{b.Color.B:X2}" : "none") + (m.IsEnabled ? "" : "(greyed)"))),
+              "#4E79A7 #F28E2B #E15759 #BC13FE none(greyed)");
+        Choose(AutomapWindow.RedrawItem);
+        Check("its first item is the original's right-click: the level re-plotted", Plotted(10, 5), true);
+        Press(At(2, 3), MouseButton.Right);
+        Choose("Blue");
+        Check("Blue: the square tinted on the map", Marks(), "Tint(2,3)#4E79A7");
+        Check("... kept in cartographer.json in the saves folder (DataDirectory)", File.Exists(Path.Combine(scratch, "cartographer.json")), true);
+        Press(At(6, 4), MouseButton.Right);
+        Choose("Orange");
+        Check("Orange on another", Marks(), "Tint(2,3)#4E79A7 Tint(6,4)#F28E2B");
+
+        // ---- a waypoint to another level ----
+        Press(At(2, 3), MouseButton.Right);
+        Choose("Add waypoint...");
+        string prompt = "Click the destination square (any level). Esc cancels.";
+        Check("Add waypoint...: the prompt in the status line (lblInfo)", (win.Picking, info.Text), (true, prompt));
+        Press(Centre(Named<Button>("DeeperBtn")), MouseButton.Left);
+        Check("the level bar pages the map while it waits", (Level(), win.Picking, info.Text), (2, true, prompt));
+        Press(At(5, 6), MouseButton.Left);
+        Check("a click on level 2's square takes it: the status line back", (win.Picking, info.Text), (false, "You are at 11,6,1 facing North."));
+        Check("level 2 shows nothing of it (the destination is not marked)", Marks(), "");
+        win.Page(-1); Pump();
+        Check("level 1: the source framed yellow on its blue", Marks(), "Tint(2,3)#4E79A7 Tint(6,4)#F28E2B Frame(2,3)#EDC948");
+        Press(At(2, 3), MouseButton.Right);
+        Check("its menu now changes or removes it", Headers().EndsWith("Change waypoint... | Remove waypoint", StringComparison.Ordinal), true);
+        Menu()?.Close(); Pump();
+
+        // ---- Escape and the right button give a pick up ----
+        Press(At(4, 4), MouseButton.Right);
+        Choose("Add waypoint...");
+        Check("Escape (the frames' keys, AutomapKeys.CancelPick) gives it up", (AutomapKeys.CancelPick(Avalonia.Input.Key.Escape, win), win.Picking, info.Text == prompt), (true, false, false));
+        Check("Escape with no pick waiting is left to the game", AutomapKeys.CancelPick(Avalonia.Input.Key.Escape, win), false);
+        Press(At(4, 4), MouseButton.Right);
+        Choose("Add waypoint...");
+        NoMenu();
+        Press(At(7, 7), MouseButton.Right);
+        Check("a right-click gives it up, and opens no menu", (win.Picking, Menu() == null, Marks().Contains("(4,4)")), (false, true, false));
+
+        // ---- a waypoint on the same level, and the hover ----
+        Press(At(5, 5), MouseButton.Right);
+        Choose("Add waypoint...");
+        Press(At(8, 9), MouseButton.Left);
+        Apart(); top.MouseMove(At(5, 5)); Pump();
+        Check("the pointer over a source on the same level as its destination: highlighted, an arrow to it",
+              Marks().EndsWith("Frame(5,5)#FFFFFF! Arrow(5,5->8,9)#EDC948", StringComparison.Ordinal), true);
+        top.MouseMove(At(2, 3)); Pump();
+        Check("over a source whose destination is on level 2: highlighted, no arrow",
+              (Marks().Contains("Frame(2,3)#FFFFFF!"), Marks().Contains("Arrow")), (true, false));
+        top.MouseMove(At(12, 12)); Pump();
+        Check("over a plain square: neither", Marks().Contains("#FFFFFF") || Marks().Contains("Arrow"), false);
+
+        // ---- a click on a source goes to its destination ----
+        Press(At(2, 3), MouseButton.Left);
+        Check("a click on the source: the map on the destination's level", Level(), 2);
+        Check("... the destination highlighted", Marks(), "Frame(5,6)#FFFFFF!");
+        Check("... the window kept its size", ChildSize(), new Size(fullW, fullH));
+        Press(At(1, 20), MouseButton.Left);
+        Check("... until the next click", Marks(), "");
+        win.Page(-1); Pump();
+
+        // ---- the marks on the map's own squares: 1x, enlarged, 125% ----
+        void Rendered(string what)
+        {
+            Refresh(); Pump();
+            double rs = top.RenderScaling, zoom = Field<double>("_zoom");
+            Check($"{what}: the marks laid exactly over picMaze", overlay.Bounds, image.Bounds);
+            int mw = Field<int>("_mazeW"), mh = Field<int>("_mazeH"), h = H();
+            var cols = AutomapLayout.DeviceEdges(mw, zoom * rs);
+            var rows = AutomapLayout.DeviceEdges(mh, zoom * rs);
+            int dw = cols[mw], dh = rows[mh];
+            var rtb = new Avalonia.Media.Imaging.RenderTargetBitmap(new PixelSize(dw, dh), new Vector(96 * rs, 96 * rs));
+            using (var dc = rtb.CreateDrawingContext()) AutomapOverlay.Paint(dc, overlay.Marks, h, cols, rows, zoom * rs, rs);
+            var px = new int[dw * dh];
+            var buf = System.Runtime.InteropServices.Marshal.AllocHGlobal(px.Length * 4);
+            try { rtb.CopyPixels(new PixelRect(0, 0, dw, dh), buf, px.Length * 4, dw * 4); System.Runtime.InteropServices.Marshal.Copy(buf, px, 0, px.Length); }
+            finally { System.Runtime.InteropServices.Marshal.FreeHGlobal(buf); }
+            int A(int x, int y) => (px[y * dw + x] >> 24) & 0xFF;
+            // the orange square (6,4): its inside exactly the tint, its edge lines untouched
+            var (l, t, r, b) = AutomapOverlay.Inside(6, 4, h, cols, rows);
+            int inside = 0, wrongInside = 0, edge = 0;
+            for (int y = t; y < b; y++) for (int x = l; x < r; x++) { inside++; if (Math.Abs(A(x, y) - AutomapOverlay.TintAlpha) > 1) wrongInside++; }
+            for (int y = t - 1; y <= b; y++) { edge += A(l - 1, y) + A(r, y); }
+            for (int x = l - 1; x <= r; x++) { edge += A(x, t - 1) + A(x, b); }
+            Check($"{what}: the tint fills the square's inside, on whole device pixels ({r - l}x{b - t})", (inside > 0, wrongInside), (true, 0));
+            Check($"{what}: inside the map's own square edges (DeviceEdges: map pixels 1 to 13)",
+                  (l, t, r, b), (cols[6 * AutomapLayout.Pitch + 1], rows[(h - 1 - 4) * AutomapLayout.Pitch + 1], cols[6 * AutomapLayout.Pitch + AutomapLayout.Pitch], rows[(h - 1 - 4) * AutomapLayout.Pitch + AutomapLayout.Pitch]));
+            Check($"{what}: the edge lines round it (its walls) not covered", edge, 0);
+            int c = px[((t + b) / 2) * dw + (l + r) / 2];
+            int pr = (c >> 16) & 0xFF, pg = (c >> 8) & 0xFF, pb = c & 0xFF;
+            Check($"{what}: the tint is the orange (premultiplied at {AutomapOverlay.TintAlpha})",
+                  Math.Abs(pr - 0xF2 * AutomapOverlay.TintAlpha / 255) <= 2 && Math.Abs(pg - 0x8E * AutomapOverlay.TintAlpha / 255) <= 2 && Math.Abs(pb - 0x2B * AutomapOverlay.TintAlpha / 255) <= 2, true);
+            // the waypoint's frame on (2,3): the yellow ring two map pixels thick inside its edges
+            var (fl, ft, fr, fb) = AutomapOverlay.Inside(2, 3, h, cols, rows);
+            int ring = px[(ft + 1) * dw + (fl + fr) / 2];
+            Check($"{what}: the waypoint's yellow frame inside its square, edge left alone",
+                  (((ring >> 16) & 0xFF) == 0xED && ((ring >> 8) & 0xFF) == 0xC9 && (ring & 0xFF) == 0x48, A((fl + fr) / 2, ft - 1)), (true, 0));
+        }
+        Rendered("1x");
+        Settle(); child.PlaceAt(new Rect(10, 10, 1300, 1050)); Pump(); Settle();
+        Check("enlarged", Field<double>("_zoom") > 1.5, true);
+        Rendered("enlarged");
+        Apart(); top.MouseMove(At(5, 5)); Pump();
+        Check("enlarged: the pointer still finds the squares (the hover's arrow)", Marks().EndsWith("Arrow(5,5->8,9)#EDC948", StringComparison.Ordinal), true);
+        top.Width = 2400; top.Height = 1700; Pump();
+        Scaling(1.25);
+        Settle(); child.PlaceAt(new Rect(10, 10, 1300, 1050)); Pump(); Settle();
+        Rendered("125%, enlarged");
+        top.MouseMove(At(2, 3)); Pump();
+        Check("125%: the pointer still finds the squares", Marks().Contains("Frame(2,3)#FFFFFF!"), true);
+        Scaling(1);
+        top.Width = 1400; top.Height = 1100; Pump();
+        Settle(); child.PlaceAt(new Rect(40, 40, fullW, fullH)); Pump(); Settle();
+        top.MouseMove(new Point(5, 5)); Pump();
+
+        // ---- read back by a new host (the next session), then switched off ----
+        string before = Marks();
+        var again = new Mordor.Modding.ModHost(new Mordor.Modding.ModSettingsStore(Path.Combine(scratch, "settings.ini")), _ => { });
+        again.Discover(new[] { modsDir });
+        again.LoadEnabled();
+        Mordor.Modding.ModHost.Active = again;
+        Refresh(); Pump();
+        Check("a new session reads cartographer.json back: the same marks", (Marks(), before != ""), (before, true));
+        Check("Cartographer switched off", again.Switch("Cartographer", false), Mordor.Modding.ModSwitchResult.Now);
+        Pump();
+        Check("... its marks gone at once (ModHost.Changed)", overlay.IsVisible, false);
+        Step(11);
+        NoMenu();
+        Press(At(2, 3), MouseButton.Right);
+        Check("... and the right button the original's again: a re-plot, no menu", (Plotted(11, 5), Menu() == null), (true, true));
+    }
+    catch (Exception ex) { Check("Cartographer: the Automap could be driven", ex.GetType().Name + ": " + ex.Message, ""); }
+    finally
+    {
+        try { Scaling(1); top.Width = 1400; top.Height = 1100; Pump(); } catch { }
+        Mordor.Modding.ModHost.Active = hostWas;
+        try { Directory.Delete(scratch, true); } catch { }
+    }
+}
 top.Close();
 
 // ---- the Companions page (2026-10-18: "drag & drop doesn't seem to work for companions"; 2026-10-24:
@@ -1402,6 +1632,117 @@ Console.WriteLine("\nthe mods' windows, children of the game's frame:");
     }
 }
 
+// ---- the dungeon's Take button: cmdAction(2), which hands sub0456 the t key, Take Stairs
+// (FRMDUNM.BAS:94-95). The port had it open Objects & Spells. Pressed on level 1's stairs up, where
+// the town's own way down puts the party, it climbs out to the town, as t does there ----
+Console.WriteLine("\nthe dungeon's Take button:");
+{
+    string scratch = Path.Combine(Path.GetTempPath(), "mordor-uicheck-take-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(scratch);
+    string? savesWas = Environment.GetEnvironmentVariable("MORDOR_SAVES");
+    Environment.SetEnvironmentVariable("MORDOR_SAVES", scratch);
+    CityWindow? town = null;
+    DungeonWindow? down = null;
+    try
+    {
+        Mdata1.LoadFrom(game); RaceData.LoadFrom(game); GuildData.LoadFrom(game);
+        var hero = new Character
+        {
+            Name = "Uitake", Race = RaceData.All[0].Name, CurHits = 10, MaxHits = 10, GoldOnHand = 100,
+            Guilds = { new GuildMembership { Guild = GuildData.All[0].Name, Level = 1 } },
+        };
+        town = new CityWindow(new Party(hero), game) { Width = 1400, Height = 1000 };
+        town.Show();
+        Pump();
+        var flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        typeof(CityWindow).GetMethod("EnterDungeon", flags)!.Invoke(town, new object?[] { null, new Avalonia.Interactivity.RoutedEventArgs() });
+        for (int i = 0; i < 10; i++) Pump();
+        down = typeof(CityWindow).GetField("_below", flags)!.GetValue(town) as DungeonWindow;
+        if (down == null) throw new InvalidOperationException("the dungeon did not come up");
+        var nav = (DungeonNav)typeof(DungeonWindow).GetField("_nav", flags)!.GetValue(down)!;
+        Check("Take: the party stands on level 1's stairs up",
+              ((int)typeof(DungeonWindow).GetField("_level", flags)!.GetValue(down)!, nav.Floor.Has(nav.X, nav.Y, Floor.STAIRS_UP)), (1, true));
+        var take = (Button)typeof(DungeonWindow).GetField("TakeBtn", flags)!.GetValue(down)!;
+        take.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        for (int i = 0; i < 10; i++) Pump();
+        Check("Take: the stairs taken - the dungeon gone and the party in town, as t does",
+              (typeof(CityWindow).GetField("_below", flags)!.GetValue(town) == null, hero.DungeonLevel), (true, 0));
+        if (typeof(CityWindow).GetField("_below", flags)!.GetValue(town) == null) down = null;
+    }
+    catch (Exception ex) { Check("Take: the dungeon's Take button could be driven", ex.GetType().Name + ": " + ex.Message, ""); }
+    finally
+    {
+        try { down?.Close(); Pump(); town?.Hide(); Pump(); } catch { }
+        Environment.SetEnvironmentVariable("MORDOR_SAVES", savesWas);
+        try { Directory.Delete(scratch, true); } catch { }
+    }
+}
+
+// ---- a character loaded dead below ground: sub14E0 shows frmDungeonMain and then sub0930 Me
+// (MAINMOD2.BAS:3172-3182) - the dead screen in the dungeon window, its readout "(You are Dead)"
+// (MAZEMOD.BAS:310) and its buttons kept, as the original shows it (observed 2026-10-26). The port
+// had put them on the city's dead screen ----
+Console.WriteLine("\na character loaded dead below ground:");
+{
+    string scratch = Path.Combine(Path.GetTempPath(), "mordor-uicheck-deadload-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(scratch);
+    string? savesWas = Environment.GetEnvironmentVariable("MORDOR_SAVES");
+    Environment.SetEnvironmentVariable("MORDOR_SAVES", scratch);
+    CityWindow? town = null;
+    DungeonWindow? down = null;
+    try
+    {
+        Mdata1.LoadFrom(game); RaceData.LoadFrom(game); GuildData.LoadFrom(game);
+        var first = MdrLoader.LoadDungeon(mdr)[0];
+        // a square of a room (an area above nought, so sub0A91 reads a record for it), not rock
+        var (sx, sy) = Enumerable.Range(0, first.Height).SelectMany(y => Enumerable.Range(0, first.Width).Select(x => (x, y)))
+                                 .First(p => first.AreaIdAt(p.x, p.y) > 0 && !first.Has(p.x, p.y, Floor.ROCK));
+        // and a hostile group standing in it, as the level's file keeps one (Foes(0).Engaged = 1), stamped
+        // now so that it is read back rather than made afresh
+        var monsters = MdrLoader.LoadMonsters(Path.Combine(game, "MDATA5.MDR"));
+        int foe = monsters.FindIndex(m => m.Id != 0 && m.LevelFound == 1 && m.Hits > 0);
+        var room = new RoomRecord();
+        room.Foes[0].Ref = foe; room.Foes[0].KnownAs = foe; room.Foes[0].GroupCount = 1;
+        room.Foes[0].Hits = room.Foes[0].MaxHits = (int)monsters[foe].Hits;
+        room.Foes[0].Engaged = 1; room.Foes[0].Stamp = DungeonState.SecondsSinceMidnight(DateTime.Now);
+        var dstate = DungeonState.Load(scratch);
+        dstate.StoreRoom(1, first.AreaIdAt(sx, sy), room);
+        dstate.Save(scratch);
+        var body = new Character
+        {
+            Name = "Uidead", Race = RaceData.All[0].Name, CurHits = 0, MaxHits = 10, GoldOnHand = 100,
+            Guilds = { new GuildMembership { Guild = GuildData.All[0].Name, Level = 1 } },
+            IsDead = true, DungeonLevel = 1, X = sx, Y = sy, Facing = 1, CombatSetting = 1,
+        };
+        town = new CityWindow(new Party(body), game) { Width = 1400, Height = 1000 };
+        town.Show();
+        for (int i = 0; i < 12; i++) Pump();
+        var flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        down = typeof(CityWindow).GetField("_below", flags)!.GetValue(town) as DungeonWindow;
+        Check("loaded dead below ground: the dungeon window comes up, not the city's dead screen", down != null, true);
+        if (down == null) throw new InvalidOperationException("the dungeon did not come up");
+        T Ctl<T>(string name) => (T)typeof(DungeonWindow).GetField(name, flags)!.GetValue(down)!;
+        Check("... its readout says (You are Dead)", Ctl<TextBlock>("PosText").Text, "(You are Dead)");
+        Check("... sub0930's line and Wait for Rescue (MAINMOD2.BAS:3045-3052)",
+              (Ctl<TextBlock>("MsgText").Text, Ctl<Button>("WaitBtn").IsVisible, Ctl<Button>("WaitBtn").Content),
+              (Rescue.DeadInTheDungeon, true, (object?)"_Wait for Rescue"));
+        Check("... and the command buttons are there", (Ctl<Button>("TakeBtn").IsVisible, Ctl<Button>("ExitBtn").IsVisible, Ctl<Button>("MapBtn").IsVisible), (true, true, true));
+        // the hostile group's room: sub0A91's sub0BDE -1 (MONSMOD.BAS:726) on Form_Load gives the dead one
+        // their Combat Setting, Fight (CHARCREA.BAS:243), shown in the Party window's Option column
+        // (observed in the original 2026-10-26: "Fight" for a dead character loaded where they fell)
+        var rows = Ctl<StackPanel>("PartyRows");
+        Check("... with a hostile group in the room, the Party window's Option is the Combat Setting, Fight",
+              rows.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text).Where(t => t is "None" or "Fight" or "Defend").FirstOrDefault(), "Fight");
+    }
+    catch (Exception ex) { Check("loaded dead below ground: could be driven", ex.GetType().Name + ": " + ex.Message, ""); }
+    finally
+    {
+        try { down?.Close(); Pump(); town?.Hide(); Pump(); } catch { }
+        Environment.SetEnvironmentVariable("MORDOR_SAVES", savesWas);
+        try { Directory.Delete(scratch, true); } catch { }
+    }
+}
+
 // ---- the DPS Meter mod's window (src/Mods/Mordor.Mod.DpsMeter): a bar per party member, split by
 // kind in proportion, the longest the top dealer's; the total over it; a click shows the breakdown;
 // it follows the tallies; the Damage | XP modes, kept; Reset at once ----
@@ -1674,8 +2015,19 @@ Console.WriteLine("\nthe menu shut down under its Public Version box:");
         LimitedVersion.On = true;
         title = new TitleWindow();
         title.Show(); Pump();
+        // first of all the Limitation Notice (sub03E3, before the data and the Public Version box;
+        // observed in the original shareware 2026-10-26), and Limited=True once it is answered
+        string BoxText(Window w) => string.Join("|", w.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text).Where(t => !string.IsNullOrEmpty(t) && t != "OK"));
+        var notice = title.OwnedWindows.ToList();
+        Check("the limited build: the Limitation Notice comes first, alone, with its text",
+              (notice.Count, notice.FirstOrDefault()?.Title, notice.Count > 0 ? BoxText(notice[0]) : ""),
+              (1, "Limitation Notice", "NOTICE!\nBecause this is a PUBLIC BETA version of MORDOR, only 3 dungeon levels are currently available.\n\nThis message will not appear again."));
+        Check("not marked seen while it is up", PortSettings.Load(scratchSaves).LimitationNoticeSeen, false);
+        foreach (var w in notice) w.Close();
+        Pump(); Pump();
+        Check("its OK writes Limited=True", (PortSettings.Load(scratchSaves).Limited, PortSettings.Load(scratchSaves).LimitationNoticeSeen), ("True", true));
         var boxes = title.OwnedWindows.ToList();
-        Check("the limited build: the Public Version box is up over the menu", (boxes.Count, boxes.FirstOrDefault()?.Title), (1, LimitedVersion.PublicBoxTitle));
+        Check("the limited build: then the Public Version box is up over the menu", (boxes.Count, boxes.FirstOrDefault()?.Title), (1, LimitedVersion.PublicBoxTitle));
         // the program ends: the menu goes, and the box with it
         title.Close(); Pump(); Pump();
         Check("the menu shut down under it: nothing thrown", string.Join("; ", thrown), "");
@@ -1691,7 +2043,7 @@ Console.WriteLine("\nthe menu shut down under its Public Version box:");
         title = new TitleWindow();
         title.Show(); Pump();
         var welcome = title.OwnedWindows.ToList();
-        Check("a menu left up: the Welcome box comes up over it", string.Join(", ", welcome.Select(w => w.Title)), "Welcome!");
+        Check("a menu left up: the Welcome box comes up over it - the Limitation Notice, seen, not again", string.Join(", ", welcome.Select(w => w.Title)), "Welcome!");
         foreach (var w in welcome) w.Close();
         Pump();
         Check("and its OK marks it seen, nothing thrown", (PortSettings.Load(scratchSaves).Welcomed, string.Join("; ", thrown)), (true, ""));
@@ -1701,6 +2053,96 @@ Console.WriteLine("\nthe menu shut down under its Public Version box:");
     finally
     {
         Dispatcher.UIThread.UnhandledException -= Caught;
+        try { title?.Close(); Pump(); } catch { }
+        foreach (var (k, v) in envKeep) Environment.SetEnvironmentVariable(k, v);
+        LimitedVersion.On = limitedWas;
+        TitleWindow.GameDir = gameDirWas;
+        try { Directory.Delete(scratchSaves, true); } catch { }
+    }
+}
+
+// ---- the menu's close box: the full build refuses it with "Please use the Mordor EXIT buttons to
+// leave the game." (FRMMAIN.BAS:171-175); the shareware asks "Exit Mordor?" and a Yes quits with no
+// goodbye (observed in the original shareware 2026-10-26) ----
+Console.WriteLine("\nthe menu's close box:");
+{
+    string scratchSaves = Path.Combine(Path.GetTempPath(), "mordor-closebox-" + Guid.NewGuid().ToString("N")[..8]);
+    var envKeep = new[] { "MORDOR_SAVES", "MORDOR_MUTE", "MORDOR_CRASHLOG" }.ToDictionary(k => k, k => Environment.GetEnvironmentVariable(k));
+    bool limitedWas = LimitedVersion.On;
+    string gameDirWas = TitleWindow.GameDir;
+    TitleWindow? title = null;
+    try
+    {
+        Directory.CreateDirectory(scratchSaves);
+        Environment.SetEnvironmentVariable("MORDOR_SAVES", scratchSaves);
+        Environment.SetEnvironmentVariable("MORDOR_MUTE", "1");
+        Environment.SetEnvironmentVariable("MORDOR_CRASHLOG", Path.Combine(scratchSaves, "crash.log"));
+        TitleWindow.GameDir = game;
+        // the first-run boxes already seen, so that the menu stands alone
+        PortSettings.Write(scratchSaves, "NotFirstTime", "True");
+        PortSettings.Write(scratchSaves, "Limited", "True");
+        // the user's close box: the platform's own request, which arrives as a close that is not the program's
+        var windowImpl = Type.GetType("Avalonia.Platform.IWindowImpl, Avalonia.Controls")!;
+        void CloseBox(Window w)
+        {
+            var impl = typeof(TopLevel).GetProperty("PlatformImpl")!.GetValue(w)!;
+            var closing = (Func<WindowCloseReason, bool>?)windowImpl.GetProperty("Closing")!.GetValue(impl);
+            closing?.Invoke(WindowCloseReason.WindowClosing);
+            Pump(); Pump();
+        }
+        string BoxText(Window w) => string.Join("|", w.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text).Where(t => !string.IsNullOrEmpty(t)));
+        void Answer(Window box, string button)
+        {
+            box.GetVisualDescendants().OfType<Button>().First(b => Equals(b.Content, button)).RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            Pump(); Pump();
+        }
+
+        LimitedVersion.On = true;
+        title = new TitleWindow();
+        title.Show(); Pump(); Pump();
+        foreach (var w in title.OwnedWindows.ToList()) w.Close();   // a Public Version box, if this run has not had it yet
+        Pump();
+        // the shareware's About button, "Ordering/&About" (FRMMENU.BAS:162; observed in the original
+        // shareware 2026-10-26), opening frmAbout with its Ordering Info
+        var aboutBtn = title.FindControl<Button>("AboutBtn")!;
+        Check("the shareware: the menu's About button reads Ordering/&About", aboutBtn.Content, "Ordering/_About");
+        aboutBtn.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Pump(); Pump();
+        var about = title.OwnedWindows.ToList();
+        Check("... and opens About MORDOR, with Ordering Info",
+              (about.Count, about.FirstOrDefault()?.Title, about.Count > 0 && about[0].GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, "Ordering Info"))),
+              (1, "About MORDOR", true));
+        foreach (var w in about) w.Close();
+        Pump(); Pump();
+        CloseBox(title);
+        var ask = title.OwnedWindows.ToList();
+        Check("the shareware: the close box asks \"Exit Mordor?\", captioned EXIT, Yes and No",
+              (ask.Count, ask.FirstOrDefault()?.Title, ask.Count > 0 ? BoxText(ask[0]) : ""), (1, "EXIT", "Exit Mordor?|Yes|No"));
+        if (ask.Count > 0) Answer(ask[0], "No");
+        Check("... No keeps the menu", (title.IsVisible, title.OwnedWindows.Count), (true, 0));
+        Check("the shareware: the menu is captioned as its frame, Mordor 1.1 (Limited Version) (observed 2026-10-26)", title.Title, "Mordor 1.1 (Limited Version)");
+        CloseBox(title);
+        ask = title.OwnedWindows.ToList();
+        if (ask.Count > 0) Answer(ask[0], "Yes");
+        Check("... Yes quits, with no goodbye box", (title.IsVisible, title.OwnedWindows.Count(w => w.IsVisible)), (false, 0));
+
+        LimitedVersion.On = false;
+        title = new TitleWindow();
+        title.Show(); Pump(); Pump();
+        Check("the full game: the About button reads About...", title.FindControl<Button>("AboutBtn")!.Content, "_About...");
+        CloseBox(title);
+        var refused = title.OwnedWindows.ToList();
+        Check("the full game: the close box is refused, \"Please use the Mordor EXIT buttons to leave the game.\"",
+              (refused.Count, refused.FirstOrDefault()?.Title, refused.Count > 0 ? BoxText(refused[0]) : ""),
+              (1, "Exit Mordor", "Please use the Mordor EXIT buttons to leave the game.|OK"));
+        if (refused.Count > 0) Answer(refused[0], "OK");
+        Check("... and the menu stays", title.IsVisible, true);
+        Check("the full game: the menu keeps frmMenu's empty caption", title.Title, "");
+        title.Close(); Pump();
+    }
+    catch (Exception ex) { Check("the menu's close box could be driven", ex.GetType().Name + ": " + ex.Message, ""); }
+    finally
+    {
         try { title?.Close(); Pump(); } catch { }
         foreach (var (k, v) in envKeep) Environment.SetEnvironmentVariable(k, v);
         LimitedVersion.On = limitedWas;
@@ -1786,6 +2228,9 @@ Console.WriteLine("\nthe game's art, read out of the game folder and shown from 
         // opened with no topic named, it is at the help file's Contents topic, as WinHelp was for
         // HELP_CONTENTS: Welcome, in the full game's MORDOR.HLP and the shareware's alike
         Check("and opens at its Contents topic", (help.FindControl<TextBlock>("TopicTitle")?.Text, help.FindControl<ListBox>("TopicList")?.SelectedItem as string), ("Welcome", "Welcome"));
+        // captioned, as WinHelp captioned its window, with the help file's own TITLE (|SYSTEM)
+        string hlpTitle = Mordor.Core.Extraction.WinHelpFile.Read(Mordor.Core.Extraction.GameArt.Find(game, "MORDOR.HLP")!).Title;
+        Check("the help window is captioned with the help file's own title", (help.Title, help.FindControl<TextBlock>("HelpHeading")?.Text), (hlpTitle, hlpTitle));
         help.Close(); Pump();
         var named = new HelpWindow("Tutorial");
         named.Show(); Pump();

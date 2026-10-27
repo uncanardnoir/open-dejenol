@@ -27,6 +27,7 @@ and the first mod.
 | Decisions `PartyGoldTo` (who takes the whole of the gold monGetGold pays - a won fight, an opened chest, a room emptied by joining - instead of the even share; `CombatEngine.GoldTo`) and `TownIncomeToBank` (a Store or Confinement sale paid into the bank, `TownIncome`, `Character.Receive`); choice settings (mod.json `choices`, `ModChoiceSpec`, radio buttons on the Mods page, `ModSettings.GetChoice/SetChoice`) - API version 10 | built (2026-10-25, for the Quality of Life mod's Party gold and Bank-managed town gold); both decisions gone in API version 12 (below), the choice settings kept |
 | Settings windows (mod.json `settingsWindow`: a title and groups of settings by key, `ModSettingsWindowSpec`; the Mods page shows a **Settings...** button for the mod in place of its settings, on both pages and while the mod is off, one window per mod; `ModHost.MigrateSettings` runs the mod's static `Migrate(ModSettings)` first; `ModSettingsWindow` draws each group with a heading box that switches its toggles together, shown mixed when they differ) - API version 11 | built (2026-10-25, for the Quality of Life mod) |
 | `PartyGoldTo` and `CombatEngine.GoldTo` removed (the dungeon's gold is always monGetGold's even share, with any mod); `TownIncomeToBank` replaced by `TownIncomeBank` (the member whose account a sale's gold goes into, or null for the seller's hand; `TownIncome.Party`); `TownArrivalAction.PartyPool` with `TownArrivalAnswer.PoolTo` (the Bank's Party Pool into one member's account, `Party.PoolOnHandToBank`); `ShortfallAnswer.From` (who covers a shortfall, in order) and a shortfall now covered from the givers' bank accounts only; `ModChoiceSpec.OptionDescriptions` (a tooltip per option) - API version 12 | built (2026-10-25, for the Quality of Life mod's Town gold) |
+| The Automap hooks (see "The Automap" under **UI** below): `ModUI.AutomapMenu` (items for the right-click menu, whose first item is the original's re-plot), `AutomapMarks` (tints, frames and arrows drawn on the map's own squares), `AutomapHover`, `AutomapClick`; `AutomapView` (`ShownLevel`, `DeepestLevel`, `LevelSize`, `ShowLevel`, `Refresh`, `PickSquare`, `CancelPick`, `Picking`), `AutomapSquare`, `AutomapMark`, `AutomapMenuItem`; `ModHost.AutomapHooked`; `AutomapLayout.SquareAt` - API version 13 | built (2026-10-26, for the Cartographer mod) |
 | Events `BlowLanded`, `HitsChanged`, `FightStarted/Ended`; restyling; data and asset mods | not yet |
 
 The Store's alignment choice is back to the original's lock by default; the unlocked choice is in the Quality of Life
@@ -319,6 +320,60 @@ a deleted character, a garbled file) and the mod loaded through the host; `Mordo
 headless (bars in party order, segment widths in proportion, the overlay, a click's shares, live rescaling, the Damage | XP
 buttons and the mode kept, the XP bars and shares, Reset at once).
 
+### The Cartographer mod (`src/Mods/Mordor.Mod.Cartographer`, id `Cartographer`)
+
+Version 1.0.0 (2026-10-26, the user's request): "Mark squares on the automap with colours and waypoints". Off until
+ticked on the Mods page, as the others; no toggles. It is purely the player's own annotation of the Automap: it reads
+nothing of the maze (any square of a level the map can show may be marked, explored or not), reveals nothing, and changes
+nothing in the game. With the mod off - or with no mod - the Automap is exactly the original's: the right button
+re-plots at once and nothing is drawn over the map (the `AutomapHooked` test, below). It has no window and no Avalonia
+of its own: the game draws its menu and marks through the Automap hooks (API version 13).
+
+- **The menu.** A right-click on a square of the map (picMaze; not the grey round it, the numbers or the level row)
+  opens a small menu in the game's menu style (the Kaizen window's, in the Automap form's own font) instead of
+  re-plotting. Its **first item is the original's own right-click**, `picMaze_MouseDown`'s full re-plot, under the help's
+  name for it, **Redraw/Refresh Level** (the game puts it there whatever the mods offer, and it does exactly what the
+  right button does with the mod off); then a line; then **Blue**, **Orange**, **Red**, **Purple**, each with a swatch of
+  its colour: Tableau 10's first three (#4E79A7, #F28E2B, #E15759) and a neon purple, #BC13FE (in place of Tableau's
+  teal, which read too close to the blue; a cartographer.json written before keeps its squares, its `"Teal"` read as
+  Purple and written back so); **No colour** (greyed when the square has
+  none); a line; and **Add waypoint...** - or, for a square that has one, **Change waypoint...** and **Remove waypoint**.
+- **Colours** tint the square's inside, inside its edge lines, at 60% (`AutomapMark.Tint`): the map shows through, and
+  the walls and doors on the square's edges are never covered. One colour per square; a new one replaces it.
+- **Waypoints** link a source square to one destination square, on any level (one per source; the destination is not
+  marked). **Add waypoint...** asks for the destination (`AutomapView.PickSquare`): the Automap's status line (lblInfo,
+  "You are at ...") reads `Click the destination square (any level). Esc cancels.` and the pointer is a cross; the level
+  bar, its arrows and < > page the map as ever; a left click on a square takes it (the square under the pointer is
+  framed white meanwhile), and **Escape** (from any window of the game, while the pick waits) or **a right-click**
+  gives up, leaving everything as it was. A click on the source itself changes nothing. A source square is drawn in
+  Tableau's yellow, #EDC948, apart from the four colours: tinted yellow when it has no colour of its own, and always
+  framed yellow (`AutomapMark.Frame`), so a coloured source keeps its colour inside the yellow frame.
+- **The hover**: with the pointer over a waypoint's source, the source is framed white (bold), and when the destination
+  is on the level shown an arrow in the waypoint yellow, outlined dark, runs from the source's middle to the
+  destination's (`AutomapMark.Arrow`); for a destination on another level, the frame alone.
+- **A click** (left) on a waypoint's source pages the map to the destination's level (the level bar's own way,
+  `AutomapView.ShowLevel`) and frames the destination white (bold); the highlight stays until the next click on a square
+  of the map. A double click still resizes the window, as the original's does. "Auto Change Lev." still follows the
+  party to its own level at its next step, as without the mod.
+
+The notes are kept per world - the shared automap (automap.json) is the saves folder's, and so are they - in
+`cartographer.json` in the saves folder (`ctx.DataDirectory`, beside settings.ini; `MORDOR_SAVES` moves it):
+`{ "Version": 1, "Colours": [ { "Level": 1, "X": 5, "Y": 7, "Colour": "Blue" } ], "Waypoints": [ { "Level": 1, "X": 5,
+"Y": 7, "ToLevel": 3, "ToX": 12, "ToY": 2 } ] }`, the squares counted from one as the Automap's readout counts them
+("You are at 5,7,1"). Read when the mod loads; written whole (beside, then moved over) at each change. A file that cannot
+be read is moved aside to `cartographer.json.bad-yyyyMMdd-HHmmss` and the notes start empty, as kaizen.json; an entry that
+makes no sense (an unknown colour, a level below one, a square below one, a waypoint to its own square) is left out.
+The `mods` probe asserts the manifest and default, nothing hooked with mods off, the menu's items and swatches, colouring
+and clearing, waypoints picked across levels, given up and replaced, the marks (tints, the source's yellow, the hover's
+frame and its arrow on the same level only), a click going to the destination and highlighting it until the next click,
+the file's round trip, a hand-edited and a garbled file, switching off and on, `AutomapLayout.SquareAt`, and the hooks
+guarded (a mod throwing in its marks, or in a pick's answer, disabled). `Mordor.UiCheck` drives the real Automap child
+headless: mods off (the re-plot at once, no menu, nothing drawn), the menu (its first item the re-plot, reached through
+it), colouring, a waypoint picked on another level through the level bar, Escape and the right button giving up, the
+hover's arrow (none across levels), the click's navigation and highlight, a new session reading the file back, the mod
+switched off taking its marks away at once, and the marks rendered on the map's own device-pixel squares at 1x,
+enlarged, and at 125% (the tint filling exactly the square's inside, the edge lines untouched, the frame inside them).
+
 ## How to write a mod
 
 ### Where mods go
@@ -328,7 +383,8 @@ The loader looks, in this order, in
 1. `mods\` beside the game folder - beside `saves\`, where settings.ini lives. For the user's install that is
    `Desktop\mordor\mods\`. Put your own mods here.
 2. `mods\` beside the program (`src\Mordor.App\bin\<config>\net8.0\mods\`), where the build puts the mods that come with
-   the port (`src/Mods/ShipMods.targets`).
+   the port (`src/Mods/ShipMods.targets`; a publish puts them in its own `mods\`). In an installed copy that is
+   `%LOCALAPPDATA%\OpenDejenol.Game\current\mods\`, which each update replaces: put your own mods in the first.
 
 `MORDOR_MODS` (folders separated by `;`) replaces both. A mod id found twice is taken from the first folder.
 
@@ -544,6 +600,45 @@ public sealed class Entry : Mordor.Modding.IMod
   window closed, and it comes back when it says true if it was open. A cell or window that names Avalonia types is
   best reached through a small method returning `object` (see `QolMod.Draw`): .NET resolves an Avalonia type when the
   method naming it is compiled, and the headless `mods` probe has no Avalonia.
+- **The Automap** (API version 13, for the Cartographer mod): four hooks on `ctx.UI`, each handed an `AutomapView` - the
+  map open now: `ShownLevel` (hsbLevel's value), `DeepestLevel` (its Max), `LevelSize(level)` (squares across and down),
+  `ShowLevel(level)` (page the map as its level bar does, held to 1 and the deepest), `Refresh()` (ask every mod for its
+  marks again and draw them), `PickSquare(prompt, done)`, `CancelPick()` and `Picking`. Squares are `AutomapSquare(Level,
+  X, Y)`, X east and Y north from nought (the readout adds one). **With no running mod hooking any of the four
+  (`ModHost.AutomapHooked` false), the Automap does nothing it did not do before**: the right button re-plots at once
+  (`picMaze_MouseDown`), a hover or a click is not looked at, and the overlay is hidden.
+  - `AutomapMenu` (`(view, square) => items`): asked at a right-click on a square of picMaze (where `OnPicMaze` finds
+    one: not the grey round it, the numbers or the level row). When the running mods offer at least one item (in load
+    order, `AutomapMenuItem.Separator` kept between them), the right-click opens a menu - a ContextMenu at the pointer,
+    in the Automap form's font - whose **first item is the original's right-click**, **Redraw/Refresh Level**
+    (`AutomapWindow.RedrawItem`, the full re-plot the right button does with no mod), then a line, then the mods'
+    items; with none it re-plots at once, as the original. An `AutomapMenuItem(Label, Run, Swatch, IsEnabled)` shows a
+    12-pixel square of `Swatch` before its label; `Run` is guarded, and the marks are asked for again after it.
+  - `AutomapMarks` (`view => marks`): what to draw over the level shown, asked whenever the level is drawn (a step, a
+    page, a re-plot), at a hover's or a click's change, after a menu item, after `Refresh()` and when a mod setting
+    changes or a mod is disabled (`ModHost.Changed`). Every running mod's marks are drawn, in load order: first every
+    `AutomapMark.Tint(x, y, colour)` (the square's inside - map pixels 1 to 13 of its 15, inside its edge lines - at
+    60%), then every `Frame(x, y, colour, bold)` (a ring two map pixels thick, three bold, just inside the edge lines,
+    with a one-device-pixel dark line inside it so it reads on grey and on black), then every `Arrow(fromX, fromY, toX,
+    toY, colour)` (middle to middle on the level shown, outlined dark, its width and head growing with the zoom). They
+    are drawn by the game (`AutomapOverlay`, laid exactly over picMaze) on the map's own squares at the size the map is
+    drawn: a square's edges are the device pixels `AutomapLayout.DeviceEdges` gives the map's bitmap for the same zoom
+    and display scaling, so the marks are as crisp as the map at 1x, enlarged and at 125%, and a resize being dragged
+    stretches them with the bitmap until it is drawn again. A square's walls and doors are never covered.
+  - `AutomapHover` (`(view, square or null)`): the pointer came onto another square of the map, or off it; told once
+    per change.
+  - `AutomapClick` (`(view, square) => acted`): a left click on a square of the map; every running mod is told. The
+    original does nothing with a single click on picMaze; a double click still resizes as `picMaze_DblClick` does.
+  - `view.PickSquare(prompt, done)`: the prompt takes the status line's place (lblInfo, "You are at ...") and the
+    pointer over the map is a cross; the level bar, its arrows and < > still page the map; the square under the pointer
+    is framed white; the next left click on a square of the map answers `done(square)` (the click goes no further), and
+    **Escape** - from any window of the game, through the frames' key handling (`AutomapKeys.CancelPick`, checked only
+    while a pick waits, so with no pick Escape is the game's as before) - or a right-click anywhere on the form (which
+    then opens no menu) answers `done(null)`. One pick at a time: a second answers the first with null. `done` is
+    guarded for the mod that asked, and not called once that mod has stopped running. On a form shorter than full size
+    the picture lies over the level row (modAdjustMap), so the prompt is hidden there; < and > still page the map.
+  Every one of these calls into a mod is guarded: a throw disables the mod, and the Automap carries on with what the
+  other mods give, or the original's.
 - **Actions** (moments the mod may act, each awaited by the game before it goes on; null = nothing happens there):
   `EnteredDungeonFromTown` - the party has gone down from town (the city's Dungeon picture or d), raised once the
   dungeon is up and before its clocks start; not for a character loaded below ground, nor after a raise below.
@@ -621,7 +716,7 @@ public sealed class Entry : Mordor.Modding.IMod
 
 Mods are switched on or off only on the **main menu's** Mods page, where no game window is open. There, ticking a
 mod's **Enabled** box takes effect at once, both ways, with no restart, for a mod whose entry class also implements
-`IModLifecycle` - as the three bundled mods do (2026-10-24: the user found the restart unintuitive, then chose this
+`IModLifecycle` - as the bundled mods do (2026-10-24: the user found the restart unintuitive, then chose this
 simpler design). A mod without it is switched at the next start, as before, and its status line says so. A game
 begun afterwards builds its windows' mod buttons, columns, marks and windows from the mods running then, as it
 always has; nothing already built has to follow a switch. On the in-game Mods page (the Control Panel's **Mods...**)
@@ -671,7 +766,8 @@ public sealed class Entry : IMod, IModLifecycle
   `IModLifecycle` mod (above), and at the next start for any other.
 - Every call the game makes into a mod is guarded: Load, OnEnable and OnDisable, each event and decision hook (a `TownArrivalAnswer`'s line
   included), an Objects & Spells command's visibility test and Run, a Bank command's visibility test and Run, a party
-  column's visibility test and cell, a pack-line or Bank-line decoration, building a mod window, and each Action
+  column's visibility test and cell, a pack-line or Bank-line decoration, building a mod window, the Automap hooks
+  (`AutomapMenu`, a menu item's Run, `AutomapMarks`, `AutomapHover`, `AutomapClick`, a pick's answer), and each Action
   hook (`EnteredDungeonFromTown`, `LeavingByStairs`: a throw or a faulted task alike). A mod
   that throws in one of those is disabled for the rest of the session, its Harmony patches are removed, the
   exception goes to the log, and the game gives the original's answer.

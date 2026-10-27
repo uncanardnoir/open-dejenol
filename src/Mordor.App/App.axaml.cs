@@ -341,6 +341,9 @@ public partial class App : Application
                     return w;
                 }
                 desktop.MainWindow = GameFolderWindow.FirstWindow(found, Start, GameFolderWindow.MakeMain);
+                // an installed copy asks for a newer version in the background; the main menu
+                // offers what it finds (Updates, docs/RELEASING.md). Nothing for a test run.
+                Updates.Begin();
             }
             // mdrEndProgram's WinHelp HELP_QUIT (MAINMOD.BAS:938): the help goes when the game
             // does. The main window closing is the menu's Exit, and a help window left up would

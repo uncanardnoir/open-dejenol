@@ -40,7 +40,7 @@ public sealed class GameFolderWindow : Window
 
     public GameFolderWindow(GameFolderResolution found)
     {
-        Title = "OpenDejenol";
+        Title = "OpenDejenol " + Updates.Version;
         Width = 560;
         SizeToContent = SizeToContent.Height;
         CanResize = false;

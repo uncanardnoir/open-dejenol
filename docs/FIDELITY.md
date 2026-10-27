@@ -7051,15 +7051,16 @@ build's branches are taken (`src/Mordor.Core/LimitedVersion.cs`):
 | `mc015E = 15` (MAZEMOD.BAS:26, fn0A0B 409-422) | any level past 3: "LIMITED VERSION: Request to go to Level n is Denied.", and level 3 instead | `ChangeLevel` (stairs, teleporters, Sanctuary), each chute landing (sub08F5, MAZEMOD.BAS:114-115) and the Teleport spell before its tests (MAINMOD2.BAS:5823) |
 | `m02A6`, a Static never set (MAZEMOD.BAS:1535) | a teleporter to past level 3: "..but it doesn't go anywhere in the limited version..." (1794-1796); a chute walked onto on level 3: "...doesn't do anything in the Limited Version." (1840-1841) | the square routine |
 | `m0032`, never set (FRMABOUT.BAS:8, 24) | About's "Ordering Info" button (FRMABOUT.FRM: 90,1080 1425x285) opening frmOrderInfo (FRMORDER.BAS/.FRM) | `AboutWindow`, `OrderInfoWindow` |
+| `gv0180`, never set (MAIN.TXT:27) | sub03E3's "Limitation Notice" (MODULE1.BAS:932-940), "only 3 dungeon levels", before the data is read (MAINMOD2.BAS:6437) and so before the Public Version box, until `Limited=True` is written | `TitleWindow` on opening; the key in the saves folder's settings.ini |
 
 Values that are inference, and why: the limited build's `mc015E` and `mc0624` are taken as 3, the
 shareware's depth in MORDOR.WRI - the full build's 15 is its deepest level, and the shareware's
 deepest is 3. `m02A6` and `m0032` are variables, not constants, in the full build's decompile and
 nothing assigns them; their messages say "limited version" and the button opens the order form, so
-they are taken as on in the limited build. Not switched: the "PUBLIC BETA" notice that writes
-`Limited=True` to MORDOR.INI (MODULE1.BAS:932-940) hangs on `gv0180`, a beta flag whose text speaks
-of `gc0182` = 15 levels - not the shareware's; and frmWelcome's "Limited " (FRMWELCO.BAS:14-16), a
-splash the port does not have. Details in `docs/GAME_FILES.md`.
+they are taken as on in the limited build. `gv0180` is taken as set and `gc0182` as 3 from the real
+shareware, which shows the notice saying 3 (observed in the original shareware 2026-10-26; until then
+it was left out as a beta flag, its count 15 in the full build). Not switched: frmWelcome's "Limited "
+(FRMWELCO.BAS:14-16), a splash the port does not have. Details in `docs/GAME_FILES.md`.
 
 **Measured against the real shareware - 2026-10-25.** `MORDOR11.ZIP` (archive.org,
 MordorTheDepthsofDejenol_1020): its MDATA1, 2, 3 and 5, MG11.DLL and sounds are the full 1.1's byte
@@ -7072,3 +7073,84 @@ did: Welcome in both releases, which is the shareware help's last topic rather t
 
 Saves: a folder of the player's own (`%APPDATA%\OpenDejenol\saves`) unless `saves` beside the game
 folder already holds something, which is then kept as it always was; `MORDOR_SAVES` before both.
+
+## Against the running originals (2026-10-26)
+
+An overnight session drove the full 1.1 and the shareware side by side with the port. What it found:
+
+**The dungeon's Take button takes the stairs - corrected 2026-10-26.** cmdAction_Click (FRMDUNM.BAS:76-109)
+hands each of the eight buttons' keys to sub0456, as if typed: Fight (index 0) f, Spell (1) c, Take (2) t, Open (3)
+o, Pickup (4) p, Drop (5) l, Map (6) F8, Exit (7) q, the indexes being the form's (MORDOR.EXE RCDATA 22). The port's
+Take opened Objects & Spells, as if it meant taking an item; it now presses t, Take Stairs, Chute, etc. The other
+seven were already wired to their keys. A check in the window checks presses Take on level 1's stairs up and
+finds the party back in town, as t takes them there.
+
+**The shareware's Limitation Notice - corrected 2026-10-26.** The real shareware puts up, before anything
+else, a box captioned "Limitation Notice": "NOTICE!", "Because this is a PUBLIC BETA version of MORDOR, only 3
+dungeon levels are currently available.", "This message will not appear again." (observed in the original
+shareware 2026-10-26). It is sub03E3's `If gv0180 Then` branch (MODULE1.BAS:932-940), which the port had left
+out as a beta build's, its `gc0182` being 15 in the full build (MAIN.TXT:28). Sub Main calls sub03E3 before
+reading the data (MAINMOD2.BAS:6437), so it comes before the Public Version box (6455), as observed. It is shown
+while MORDOR.INI's `[Loading Information] Limited` holds no "T", and the branch then writes `Limited=True`; the
+port keeps that key in the saves folder's settings.ini, beside NotFirstTime, so it is shown once. (Under OTVDM
+the original's INI write did not last, which is why it came back on every run there.)
+
+**The shareware's close box at the menu - corrected 2026-10-26.** The full build's MDIForm_QueryUnload refuses
+the frame's close box with "Please use the Mordor EXIT buttons to leave the game." (FRMMAIN.BAS:171-175), and the
+port did the same with the shareware's data. The real shareware asks instead: at the main menu its close box puts
+up "Exit Mordor?" (Yes and No, captioned "EXIT"), and a Yes quits without a goodbye box (observed in the original
+shareware 2026-10-26) - the rest of that QueryUnload (176-192), as if its earlier program had no refusal, and the
+limited build's silent MDIForm_Unload. The port now does that at the menu in the limited build. Only the menu was
+tried in the shareware, so the city's and the dungeon's close boxes keep the full build's refusal there. The
+shareware's own program is not decompiled.
+
+**The shareware's "Ordering/&About" - corrected 2026-10-26.** frmMenu's Form_Load ends `If m00A8 = True Then
+cmdCommand(mc002A).Caption = "Ordering/&About"` (FRMMENU.BAS:162); `m00A8` is a Static the full build never sets.
+The real shareware's menu reads "Ordering/&About" (observed in the original shareware 2026-10-26), where the port
+had kept "About..." in the limited build too. It now takes that caption, after the welcome box as Form_Load does;
+the button still opens frmAbout (117), which in the limited build shows Ordering Info.
+
+**The menu's caption in the shareware, and the help window's - corrected 2026-10-26.** The shareware's frame
+reads "Mordor 1.1 (Limited Version)" at the main menu already (observed in the original shareware 2026-10-26):
+MDIForm_Load sets it before the menu is shown (FRMMAIN.BAS:148-152). The port's menu window, which stands in for
+the frame there, had no caption; in the limited build it now has that one. With the full game's data it keeps
+frmMenu's own empty caption, as before (no capture of the full game's menu caption was taken).
+The help window had been captioned and headed "Mordor 1.1 (M1 Depths of Dejenol) Help Lesson" for both releases,
+the full help's Welcome heading. WinHelp captioned its window with the help file's own title, |SYSTEM's TITLE
+record, and the shareware's help window read "Mordor HelpLesson" (observed in the original shareware 2026-10-26).
+The extraction now keeps that title in the cache's manifest (GameArt.HelpTitle, cache version 3), and the help
+window takes its caption and heading from it: "Mordor HelpLesson" for the shareware, "M1: Depths of Dejenol Help
+Lesson" for the full 1.1 (its |SYSTEM title, read and checked by selfcheck).
+
+**A character loaded dead below ground gets the dungeon window - corrected 2026-10-26.** sub14E0 shows
+frmDungeonMain for anyone below ground or dead ("If Chars(Me).DungeonLevel > 0 Or Chars(Me).DeathState > 0 Then
+frmDungeonMain.Show", MAINMOD2.BAS:3174-3175) and then, for the dead, "sub0930 Me" (3181-3182): the dead screen is
+painted inside the dungeon window - lblDead, cmdWait, lblSquareInfo's line, picMonsters hidden - and its readout,
+lblRoom, reads "(You are Dead)" (MAZEMOD.BAS:310), with the command buttons where they always are. Loaded dead, the
+original showed exactly that (observed 2026-10-26: a character killed on level 1, loaded again), and so did the
+port when someone died in place; but the port loaded every dead character into the city's own dead screen, a page
+with a line and a button and nothing of the dungeon's. A character loaded dead below ground now goes down as a
+living one does, at the place they lie, and the dungeon's sub0930 puts the dead screen up there. The city-hosted
+screen ("The dead screen stands where frmDungeonMain does", above) is now for level 0 alone, where the port's
+dungeon window cannot stand.
+
+**The Option column of a character loaded among monsters - corrected 2026-10-26, in part.** Loaded into the
+dungeon, the original's Party Information showed Option "Defend" for a living character and "Fight" for a dead one
+(observed 2026-10-26); the port showed "None" for both. No load path in the source sets an order of its own:
+CombatOrders (MAIN.TXT:700) is a global array that mdrcharLoad, mdrmulLoadParty and sub14E0 never touch, and the
+dungeon's Form_Load resets only the spell and item orders, M56C4 and M5766, not Att (FRMDUNM.BAS:235-238). What
+writes Att at a load is sub0BDE -1, which sub0A91 runs for the room the character is loaded into
+(FRMDUNM.BAS:303-304, MONSMOD.BAS:726) and sub1738 again after the party is read (MAINMOD2.BAS:6307): with a hostile group in the
+room (Foes(0).Engaged = 1, MONSMOD.BAS:1713-1721) each member with no order takes up their Combat Setting, dead or
+alive (MULTIMOD.BAS:158-170) - Fight, for a character as created (CHARCREA.BAS:243) and for both characters seen.
+The port did that only when its fight engaged, at its first tick or an arrival round, and the dead never engage
+(the fight clock is off on the dead screen), so a load showed "None". Now a load into a hostile group's room hands
+out Fight and Defend settings at once (a buffer setting still waits for the engage, where its checks are), and the
+dead one loaded where they fell shows "Fight", as observed (a hostile group in that room is one way the source gets there; a Fight left over
+from the fight she died in, as below, is the other - which it was is not known).
+Not reproduced: the living character's "Defend". With a Combat Setting of Fight (record M5914(5) = 1 for both, read
+from the snapshot), no load path gives Defend; it can only be an Att the global array still held from earlier in that run of
+the original - sub0BDE only fills an order that is empty, the party window clears them only with no monsters about
+(FRMGROUP.BAS:418-422), and nothing clears them when a character is unloaded and another loaded. The port starts
+every session with no orders, so that left-over state, which depends on what was played before in the same run, is
+not carried.

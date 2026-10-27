@@ -28,6 +28,14 @@ public static class OriginalBox
         Show(owner, title, text, yesNo: true, defaultNo: true);
 
     /// <summary>
+    /// The port's own question in this box's look, with buttons captioned <paramref name="yes"/>
+    /// (the default) and <paramref name="no"/> (Escape): true for the first. The update offer's
+    /// "Update now" and "Later" (<see cref="Updates"/>).
+    /// </summary>
+    public static System.Threading.Tasks.Task<bool> Ask(Window owner, string title, string text, string yes, string no) =>
+        Show(owner, title, text, yesNo: true, yesText: yes, noText: no);
+
+    /// <summary>
     /// MDIForm_QueryUnload's first test (FRMMAIN.BAS:171-175): an UnloadMode of 0 - the frame's
     /// close box, its system menu or Alt+F4 - is refused with "Please use the Mordor EXIT buttons to
     /// leave the game." (MsgBox 64, "Exit Mordor"), and nothing else happens. frmMain is the one
@@ -43,8 +51,13 @@ public static class OriginalBox
     /// monsters are in the area!", and the close is cancelled. <paramref name="queryEnd"/> is that
     /// part for the screen that is up; it answers whether the program may end. The port had let
     /// a session end take the program down without a word.
+    ///
+    /// <paramref name="closeBoxAsks"/>, when it answers true, takes the close box past the refusal
+    /// to <paramref name="queryEnd"/> as well, and a Yes ends the program as the menu's Exit does:
+    /// the shareware's menu (<see cref="Mordor.Core.LimitedVersion.CloseBoxAsksToExit"/>).
     /// </summary>
-    public static void RefuseCloseBox(Window w, System.Func<System.Threading.Tasks.Task<bool>>? queryEnd = null)
+    public static void RefuseCloseBox(Window w, System.Func<System.Threading.Tasks.Task<bool>>? queryEnd = null,
+                                      System.Func<bool>? closeBoxAsks = null)
     {
         if (queryEnd != null)
         {
@@ -65,7 +78,17 @@ public static class OriginalBox
             e.Cancel = true;
             if (showing) return;
             showing = true;
-            try { await Tell(w, "Exit Mordor", "Please use the Mordor EXIT buttons to leave the game."); }
+            try
+            {
+                if (queryEnd != null && closeBoxAsks?.Invoke() == true)
+                {
+                    // no refusal: the rest of QueryUnload's question, and on a Yes the program ends
+                    // as the menu's Exit ends it - MDIForm_Unload's box, which says nothing in the
+                    // limited build, then the frame closed
+                    if (await queryEnd()) { await ThankYou(w); w.Close(); }
+                }
+                else await Tell(w, "Exit Mordor", "Please use the Mordor EXIT buttons to leave the game.");
+            }
             finally { showing = false; }
         };
     }
@@ -177,7 +200,8 @@ public static class OriginalBox
         catch (System.InvalidOperationException) when (!CanOwn(owner)) { }
     }
 
-    private static async System.Threading.Tasks.Task<bool> Show(Window owner, string title, string text, bool yesNo, bool defaultNo = false)
+    private static async System.Threading.Tasks.Task<bool> Show(Window owner, string title, string text, bool yesNo, bool defaultNo = false,
+                                                                         string yesText = "Yes", string noText = "No")
     {
         if (!CanOwn(owner)) return false;
         bool yes = false;
@@ -193,8 +217,8 @@ public static class OriginalBox
         UiFonts.MessageBox(win);
         if (yesNo)
         {
-            var y = new Button { Content = "Yes", IsDefault = !defaultNo };
-            var n = new Button { Content = "No", IsCancel = true, IsDefault = defaultNo };
+            var y = new Button { Content = yesText, IsDefault = !defaultNo };
+            var n = new Button { Content = noText, IsCancel = true, IsDefault = defaultNo };
             y.Click += (_, _) => { yes = true; win.Close(); };
             n.Click += (_, _) => win.Close();
             buttons.Children.Add(y); buttons.Children.Add(n);

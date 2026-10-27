@@ -95,9 +95,9 @@ the original's behaviour, or recorded in FIDELITY.md if it has to stay. Tick ite
 - [x] Confinement page is the port's own layout ("Your companions", "In the pens", "(no companions)", pens-empty line); rebuild against bm9.png (groups Bind Companions / Identify, Realign & Sell / Buy Companions; "NO COMPANIONS!" row, FRMCITYC.BAS:506-508)
 - [x] Pickup (p key, morgue Grab Body) is a typed name via fn170D "Pickup Character" / "Character's Name?" with FRMINTER.BAS:153-252 errors; the port lists names and adds "(your companion)" rows (DungeonWindow ~3335, CityWindow ~1099)
 - [x] Options Backup / Restore (FRMOPTIO.BAS:260-280) and the font "..." pickers (285-297) are disabled stand-ins
-- [x] HelpWindow title/header: the help calls itself "Mordor 1.1 (M1 Depths of Dejenol) Help Lesson"; the subtitle and search chrome have no source
+- [x] HelpWindow title/header: the help file's own |SYSTEM title, WinHelp's caption - "M1: Depths of Dejenol Help Lesson" in the full 1.1, "Mordor HelpLesson" in the shareware (observed in the original shareware 2026-10-26); it had been the full help's Welcome heading, "Mordor 1.1 (M1 Depths of Dejenol) Help Lesson", for both. The search chrome has no source
 - [ ] "Game Options..." access key: hidden by the focus box in bm0.png - leave until a clearer capture
-- [x] Title window (frmMenu) shows an empty window caption; check what the original caption was (no main-menu screenshot yet)
+- [x] Title window (frmMenu) shows an empty window caption; check what the original caption was (no main-menu screenshot yet). The shareware's frame reads "Mordor 1.1 (Limited Version)" at the menu (observed in the original shareware 2026-10-26), which the limited build now shows; the full game keeps the empty caption
 - [x] Companions are a List; selling leaves no hole where the original sets Ref=-1 (FRMCITYC.BAS:276-300); companion drag source for the Comp. boxes (FRMCITYC.BAS:744-796)
 - [x] Confinement: the Search for What? box overruns the Buy Companions frame on the right
 - [x] Paralysis A/D faults: the original stores Att/Def, so a city-gate clear (FRMCTYM.BAS:113-115 before sub048C), a level-0 paralysis, or stat/gear changes while paralysed leave a permanent A/D shift; the port computes A/D and cannot show it - would need a stored A/D offset on Character

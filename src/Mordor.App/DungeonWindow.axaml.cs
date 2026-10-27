@@ -313,6 +313,12 @@ public partial class DungeonWindow : Window
             // shown, the automap, then frmDungeonMain itself (MAINMOD2.BAS:3160-3175)
             foreach (var c in new[] { _characterChild, _sheetChild, _messagesChild, _partyChild, _automapChild, _dungeonChild })
                 Host.BringToFront(c);
+            // sub14E0 for a character loaded dead below ground: frmDungeonMain shown as for anyone,
+            // and then "If Chars(Me).DeathState <> False Then sub0930 Me" (MAINMOD2.BAS:3181-3182) -
+            // the dead screen in the dungeon window, its square readout ("(You are Dead)",
+            // MAZEMOD.BAS:310) and buttons kept, as when one dies there. The port had given them the
+            // city's dead screen instead (observed against the original 2026-10-26)
+            if (_ch.IsDead) Sub0930(_ch);
             // a mod's entry hook on a walk down from town comes here, before the clocks
             // (DungeonWindow.Mods.cs); with none hooked they start at once, as they always have
             AfterBegun(() => { _clock.Start(); _ailmentClock.Start(); });
@@ -519,6 +525,8 @@ public partial class DungeonWindow : Window
         // Alt+F4 is the frame's close, not F4: left alone it reaches MDIForm_QueryUnload's refusal
         // (FRMMAIN.BAS:171-175) instead of turning the character window to a page
         if (OriginalBox.IsCloseChord(e)) { base.OnKeyDown(e); return; }
+        // Escape gives up a mod's pick waiting on the Automap (API version 13); never so with no mod
+        if (AutomapKeys.CancelPick(e.Key, _automap)) { e.Handled = true; return; }
         // typing in txtSpell is typing, not commands; Enter casts and Escape hands the focus back
         // (txtSpell_KeyDown, FRMCHAR3.BAS:851-861)
         if (SheetSpellText.IsFocused)
@@ -909,6 +917,15 @@ public partial class DungeonWindow : Window
     private void OnTurnRight(object? s, Avalonia.Interactivity.RoutedEventArgs e) => Press(Key.Right);
     private void OnTurnAround(object? s, Avalonia.Interactivity.RoutedEventArgs e) => Press(Key.Down);
 
+    // cmdAction_Click (FRMDUNM.BAS:76-109) hands each button's key to sub0456, as typed: index 0
+    // Fight f, 1 Spell c, 2 Take t, 3 Open o, 4 Pickup p, 5 Drop l, 6 Map F8, 7 Exit q (the
+    // indexes are the form's, MORDOR.EXE RCDATA 22). Map and Spell have handlers of their own that
+    // the F8 and c keys call too (OnOpenAutomap, OnShowSheetSpells); the rest press their key.
+    /// <summary>
+    /// Take, cmdAction(2): the t key, "Take Stairs, Chute, etc." (FRMDUNM.BAS:94-95). The port had
+    /// it open Objects &amp; Spells, as though it were Take an item.
+    /// </summary>
+    private void OnTakeStairs(object? s, Avalonia.Interactivity.RoutedEventArgs e) => Press(Key.T);
     private void OnPickupBody(object? s, Avalonia.Interactivity.RoutedEventArgs e) => Press(Key.P);
     private void OnDropBody(object? s, Avalonia.Interactivity.RoutedEventArgs e) => Press(Key.L);
     private void OnOpenChest(object? s, Avalonia.Interactivity.RoutedEventArgs e) => Press(Key.O);
@@ -1051,11 +1068,6 @@ public partial class DungeonWindow : Window
         return true;
     }
 
-    /// <summary>Take and Spell both open the Objects &amp; Spells window; Spell puts the focus on it.</summary>
-    private void OnShowSheet(object? s, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (!ButtonMustWait(ShowSheet)) ShowSheet();
-    }
     private void OnShowSheetSpells(object? s, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (ButtonMustWait(() => OnShowSheetSpells(s, e))) return;   // the c key waits in sub0456 too
@@ -3498,6 +3510,27 @@ public partial class DungeonWindow : Window
         _party.OrderFor(_ch).Target = -1;
         ShowWaiting(group);
         ShowWaitingChest(group);
+        // sub0A91 ends in sub0BDE -1 (MONSMOD.BAS:726), so the dungeon's Form_Load, which runs sub0A91
+        // for the room a character is loaded into (FRMDUNM.BAS:303-304), hands a hostile group's room
+        // the Combat Settings at once: with Foes(0).Engaged = 1 (fn0D4D, MONSMOD.BAS:1713-1721) each
+        // member with no order - Att = False And M56C4 = -1 - takes theirs up, dead or alive, sub0BDE
+        // asking nothing of DeathState (MULTIMOD.BAS:158-170). A walk in has its arrival round, whose
+        // engage runs Sub0BDE; a load has none, and the dead never engage at all with the fight clock
+        // off - so the Party window's Option said "None" where the original's says "Fight" (observed
+        // 2026-10-26). Fight and Defend here; a setting on a buffer needs the fight's own checks and
+        // waits for the engage, as before.
+        if (!arrivalRound && group.Any(m => m.Hostile))
+        {
+            foreach (var m in _party.Members)
+            {
+                var o = _party.OrderFor(m);
+                if (o.Kind != OrderKind.None || m.CombatSetting is not (1 or 2)) continue;
+                int aimed = o.Target;
+                o.ApplyDefault(m);
+                o.Target = aimed;
+            }
+            RefreshParty();
+        }
         if (arrivalRound) ArrivalRound(group);
         return true;
     }
