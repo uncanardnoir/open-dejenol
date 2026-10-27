@@ -36,10 +36,16 @@ OpenDejenol comes bundled with a few mods. These include:
 
 ## Installing and running
 
-There are no release downloads yet - see [Building from source](#building-from-source) below.
+Download the latest release from the [Releases page](https://github.com/uncanardnoir/open-dejenol/releases):
+
+- **OpenDejenol.Game-win-Setup.exe** - the installer (64-bit Windows 10 or 11). It installs for your user only, needs no administrator rights or .NET, and adds Start-menu and desktop shortcuts. Uninstall it from Settings > Apps.
+- **OpenDejenol.Game-win-Portable.zip** - unzip anywhere and run `OpenDejenol.exe`.
+
+Releases aren't code-signed yet, so Windows may say "Windows protected your PC" the first time: choose More info, then Run anyway.
 
 On first run, OpenDejenol looks for your Mordor folder; if it can't find one, it asks you to locate
-it, and remembers the choice in `%APPDATA%\OpenDejenol`.
+it, and remembers the choice in `%APPDATA%\OpenDejenol`. When a newer version is out, it offers the
+update on the main menu. To build it yourself instead, see [Building from source](#building-from-source).
 
 ## Building from source
 
