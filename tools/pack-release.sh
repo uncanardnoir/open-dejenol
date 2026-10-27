@@ -16,7 +16,9 @@
 #   4. packs it with Velopack (vpk, the version in .config/dotnet-tools.json) into
 #      <output folder>/releases: OpenDejenol.Game-win-Setup.exe, OpenDejenol.Game-<version>-full.nupkg,
 #      OpenDejenol.Game-win-Portable.zip, RELEASES and releases.win.json (a previous release's
-#      packages already in that folder - vpk download github - give a delta package as well);
+#      packages already in that folder - vpk download github - give a delta package as well),
+#      with the program's icon on the installer and its 256-pixel picture as the installer's
+#      splash (src/Mordor.App/Assets/Icon);
 #   5. lists what it made, with sizes and SHA-256.
 # It uploads nothing, and never runs the program or the installer.
 #
@@ -41,6 +43,8 @@ PACK_ID=OpenDejenol.Game
 TITLE=OpenDejenol
 AUTHORS="OpenDejenol contributors"
 APP_PROJ=src/Mordor.App/Mordor.App.csproj
+ICON=src/Mordor.App/Assets/Icon/opendejenol.ico
+SPLASH=src/Mordor.App/Assets/Icon/opendejenol-256.png
 MODS="QoL:Mordor.Mod.QoL Kaizen:Mordor.Mod.Kaizen DpsMeter:Mordor.Mod.DpsMeter Cartographer:Mordor.Mod.Cartographer"
 
 if [ -z "${DOTNET:-}" ]; then
@@ -112,8 +116,11 @@ fi
 # 4. the packages
 echo "== packing with Velopack"
 "$DOTNET" tool restore >/dev/null || die "dotnet tool restore failed (vpk, .config/dotnet-tools.json)"
+[ -f "$ICON" ] || die "no icon at $ICON"
+[ -f "$SPLASH" ] || die "no splash picture at $SPLASH"
 set -- pack --packId "$PACK_ID" --packVersion "$VERSION" --runtime win-x64 --channel win \
     --packDir "$(winpath "$PUB")" --mainExe OpenDejenol.exe --packTitle "$TITLE" --packAuthors "$AUTHORS" \
+    --icon "$(winpath "$ROOT/$ICON")" --splashImage "$(winpath "$ROOT/$SPLASH")" \
     --outputDir "$(winpath "$REL")"
 [ -n "${RELEASE_NOTES:-}" ] && set -- "$@" --releaseNotes "$(winpath "$RELEASE_NOTES")"
 [ -n "${VPK_SIGN_PARAMS:-}" ] && set -- "$@" --signParams "$VPK_SIGN_PARAMS"

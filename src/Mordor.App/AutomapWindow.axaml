@@ -25,13 +25,14 @@
     <Panel x:Name="FormArea" ClipToBounds="True" app:UiFonts.Font="frmAutoMap">
         <Grid x:Name="LevelRow" VerticalAlignment="Top" ColumnDefinitions="Auto,4,Auto,4,Auto,10,Auto,10,*" Margin="10,10,10,8">
             <!-- the two ends of hsbLevel. They were labelled "deeper" and "up" here; a scrollbar arrow
-                 says neither, and the words cost the row the width lblInfo needs -->
-            <Button Grid.Column="0" x:Name="DeeperBtn" Content="▼" Padding="7,3" Click="OnDeeper"/>
+                 says neither, and the words cost the row the width lblInfo needs. The left arrow
+                 lowers the value, toward level 1, as hsbLevel's does (FRMAUTOM.BAS:93-100) -->
+            <Button Grid.Column="0" x:Name="ShallowerBtn" Content="▲" Padding="7,3" Click="OnShallower"/>
             <!-- hsbLevel is a scrollbar of its own width, not one that eats the row: lblInfo is the
                  thing anchored to the far edge (FRMAUTOM.BAS:119) -->
             <Slider Grid.Column="2" x:Name="LevelSlider" Minimum="1" Maximum="1" TickFrequency="1"
                     Width="74" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-            <Button Grid.Column="4" x:Name="ShallowerBtn" Content="▲" Padding="7,3" Click="OnShallower"/>
+            <Button Grid.Column="4" x:Name="DeeperBtn" Content="▼" Padding="7,3" Click="OnDeeper"/>
             <!-- lblLevel and lblInfo in their own fonts, the form's MS Sans Serif 8.25 (MORDOR.EXE,
                  frmAutoMap), through the Options fonts; they had been the frame's Cascadia Mono -->
             <TextBlock Grid.Column="6" x:Name="LevelLabel" Foreground="#8fb0ff" FontWeight="Bold"

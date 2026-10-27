@@ -28,9 +28,23 @@ public static class Art
     /// Get the art for <paramref name="gameDir"/> ready: null when it is, else what went wrong, in
     /// words for the first-run window.
     /// </summary>
-    public static string? Prepare(string gameDir)
+    public static string? Prepare(string gameDir) => Adopt(GameArt.Prepare(gameDir));
+
+    /// <summary>
+    /// <see cref="Prepare"/> with the reading and extracting done off the calling thread, so a
+    /// window can say what is going on meanwhile; the result is taken back on the calling thread.
+    /// </summary>
+    public static async System.Threading.Tasks.Task<string?> PrepareAsync(string gameDir)
     {
-        var result = GameArt.Prepare(gameDir);
+        var result = await System.Threading.Tasks.Task.Run(() => GameArt.Prepare(gameDir));
+        return Adopt(result);
+    }
+
+    /// <summary>Whether the art for <paramref name="gameDir"/> is already in the cache, nothing to extract (<see cref="GameArt.IsReady"/>).</summary>
+    public static bool IsReady(string gameDir) => GameArt.IsReady(gameDir);
+
+    private static string? Adopt(GameArtResult result)
+    {
         if (!result.Ok)
         {
             CrashLog.Note("game art: " + result.Error);

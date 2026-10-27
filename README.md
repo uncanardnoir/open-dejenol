@@ -31,7 +31,7 @@ OpenDejenol comes bundled with a few mods. These include:
 
 ## Requirements
 
-- Your own copy of Mordor: The Depths of Dejenol - the full version or the shareware. The full version can be purchased from [Decklin's Domain](https://www.decklinsdemise.com/mordor.htm).
+- Your own copy of Mordor: The Depths of Dejenol - the full version or the shareware. The full version can be purchased from [Decklin's Domain](https://www.decklinsdemise.com/mordor.htm) as `MordorSetup.exe`, and the free demo is `MordorDemoSetup.exe` from the same site. Those installers don't run on Windows 10 or 11, and you don't need to run them: OpenDejenol unpacks the game from the installer itself.
 - 64-bit Windows 10 or 11
 
 ## Installing and running
@@ -43,8 +43,11 @@ Download the latest release from the [Releases page](https://github.com/uncanard
 
 Releases aren't code-signed yet, so Windows may say "Windows protected your PC" the first time: choose More info, then Run anyway.
 
-On first run, OpenDejenol looks for your Mordor folder; if it can't find one, it asks you to locate
-it, and remembers the choice in `%APPDATA%\OpenDejenol`. When a newer version is out, it offers the
+On first run, OpenDejenol looks for your Mordor. If it can't find one, choose **Use the installer...**
+and pick the `MordorSetup.exe` (or `MordorDemoSetup.exe`) you downloaded - if it's in your Downloads
+folder, OpenDejenol offers it. It unpacks the game into `%LOCALAPPDATA%\OpenDejenol\game`. A Mordor
+already installed some other way can be chosen with **Locate Mordor...** instead. The choice is
+remembered in `%APPDATA%\OpenDejenol`. When a newer version is out, it offers the
 update on the main menu. To build it yourself instead, see [Building from source](#building-from-source).
 
 ## Building from source

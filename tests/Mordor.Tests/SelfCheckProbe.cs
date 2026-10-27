@@ -5211,6 +5211,7 @@ public static partial class SelfCheckProbe
         Section(() => PartyUpdateChecks());
         Section(() => WaveMixChecks(dir));
         Section(() => GameFilesChecks(dir));
+        Section(() => InstallerChecks(dir));
         Section(() => ImportChecks(dir));
 
         Console.WriteLine(_failed == 0 ? "\nall checks passed" : $"\n{_failed} CHECK(S) FAILED");

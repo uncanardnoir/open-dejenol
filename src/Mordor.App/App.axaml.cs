@@ -326,21 +326,35 @@ public partial class App : Application
                 Avalonia.Controls.Window Start(string dir)
                 {
                     // The game's pictures and help are read out of the player's copy (Art,
-                    // Mordor.Core.Extraction.GameArt); the port carries none. A copy they cannot
-                    // be read from goes back to the first-run window with the reason.
-                    if (Art.Prepare(dir) is string artError)
-                        return GameFolderWindow.FirstWindow(
-                            new Mordor.Core.GameFolderResolution(
-                                new Mordor.Core.GameFilesCheck(dir, Mordor.Core.GameFilesVerdict.Damaged, artError),
-                                "art", false, Array.Empty<Mordor.Core.GameFilesCheck>()),
-                            Start, GameFolderWindow.MakeMain);
+                    // Mordor.Core.Extraction.GameArt); the port carries none. By now they have been
+                    // got ready, saying so (below, and the first-run window's Prepare), and this
+                    // only finds them. A copy they cannot be read from goes back to the first-run
+                    // window with the reason.
+                    if (Art.Prepare(dir) is string artError) return ArtFailed(dir, artError);
                     TitleWindow.GameDir = dir;
                     ModStartup.Start(dir);
                     Avalonia.Controls.Window w = test == "browser" ? new MainWindow() : new TitleWindow();
                     w.Closed += (_, _) => HelpWindow.CloseAll();
                     return w;
                 }
-                desktop.MainWindow = GameFolderWindow.FirstWindow(found, Start, GameFolderWindow.MakeMain);
+                Avalonia.Controls.Window ArtFailed(string dir, string artError) =>
+                    GameFolderWindow.FirstWindow(
+                        new Mordor.Core.GameFolderResolution(
+                            new Mordor.Core.GameFilesCheck(dir, Mordor.Core.GameFilesVerdict.Damaged, artError),
+                            "art", false, Array.Empty<Mordor.Core.GameFilesCheck>()),
+                        Start, GameFolderWindow.MakeMain, prepare: Art.PrepareAsync);
+                // Reading the pictures and help out of a copy for the first time takes a while (10 to
+                // 20 seconds): a small window says so meanwhile, the work off the window's thread. A
+                // start that finds them in the cache goes straight on, with nothing in between.
+                if (found.IsPlayable && !Art.IsReady(found.Found!.Dir))
+                {
+                    string dir = found.Found.Dir;
+                    desktop.MainWindow = GameFolderWindow.WhilePreparing(dir, Art.PrepareAsync,
+                        error => error is string artError ? ArtFailed(dir, artError)
+                                 : GameFolderWindow.FirstWindow(found, Start, GameFolderWindow.MakeMain, prepare: Art.PrepareAsync),
+                        GameFolderWindow.MakeMain);
+                }
+                else desktop.MainWindow = GameFolderWindow.FirstWindow(found, Start, GameFolderWindow.MakeMain, prepare: Art.PrepareAsync);
                 // an installed copy asks for a newer version in the background; the main menu
                 // offers what it finds (Updates, docs/RELEASING.md). Nothing for a test run.
                 Updates.Begin();

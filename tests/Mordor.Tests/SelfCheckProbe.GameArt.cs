@@ -93,16 +93,33 @@ public static partial class SelfCheckProbe
         string portDir = PortTree.Root;
 
         // ---- nothing of the game's inside the port ----
+        // The one picture built in is the program's own icon, the port's drawing (Assets/Icon,
+        // docs/TOOLS.md "The program's icon"): its two SVGs, the PNGs made from them, the .ico.
         string assets = Path.Combine(portDir, "src/Mordor.App", "Assets");
-        Check("Mordor.App/Assets holds no files", Directory.Exists(assets) ? Directory.GetFiles(assets, "*", SearchOption.AllDirectories).Length : 0, 0);
-        Check("Mordor.App.csproj builds no resources in",
-              File.ReadAllText(Path.Combine(portDir, "src/Mordor.App", "Mordor.App.csproj")).Contains("AvaloniaResource", StringComparison.Ordinal), false);
+        var iconFiles = new[] { "opendejenol.svg", "opendejenol-16.svg", "opendejenol.ico" }
+            .Concat(new[] { 16, 24, 32, 48, 64, 128, 256 }.Select(n => $"opendejenol-{n}.png"));
+        var allowed = new HashSet<string>(iconFiles.Select(f => Path.Combine("Icon", f)), StringComparer.OrdinalIgnoreCase);
+        var others = Directory.Exists(assets)
+            ? Directory.GetFiles(assets, "*", SearchOption.AllDirectories).Select(f => Path.GetRelativePath(assets, f)).Where(f => !allowed.Contains(f)).ToList()
+            : new List<string>();
+        Check("Mordor.App/Assets holds nothing but the program's icon (Assets/Icon)", string.Join(", ", others), "");
+        string appProj = File.ReadAllText(Path.Combine(portDir, "src/Mordor.App", "Mordor.App.csproj"));
+        Check("Mordor.App.csproj builds no resources in but the icon",
+              System.Text.RegularExpressions.Regex.Matches(appProj, "<AvaloniaResource[^>]*>").Select(m => m.Value).DefaultIfEmpty("none").Aggregate((a, b) => a + " " + b),
+              "<AvaloniaResource Include=\"Assets\\Icon\\opendejenol.ico\" />");
         Check("no wallart folder of MG11.DLL's bitmaps", Directory.Exists(Path.Combine(portDir, "wallart")), false);
         Check("no decompiled copy of the help (docs/original-help)", Directory.Exists(Path.Combine(portDir, "docs", "original-help")), false);
         int avares = Directory.GetFiles(Path.Combine(portDir, "src/Mordor.App"), "*.*", SearchOption.TopDirectoryOnly)
             .Where(f => f.EndsWith(".cs", StringComparison.Ordinal) || f.EndsWith(".axaml", StringComparison.Ordinal))
-            .Sum(f => File.ReadAllText(f).Split("avares://Mordor.App/").Length - 1);
-        Check("pictures loaded from inside the program (avares://Mordor.App/)", avares, 0);
+            .Sum(f =>
+            {
+                string text = File.ReadAllText(f);
+                // the assembly is OpenDejenol; the icon's own reference is the one allowed
+                return text.Split("avares://Mordor.App/").Length - 1
+                     + text.Split("avares://OpenDejenol/").Length - 1
+                     - (text.Split("avares://OpenDejenol/Assets/Icon/opendejenol.ico").Length - 1);
+            });
+        Check("pictures loaded from inside the program (avares://), but the icon", avares, 0);
 
         string scratch = Path.Combine(Path.GetTempPath(), "mordor-art-" + Guid.NewGuid().ToString("N")[..8]);
         try
@@ -159,9 +176,13 @@ public static partial class SelfCheckProbe
             var topics = hlp.Topics();
             var titles = hlp.Titles();
             Check("MORDOR.HLP is WinHelp 3.1 (|SYSTEM minor 21), uncompressed", $"{hlp.Minor} {hlp.Flags}", "21 0");
-            // |SYSTEM's TITLE, WinHelp's caption: the full 1.1's, and the shareware's as its help window
-            // was captioned (observed in the original shareware 2026-10-26)
-            Check("its title", hlp.Title, _shareware ? "Mordor HelpLesson" : "M1: Depths of Dejenol Help Lesson");
+            // |SYSTEM's TITLE, WinHelp's caption: the 1995 shareware's help, told by its SHA-256
+            // (docs/GAME_FILES.md, "The shareware, measured"), as its help window was captioned
+            // (observed in the original shareware 2026-10-26); every other - the full 1.1's, and the
+            // demo's, which is the 2015 edition's too - the full 1.1's
+            string hlpSha = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(dir, "MORDOR.HLP"))));
+            bool help1995 = hlpSha.StartsWith("00DB3697", StringComparison.Ordinal) && hlpSha.EndsWith("DF1889E0", StringComparison.Ordinal);
+            Check(help1995 ? "its title, the 1995 shareware help's" : "its title, the 2015 edition's", hlp.Title, help1995 ? "Mordor HelpLesson" : "M1: Depths of Dejenol Help Lesson");
             Check("the manifest keeps that title for the help window's caption (GameArt.HelpTitle)", GameArt.HelpTitle(outDir), hlp.Title);
             Check("topic offsets worked out from |TOPIC match |TTLBTREE's", topics.Zip(titles).Count(z => z.First.Offset != z.Second.Offset), 0);
             FullCheck("|TTLBTREE topics (the last an untitled empty one)", $"{titles.Count} {titles[^1].Title.Length}", "74 0");
@@ -229,7 +250,11 @@ public static partial class SelfCheckProbe
 
             // ---- the cache ----
             string cache = Path.Combine(scratch, "cache2");
+            // IsReady: whether a start must extract first, and so say so (GameFolderWindow.WhilePreparing)
+            Check("before: not ready, there is something to extract", GameArt.IsReady(dir, cache), false);
             var first = GameArt.Prepare(dir, cache);
+            Check("after: ready, nothing to extract", GameArt.IsReady(dir, cache), true);
+            Check("a copy without MG11.DLL is never ready", GameArt.IsReady(noDll.Replace("no-dll", "nowhere"), cache), false);
             Check("the cache for this copy is made", first.Ok, true);
             string manifest = Path.Combine(first.Dir ?? "", GameArt.ManifestFile);
             var stamp = File.Exists(manifest) ? File.GetLastWriteTimeUtc(manifest) : default;

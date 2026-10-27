@@ -80,7 +80,7 @@ public static class GameFiles
 
     /// <summary>
     /// MORDOR.EXEs that are known, by SHA-256: a name for the log and the first-run screen, never
-    /// a requirement. The 1.1 release is the copy installed from MordorSetup.exe (Tarma InstallMate
+    /// a requirement. The 1.1 release is the copy in MordorSetup.exe (Tarma InstallMate
     /// 9, "Installer for Mordor v1.1 The Depths of Dejenol"), whose decompile gives m009C = 0.
     /// </summary>
     private static readonly Dictionary<string, string> KnownExe = new(StringComparer.OrdinalIgnoreCase)
@@ -219,6 +219,8 @@ public sealed record GameFolderResolution(GameFilesCheck? Found, string How, boo
 ///   (<see cref="LaunchIniPath"/>), which the first-run screen writes when a folder is picked;</item>
 /// <item>found: a <c>game_files</c> folder beside the port or beside any folder above it (as
 ///   Desktop\mordor\game_files sits beside Desktop\mordor\port), or the port's own folder; the
+///   games the port unpacked from Decklin's Domain's installers (<see cref="InstallerUnpack"/>,
+///   <c>%LOCALAPPDATA%\OpenDejenol\game\full</c> and <c>\shareware</c>); the
 ///   BasePath the original itself reads from MORDOR.INI in the Windows folder; an installed
 ///   Mordor's uninstall entry; and the usual install folders.</item>
 /// </list>
@@ -315,6 +317,8 @@ public static class GameFolder
             yield return (Path.Combine(d.FullName, "game_files"), "beside the port");
             yield return (d.FullName, "the port's folder");
         }
+        // the port's own unpacking of MordorSetup.exe or MordorDemoSetup.exe (the first-run window)
+        foreach (string dir in InstallerUnpack.Unpacked()) yield return (dir, "unpacked from the installer");
         // what the original reads: [File Information] BasePath in MORDOR.INI in the Windows folder
         string win = Environment.GetEnvironmentVariable("WINDIR") ?? "";
         if (win != "")

@@ -14,5 +14,10 @@
             </FluentTheme.Palettes>
         </FluentTheme>
         <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+        <!-- the program's icon on every window - the game's own, the dialogs, the mods' - in place of
+             Avalonia's logo. :is takes in each window class as well as a plain Window. -->
+        <Style Selector=":is(Window)">
+            <Setter Property="Icon" Value="avares://OpenDejenol/Assets/Icon/opendejenol.ico"/>
+        </Style>
     </Application.Styles>
 </Application>

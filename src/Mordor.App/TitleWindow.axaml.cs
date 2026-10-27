@@ -38,11 +38,12 @@ public partial class TitleWindow : Window
     public TitleWindow()
     {
         InitializeComponent();
-        // frmMain's caption, which MDIForm_Load sets before the menu is shown (FRMMAIN.BAS:148-152):
-        // the shareware's frame reads "Mordor 1.1 (Limited Version)" at the main menu already
-        // (observed in the original shareware 2026-10-26). The port's menu stands in for the frame
-        // there; with the full game's data it keeps frmMenu's own empty caption, as it always has.
-        if (LimitedVersion.On) Title = LimitedVersion.FrameCaption;
+        // frmMain's caption, which MDIForm_Load sets before the menu is shown (FRMMAIN.BAS:148-152;
+        // Sub Main shows frmMain, MAINMOD2.BAS:6456): "Mordor 1.1", gc0192 + " " + gc0186, and
+        // "Mordor 1.1 (Limited Version)" in the limited build - the shareware's frame reads that at
+        // the main menu already (observed in the original shareware 2026-10-26). The port's menu
+        // stands in for the frame there, so it takes the frame's caption; frmMenu's own is empty.
+        Title = LimitedVersion.FrameCaption;
         // The guild table has no stand-in: without MDATA1 there are no guilds, no spell tables and
         // no game. Main's startup says so and stops - MsgBox "Error reading " + path + "!" and
         // "Is BasePath in MORDOR.INI correct?", captioned "ERROR!", then End (MAINMOD.BAS:1193-1196).

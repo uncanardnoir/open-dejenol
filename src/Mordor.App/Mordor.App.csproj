@@ -17,7 +17,7 @@
          release workflow refuses a tag that differs. It names the installer's package, is what
          the update check compares, and is shown on the Mods page. Only the program carries it:
          Mordor.Core and Mordor.Modding, which mods are built against, keep their own. -->
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -51,4 +51,13 @@
 
   <!-- No pictures or help of the game's own are built in: they are read out of the player's copy at
        start (Art.cs, src/Mordor.Core/Extraction, docs/GAME_FILES.md). -->
+
+  <!-- The program's own icon, which is the port's and not the game's (Assets/Icon, docs/TOOLS.md
+       "The program's icon"): the exe's, and every window's through the Window style in App.axaml. -->
+  <PropertyGroup>
+    <ApplicationIcon>Assets\Icon\opendejenol.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\Icon\opendejenol.ico" />
+  </ItemGroup>
 </Project>

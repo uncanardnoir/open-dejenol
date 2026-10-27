@@ -988,6 +988,30 @@ top.Close();
             Call("ShowCharacterTab", CharTab.Misc, true);
             Pump();
             Check("Ctrl+M from a service's box: the tab alone", (panel.Selected, ReferenceEquals(mdi.Active, cityWin), cityWin.ZIndex > charWin.ZIndex).ToString(), (CharTab.Misc, true, true).ToString());
+
+            // the Stats page fills the tab frame across, as elaTabFrame(0) does once Form_Resize has
+            // sized tabStatTab to the form (FRMCHAR1.BAS:184-193): the boxes, the divider and the
+            // right-set figures reach as far across the page as the form has them, at any width
+            var stats = (Canvas)typeof(CharacterPanel).GetField("_stats", flags)!.GetValue(panel)!;
+            var viewer = (ScrollViewer)typeof(CharacterPanel).GetField("_statsViewer", flags)!.GetValue(panel)!;
+            foreach (var (w, h) in new[] { (465.0, 600.0), (274.0, 368.0) })
+            {
+                charWin.Minimised = false; charWin.Maximised = false;
+                charWin.PlaceAt(new Rect(30, 30, w, h));
+                panel.Selected = CharTab.Stats;
+                Pump(); Pump();
+                double room = viewer.Viewport.Width, frameW = (CharStatForm.FrameLeft + CharStatForm.elaTabFrame0.Width) / 15.0;
+                double g = Math.Max(1, room / frameW);
+                double Across(int twips) => (CharStatForm.FrameLeft + twips) / 15.0 * g;
+                var boxes = stats.Children.OfType<Border>().Select(b => Canvas.GetLeft(b) + b.Width).ToArray();
+                Check($"Stats page {w}x{h}: elaTabFrame(0) as wide as the page", room > 0 && Math.Abs(stats.Width - Math.Max(room, frameW)) <= 1, true);
+                Check($"Stats page {w}x{h}: elaGroupInfo and elaBorder reach across the frame as the form has them",
+                      boxes.Length == 2
+                      && Math.Abs(boxes[0] - Across(CharStatForm.elaGroupInfo.Left + CharStatForm.elaGroupInfo.Width)) <= 1.5
+                      && Math.Abs(boxes[1] - Across(CharStatForm.elaBorder.Left + CharStatForm.elaBorder.Width)) <= 1.5, true);
+                Check($"Stats page {w}x{h}: the figures set right against lblStat's right edge across the frame",
+                      stats.Children.OfType<TextBlock>().Count(t => Math.Abs(Canvas.GetLeft(t) + t.Bounds.Width - Across(CharStatForm.lblStat0.Left + CharStatForm.lblStat0.Width)) <= 1.5) >= 7, true);
+            }
         }
 
         Call("ShowStore", town, null);
@@ -1990,6 +2014,185 @@ Console.WriteLine("\nthe first-run window:");
     }
 }
 
+// ---- the first-run window's installer (GameFolderWindow, InstallerUnpack; docs/GAME_FILES.md): an
+// installer in Downloads is offered, not unpacked; Unpack it with a file that is no installer says
+// so and starts nothing; Use the installer... with MordorSetup.exe (MORDOR_INSTALLER, else beside the
+// game folder) unpacks it into the unpack folder - a scratch one here - off the window's thread, then
+// goes on to the menu with that folder, remembered ----
+Console.WriteLine("\nthe first-run window, given an installer:");
+{
+    string scratchRoot = Path.Combine(Path.GetTempPath(), "mordor-firstrun-unpack-" + Guid.NewGuid().ToString("N")[..8]);
+    var envKeep = new[] { GameFolder.EnvIni, GameFolder.EnvDir, InstallerUnpack.EnvRoot, "MORDOR_CRASHLOG" }
+        .ToDictionary(k => k, k => Environment.GetEnvironmentVariable(k));
+    Window? gateWin = null, menu = null;
+    bool limitedWas = LimitedVersion.On;
+    try
+    {
+        Directory.CreateDirectory(scratchRoot);
+        string ini = Path.Combine(scratchRoot, "launch", "settings.ini");
+        string unpackRoot = Path.Combine(scratchRoot, "game");
+        Environment.SetEnvironmentVariable(GameFolder.EnvIni, ini);
+        Environment.SetEnvironmentVariable(InstallerUnpack.EnvRoot, unpackRoot);
+        Environment.SetEnvironmentVariable("MORDOR_CRASHLOG", Path.Combine(scratchRoot, "crash.log"));
+        string notMordor = Directory.CreateDirectory(Path.Combine(scratchRoot, "not-mordor")).FullName;
+        Environment.SetEnvironmentVariable(GameFolder.EnvDir, notMordor);
+        // a "MordorDemoSetup.exe" in Downloads that is no installer at all
+        string downloads = Directory.CreateDirectory(Path.Combine(scratchRoot, "Downloads")).FullName;
+        string bogus = Path.Combine(downloads, "MordorDemoSetup.exe");
+        File.WriteAllText(bogus, "not an installer");
+
+        int started = 0; string? startedWith = null;
+        Window Start(string d) { started++; startedWith = d; return menu = new Window { Width = 200, Height = 100, Title = "the menu" }; }
+        var gate = (GameFolderWindow)GameFolderWindow.FirstWindow(GameFolder.Resolve(), Start, null, InstallerUnpack.InDownloads(downloads));
+        gateWin = gate;
+        gate.Show(); Pump();
+        string shown = string.Join("\n", gate.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text));
+        Check("the installer in Downloads is offered, by name", (gate.Offers.Count, shown.Contains("Found MordorDemoSetup.exe in Downloads.")), (1, true));
+        Check("and not unpacked unasked", (started, Directory.Exists(unpackRoot)), (0, false));
+        Check("the window says the installers do not run, and that it unpacks them",
+              (shown.Contains("do not run on Windows 10 or 11"), shown.Contains("OpenDejenol unpacks the game from it")), (true, true));
+        Check("the buttons: Use the installer..., Locate Mordor..., Exit",
+              string.Join(" | ", new[] { gate.InstallerButton, gate.LocateButton, gate.ExitButton }.Select(b => b.Content)), "_Use the installer... | _Locate Mordor... | E_xit");
+
+        void ClickGate(Button b)
+        {
+            var p = b.TranslatePoint(new Point(b.Bounds.Width / 2, b.Bounds.Height / 2), gate)!.Value;
+            gate.MouseDown(p, MouseButton.Left); gate.MouseUp(p, MouseButton.Left); Pump();
+        }
+        void SettleUnpack()
+        {
+            for (int i = 0; i < 600 && gate.Unpacking is { IsCompleted: false }; i++) { Thread.Sleep(50); Pump(); }
+            Pump();
+        }
+        ClickGate(gate.Offers[0].Button);
+        SettleUnpack();
+        Check("Unpack it, on a file that is no installer: it says so, nothing started, nothing kept",
+              (gate.Problem.Text?.StartsWith(InstallerUnpack.NotAnInstaller, StringComparison.Ordinal) == true, started, File.Exists(ini), gate.IsVisible), (true, 0, false, true));
+        // in plain words, with what to choose; the technical reason goes to the crash log
+        string log = File.Exists(Path.Combine(scratchRoot, "crash.log")) ? File.ReadAllText(Path.Combine(scratchRoot, "crash.log")) : "";
+        Check("the player is told in plain words what to choose, the technical reason is in the crash log",
+              (gate.Problem.Text, log.Contains(InstallerUnpack.NotAnInstaller + " " + InstallerUnpack.NotAnInstallerHint + " (MordorDemoSetup.exe: ")),
+              (InstallerUnpack.NotAnInstaller + " " + InstallerUnpack.NotAnInstallerHint, true));
+        Check("and the buttons are back", (gate.InstallerButton.IsEnabled, gate.LocateButton.IsEnabled, gate.Offers[0].Button.IsEnabled, gate.Status.IsVisible), (true, true, true, false));
+
+        gate.PickInstaller = _ => Task.FromResult<string?>(null);
+        ClickGate(gate.InstallerButton);
+        SettleUnpack();
+        Check("Use the installer..., then Cancel: still up, nothing started", (gate.IsVisible, started), (true, 0));
+
+        string? setup = Environment.GetEnvironmentVariable("MORDOR_INSTALLER");
+        if (string.IsNullOrWhiteSpace(setup)) setup = Path.Combine(game, "..", "MordorSetup.exe");
+        if (!File.Exists(setup))
+            Console.WriteLine("  skip  Use the installer... with MordorSetup.exe: not found (set MORDOR_INSTALLER, or put it beside the game folder)");
+        else
+        {
+            gate.PickInstaller = _ => Task.FromResult<string?>(Path.GetFullPath(setup));
+            ClickGate(gate.InstallerButton);
+            bool sawStatus = gate.Status.IsVisible && gate.Status.Text?.StartsWith("Unpacking MordorSetup.exe") == true && !gate.InstallerButton.IsEnabled;
+            SettleUnpack();
+            string full = Path.Combine(unpackRoot, "full");
+            Check("while it unpacks: \"Unpacking MordorSetup.exe ...\", the buttons off", sawStatus, true);
+            Check("MordorSetup.exe chosen: unpacked, and the menu made with that folder", (started, startedWith), (1, full));
+            Check("the first-run window gone, the folder kept in the launch settings", (gate.IsVisible, GameFolder.Configured(ini)), (false, full));
+            Check("played as the full build", LimitedVersion.On, false);
+            menu?.Close(); Pump();
+        }
+    }
+    catch (Exception ex) { Check("first-run window with an installer: could be driven", ex.GetType().Name + ": " + ex.Message, ""); }
+    finally
+    {
+        try { gateWin?.Close(); menu?.Close(); Pump(); } catch { }
+        foreach (var (k, v) in envKeep) Environment.SetEnvironmentVariable(k, v);
+        LimitedVersion.On = limitedWas;
+        try { Directory.Delete(scratchRoot, true); } catch { }
+    }
+}
+
+// ---- getting the game ready, saying so (GameFolderWindow.Prepare, WhilePreparing; Art.PrepareAsync):
+// a folder picked in the first-run window is got ready - the pictures and help read out of it - with
+// "Preparing the game files ..." up and the buttons off until the game's window is shown; a failure
+// says why and gives the buttons back; a start that must extract first shows a small window that says
+// so, then the game's window. The preparing here is a task the check finishes itself ----
+Console.WriteLine("\nthe first-run window, preparing the game:");
+{
+    string scratchRoot = Path.Combine(Path.GetTempPath(), "mordor-firstrun-prepare-" + Guid.NewGuid().ToString("N")[..8]);
+    var envKeep = new[] { GameFolder.EnvIni, GameFolder.EnvDir, "MORDOR_CRASHLOG" }
+        .ToDictionary(k => k, k => Environment.GetEnvironmentVariable(k));
+    Window? gateWin = null, menu = null, wait = null;
+    bool limitedWas = LimitedVersion.On;
+    try
+    {
+        Directory.CreateDirectory(scratchRoot);
+        string ini = Path.Combine(scratchRoot, "launch", "settings.ini");
+        Environment.SetEnvironmentVariable(GameFolder.EnvIni, ini);
+        Environment.SetEnvironmentVariable("MORDOR_CRASHLOG", Path.Combine(scratchRoot, "crash.log"));
+        Environment.SetEnvironmentVariable(GameFolder.EnvDir, Directory.CreateDirectory(Path.Combine(scratchRoot, "not-mordor")).FullName);
+
+        int started = 0; Window? mainNow = null;
+        Window Start(string d) { started++; return menu = new Window { Width = 200, Height = 100, Title = "the menu" }; }
+        var pending = new TaskCompletionSource<string?>();
+        string? preparing = null;
+        Task<string?> Prep(string d) { preparing = d; return pending.Task; }
+        var gate = (GameFolderWindow)GameFolderWindow.FirstWindow(GameFolder.Resolve(), Start, w => mainNow = w, Array.Empty<string>(), Prep);
+        gateWin = gate;
+        gate.Show(); Pump();
+        void PressLocate()
+        {
+            var p = gate.LocateButton.TranslatePoint(new Point(gate.LocateButton.Bounds.Width / 2, gate.LocateButton.Bounds.Height / 2), gate)!.Value;
+            gate.MouseDown(p, MouseButton.Left); gate.MouseUp(p, MouseButton.Left); Pump();
+        }
+        string picked = GameFiles.Check(game).Dir;
+        gate.PickFolder = _ => Task.FromResult<string?>(game);
+        PressLocate();
+        Check("a Mordor picked: \"Preparing the game files ...\" up, the buttons off, nothing started yet",
+              (gate.Status.IsVisible, gate.Status.Text, gate.LocateButton.IsEnabled, gate.InstallerButton.IsEnabled, started, preparing == picked, gate.IsVisible),
+              (true, GameFolderWindow.PreparingText, false, false, 0, true, true));
+        pending.SetResult("The game's pictures could not be read from " + picked + ": (the check's)");
+        Pump();
+        Check("not ready: it says why, the buttons back, nothing started, nothing kept",
+              (gate.Problem.Text, gate.Status.IsVisible, gate.LocateButton.IsEnabled, started, File.Exists(ini), gate.IsVisible),
+              ("The game's pictures could not be read from " + picked + ": (the check's)", false, true, 0, false, true));
+        pending = new TaskCompletionSource<string?>();
+        PressLocate();
+        Check("picked again: preparing again, the reason cleared", (gate.Status.IsVisible, gate.Problem.Text, gate.LocateButton.IsEnabled), (true, "", false));
+        pending.SetResult(null);
+        Pump();
+        Check("ready: the game's window shown as the main window, the first-run window gone, the folder kept",
+              (started, menu?.IsVisible == true, mainNow == menu, gate.IsVisible, GameFolder.Configured(ini)), (1, true, true, false, picked));
+        menu?.Close(); Pump();
+
+        // the start that must extract first
+        var extracting = new TaskCompletionSource<string?>();
+        string? outcome = "(none yet)"; Window? next = null;
+        wait = GameFolderWindow.WhilePreparing(picked, _ => extracting.Task, e => { outcome = e; return next = new Window { Width = 200, Height = 100, Title = "the menu" }; }, w => mainNow = w);
+        wait.Show(); Pump();
+        string said = string.Join("\n", wait.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text));
+        Check("a start that must extract: a small window says \"Preparing the game files ...\", nothing else yet",
+              (wait.IsVisible, said.Contains(GameFolderWindow.PreparingText), next == null), (true, true, true));
+        extracting.SetResult(null);
+        Pump();
+        Check("extracted: the game's window shown as the main window, the small one gone",
+              (outcome, next?.IsVisible == true, mainNow == next, wait.IsVisible), ((string?)null, true, true, false));
+        next?.Close(); Pump();
+        // closed before it is done: nothing more is shown
+        var slow = new TaskCompletionSource<string?>();
+        next = null;
+        wait = GameFolderWindow.WhilePreparing(picked, _ => slow.Task, e => next = new Window { Width = 200, Height = 100 }, null);
+        wait.Show(); Pump();
+        wait.Close(); Pump();
+        slow.SetResult(null); Pump();
+        Check("closed while it prepares: nothing is shown after", next, (Window?)null);
+    }
+    catch (Exception ex) { Check("first-run window preparing the game: could be driven", ex.GetType().Name + ": " + ex.Message, ""); }
+    finally
+    {
+        try { gateWin?.Close(); menu?.Close(); wait?.Close(); Pump(); } catch { }
+        foreach (var (k, v) in envKeep) Environment.SetEnvironmentVariable(k, v);
+        LimitedVersion.On = limitedWas;
+        try { Directory.Delete(scratchRoot, true); } catch { }
+    }
+}
+
 // ---- the menu shut down under its boxes: the limited build's Public Version box is up over the
 // menu when the program ends (the menu closed, as a shutdown closes every window). The Welcome box
 // awaited after it used to be put over the closed menu - "Cannot show a window with a closed
@@ -2137,7 +2340,7 @@ Console.WriteLine("\nthe menu's close box:");
               (1, "Exit Mordor", "Please use the Mordor EXIT buttons to leave the game.|OK"));
         if (refused.Count > 0) Answer(refused[0], "OK");
         Check("... and the menu stays", title.IsVisible, true);
-        Check("the full game: the menu keeps frmMenu's empty caption", title.Title, "");
+        Check("the full game: the menu is captioned as its frame, Mordor 1.1 (FRMMAIN.BAS:148-152)", title.Title, "Mordor 1.1");
         title.Close(); Pump();
     }
     catch (Exception ex) { Check("the menu's close box could be driven", ex.GetType().Name + ": " + ex.Message, ""); }
@@ -2282,6 +2485,26 @@ Console.WriteLine("\nthe Import Original Saves preview (ImportWindow, docs/GAME_
     }
     catch (Exception ex) { Check("the import preview could be shown", ex.GetType().Name + ": " + ex.Message, ""); }
     finally { try { Directory.Delete(root, true); } catch { } }
+}
+
+// ---- the program's icon on every window (App.axaml's Window style, src/Mordor.App/Assets/Icon):
+// a window class of the game's, and a plain Window as a mod's or a dialog's is, in place of
+// Avalonia's logo (no Icon at all) ----
+Console.WriteLine("\nthe program's icon on the windows:");
+{
+    Window? plain = null, helpWin = null;
+    try
+    {
+        plain = new Window { Width = 200, Height = 100 };
+        plain.Show(); Pump();
+        Check("a plain Window (a mod's, a dialog's) carries the program's icon", plain.Icon != null, true);
+        helpWin = new HelpWindow();
+        helpWin.Show(); Pump();
+        Check("a window class of the game's (HelpWindow) carries it too", helpWin.Icon != null, true);
+        Check("the same icon on both", ReferenceEquals(plain.Icon, helpWin.Icon), true);
+    }
+    catch (Exception ex) { Check("the windows could be shown", ex.GetType().Name + ": " + ex.Message, ""); }
+    finally { try { plain?.Close(); helpWin?.Close(); Pump(); } catch { } }
 }
 
 Environment.SetEnvironmentVariable("MORDOR_ART_CACHE", artWas);

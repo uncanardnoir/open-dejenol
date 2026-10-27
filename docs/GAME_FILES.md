@@ -1,7 +1,8 @@
 # The player's game files: full version or shareware
 
 The port is an engine. It ships none of Mordor's data and reads the files of the player's own
-installed copy of *Mordor: The Depths of Dejenol*. Without that copy there is nothing to play -
+copy of *Mordor: The Depths of Dejenol* - installed, or unpacked by the port from the installer the
+player bought (below, "The installers"). Without that copy there is nothing to play -
 that is what keeps it to players who have the game, not a check in the code. This is the first step
 towards an open-source engine that players run against a copy they have.
 
@@ -15,9 +16,10 @@ The only thing that keeps the game from starting is the files it needs being mis
 
 Code: `src/Mordor.Core/GameFiles.cs` (`GameFiles.Check`, `GameFolder`), `src/Mordor.Core/LimitedVersion.cs`
 (the limited build's behaviour), `src/Mordor.Core/Saves.cs` (the saves folder),
-`src/Mordor.App/GameFolderWindow.cs` (the first-run window), the start-up in `src/Mordor.App/App.axaml.cs`.
-Checks: `selfcheck` ("the game files and the limited build") and `Mordor.UiCheck` ("the first-run
-window").
+`src/Mordor.App/GameFolderWindow.cs` (the first-run window), the start-up in `src/Mordor.App/App.axaml.cs`,
+`src/Mordor.Core/InstallerUnpack.cs` and `src/Mordor.Core/Extraction/Lzma.cs` (the installers).
+Checks: `selfcheck` ("the game files and the limited build", "the installers, unpacked") and
+`Mordor.UiCheck` ("the first-run window", "the first-run window, given an installer").
 
 ## How the original tells its two releases apart
 
@@ -44,8 +46,8 @@ constants live in p-code that only the decompiler reads. The program is not a us
 
 `[Loading Information] Limited` in MORDOR.INI is not one either: only the `gv0180` branch above -
 the shareware's Limitation Notice - ever writes it (and only `True`), the full build never clears it,
-so a player who once ran the shareware keeps `Limited=True` in the Windows folder's MORDOR.INI for good. (The user's own install has
-`Limited=False` in its folder's MORDOR.INI, written by its installer, not the game.)
+so a player who once ran the shareware keeps `Limited=True` in the Windows folder's MORDOR.INI for good. (The user's own copy has
+`Limited=False` in its folder's MORDOR.INI - not a file MordorSetup.exe holds.)
 
 ## What the shareware lacks
 
@@ -61,8 +63,9 @@ The developers say it in three places:
   Dungeon Levels than the PUBLIC version".
 - MAINMOD2.BAS:6342: "hundreds of additional monsters, items and over a dozen more levels".
 
-The full release's data, measured on the user's install (Mordor 1.1 from MordorSetup.exe, Tarma
-InstallMate 9):
+The full release's data, measured on the user's copy (Mordor 1.1, unpacked from MordorSetup.exe,
+the Tarma InstallMate 9 installer Decklin's Domain sells - not installed by it, which Windows 10 and
+11 refuse; below, "The installers"):
 
 | file | holds | full 1.1 |
 |---|---|---|
@@ -149,7 +152,7 @@ accepts a folder), and the port takes the limited build's branches:
 | behaviour | port |
 |---|---|
 | the city and dungeon frames are captioned "Mordor 1.1 (Limited Version)" | `CityWindow`, `DungeonWindow` constructors |
-| the main menu too is captioned "Mordor 1.1 (Limited Version)": frmMain's caption, set by MDIForm_Load before the menu comes up (FRMMAIN.BAS:148-152), observed over the shareware's menu 2026-10-26. The port's menu stands in for the frame there; with the full game's data it keeps frmMenu's empty caption | `TitleWindow` constructor |
+| the main menu too is captioned "Mordor 1.1 (Limited Version)": frmMain's caption, set by MDIForm_Load before the menu comes up (FRMMAIN.BAS:148-152), observed over the shareware's menu 2026-10-26. The port's menu stands in for the frame there, and with the full game's data takes the full build's "Mordor 1.1" (the Else branch, FRMMAIN.BAS:150-151) | `TitleWindow` constructor |
 | the help window is captioned "Mordor HelpLesson", the shareware help's own title (the TITLE in the help file's internal SYSTEM file, as WinHelp captioned it; observed in the original shareware 2026-10-26). Not a switch: the help window takes the title of whichever MORDOR.HLP it reads - the full 1.1's is "M1: Depths of Dejenol Help Lesson" | `HelpWindow`, `GameArt.HelpTitle` |
 | no "THANK YOU FOR PLAYING MORDOR!" box on the way out | `OriginalBox.ThankYou` (the menu's Exit, a session end) |
 | the main menu's close box asks "Exit Mordor?" (Yes and No, captioned "EXIT") and a Yes quits, with no goodbye box - the full build refuses it with "Please use the Mordor EXIT buttons to leave the game." (FRMMAIN.BAS:171-175). Observed in the original shareware 2026-10-26, at the menu only: the city's and the dungeon's close box were not tried there, so they keep the full build's refusal | `TitleWindow`, `OriginalBox.RefuseCloseBox`, `LimitedVersion.CloseBoxAsksToExit` |
@@ -160,8 +163,8 @@ accepts a folder), and the port takes the limited build's branches:
 | a chute walked onto on level 3: "There is a chute here, but it doesn't do anything in the Limited Version.", and the square routine goes on | the square routine |
 | a teleporter record whose Z2 is past 3: "..but it doesn't go anywhere in the limited version...", nobody moves, and the square routine goes on | the square routine |
 | the main menu's About button reads "Ordering/&About" (frmMenu's Form_Load, FRMMENU.BAS:162, `If m00A8 = True`, a Static the full build never sets; observed in the original shareware 2026-10-26), and opens frmAbout as ever (117) | `TitleWindow`, `LimitedVersion.AboutReadsOrdering` |
-| About shows "Ordering Info", which opens "Mordor Ordering Information" (frmOrderInfo, laid out from FRMORDER.FRM, text from FRMORDER.BAS), at the shareware MORDOR.EXE's price, "$39.95" (the full build's FRMORDER.BAS:18 says $39.99) | `AboutWindow`, `OrderInfoWindow`, `LimitedVersion.OrderInfo` |
-| About's "Version 1.1 (Last Edited 7/6/95)", the shareware MORDOR.EXE's `gc0196` (the full build's is 7/20/95, MAIN.TXT:36) | `AboutWindow`, `LimitedVersion.LastEdited` |
+| About shows "Ordering Info", which opens "Mordor Ordering Information" (frmOrderInfo, laid out from FRMORDER.FRM, text from FRMORDER.BAS), at the price the player's MORDOR.EXE says: "$39.95" in the 1995 shareware's, "$39.99" in the demo's, as in the full build's FRMORDER.BAS:18 (Known follow-ups, below) | `AboutWindow`, `OrderInfoWindow`, `LimitedVersion.OrderInfo`, `LimitedVersion.ReadProgram` |
+| About's "Version 1.1 (Last Edited ...)", the player's MORDOR.EXE's `gc0196`: 7/6/95 in the 1995 shareware's, 7/20/95 in the demo's, as in the full build's (MAIN.TXT:36) | `AboutWindow`, `LimitedVersion.LastEdited`, `LimitedVersion.ReadProgram` |
 
 **Values, and which are inference.** The full build's `mc015E` and `mc0624` are 15; the limited
 build's are taken as **3**, the shareware's depth in MORDOR.WRI ("limited to 3 dungeon levels") and
@@ -187,14 +190,16 @@ limited build, since their only effects are lines that say "limited version" and
 3. Found:
    - a `game_files` folder beside the port or beside any folder above it - as
      `Desktop\mordor\game_files` sits beside `Desktop\mordor\port` - or the port's folder itself;
+   - the games the port unpacked from the installers, `%LOCALAPPDATA%\OpenDejenol\game\full` and
+     then `\shareware` (`MORDOR_UNPACK_DIR` replaces `...\game`; below, "The installers");
    - `[File Information] BasePath` in MORDOR.INI in the Windows folder, which is how the original
      finds its own data (MAINMOD.BAS:1193-1196);
    - an uninstall registry entry whose DisplayName contains "Mordor" (its InstallLocation, else
      the folder of its icon or uninstaller);
    - `Mordor`, `Mordor v1.1`, `Mordor v1.1 The Depths of Dejenol` ... under Program Files (both)
-     and `%LOCALAPPDATA%\Programs`, `C:\MORDOR`, `C:\GAMES\MORDOR`. (MordorSetup.exe's default
-     folder could not be read out of its compressed payload, so these are guesses; the picker
-     covers the rest.)
+     and `%LOCALAPPDATA%\Programs`, `C:\MORDOR`, `C:\GAMES\MORDOR`. (MordorSetup.exe's own
+     default, read out of its project, is `INSTALLDIR` = "Mordor v1.1 The Depths of Dejenol" in
+     Program Files (32-bit); the others are guesses, and the pickers cover the rest.)
 
 1 and 2 are the player's word: a folder named there that cannot be played is reported on the
 first-run window, not silently passed over; a shareware one is played. Found folders are tried in
@@ -203,12 +208,32 @@ order; the first full one wins, and with none the first shareware one.
 ## First run
 
 With no Mordor to play, the menu is never made. A small window comes up instead, headed "Mordor
-game files not found", saying that the port plays the player's own copy, that it needs an installed
-Mordor with MORDOR.EXE and the MDATA files, that the shareware plays as the shareware did with its
-three levels, and what was wrong with the folder found. "Locate Mordor..." opens a folder picker;
-the folder picked is checked again (its `game_files` too, if the folder above was picked by
-mistake). One whose files are there and read - full or shareware - is written to the launch
-settings and the menu comes up; anything else keeps the window up with the reason. "Exit" quits.
+game files not found", saying that the port plays the player's own copy, that it needs Mordor's
+own files (MORDOR.EXE and the MDATA files), that the shareware plays as the shareware did with its
+three levels, that Decklin's Domain's installers (MordorSetup.exe, and the free MordorDemoSetup.exe)
+do not run on Windows 10 or 11 and the port unpacks them instead, and what was wrong with the
+folder found.
+
+- When MordorSetup.exe or MordorDemoSetup.exe is in the player's Downloads folder (the Downloads
+  known folder, wherever it has been moved; `MORDOR_DOWNLOADS` replaces it for the checks), the
+  window says so - "Found MordorSetup.exe in Downloads." - with an "Unpack it" button. It is
+  offered, never unpacked unasked.
+- "Use the installer..." opens a file picker (`*.exe`, starting in Downloads) for the installer.
+- Either unpacks it (`InstallerUnpack.Unpack`, below) off the window's thread, the buttons off and
+  "Unpacking MordorSetup.exe ..." shown meanwhile. A file that is not one of the installers keeps
+  the window up with "This file isn't a Mordor installer OpenDejenol can read. Choose
+  MordorSetup.exe or MordorDemoSetup.exe, as downloaded from Decklin's Domain."; what was wrong
+  with the file goes to the crash log.
+- "Locate Mordor..." opens a folder picker, for a Mordor installed some other way; the folder
+  picked is checked again (its `game_files` too, if the folder above was picked by mistake).
+
+A folder whose files are there and read - full or shareware, picked or unpacked - has its pictures
+and help read out (below; off the window's thread, "Preparing the game files ..." shown and the
+buttons off until the menu is up), is written to the launch settings and the menu comes up;
+anything else keeps the window up with the reason. "Exit" quits. A start with a Mordor already
+known whose pictures and help are not yet in the cache (the first, or after the game files change)
+shows a small window saying "Preparing the game files ..." meanwhile; one that finds them shows
+nothing before the menu.
 
 With the developer's layout (`Desktop\mordor\port` beside `Desktop\mordor\game_files`) nothing of
 this is seen: the folder is found beside the port and nothing is written.
@@ -268,6 +293,82 @@ directory, which under Program Files a player cannot write to; the port then wri
 per-user folder rather than lose it. `MORDOR_CRASHLOG` (the smoke test) names the crash log
 outright. Checked with read-only scratch folders in `selfcheck` (the game files section).
 
+## The installers (`InstallerUnpack`)
+
+Mordor is sold today by Decklin's Domain as `MordorSetup.exe` (6,041,600 bytes; "Installer for
+Mordor v1.1 The Depths of Dejenol"), and the demo is `MordorDemoSetup.exe` (2,761,728 bytes, from
+<https://www.decklinsdomain.info/DsD/mordor1/MordorDemoSetup.exe>). Both are Tarma InstallMate 9
+setups of 2016, and both refuse to run on Windows 10 and 11 ("Windows 10 (x64) ... not supported";
+compatibility modes and version spoofing do not help - tried on a fresh Windows VM). So the port
+reads the game out of the installer itself and never runs it. The format, as far as the port
+needs it (worked out from MordorSetup.exe on 2026-09-13, and the same in the demo):
+
+1. **The setup program** is a 32-bit Windows PE file. Its section `.tsuarch` (raw data at 0x25E00
+   in MordorSetup.exe, to the end of the file) holds the archive: 16 bytes, then a `tiz3` header -
+   its length (0x3C, a 16-bit word) at +4, the archive's whole length counted from the section's
+   start at +0x10, and at +0x38 the five property bytes of an **LZMA** stream (`5D`, a 16 MB
+   dictionary) whose data follows at +0x3D. The stream has no stated size; it ends with LZMA's end
+   marker, exactly at the archive's length (5,886,082 bytes of LZMA in MordorSetup.exe, unpacking
+   to 14,459,355).
+2. **The unpacked archive** is a run of `tzf3` records, back to back to its last byte: a 0x40-byte
+   header - the record's 8-byte key at +8, its length (64-bit) at +0x10, two FILETIMEs - then the
+   record's bytes, stored whole. Records keyed `FFFF...0002`, `...0003`, `...0006`, `...0011`,
+   `...0001` are the setup's own (the `tin9` project and its runtime); every other record is one
+   installed file, keyed by an 8-byte hash.
+3. **The project** (`tin9`, the first record) names them. A `file` entry: the record's key at +8,
+   its folder's key at +0x2C, its size at +0x3C, and at +0x54 its name - a 32-bit length, the
+   characters, a 32-bit zero - then the same way the name it was stored under (the name, "_",
+   sixteen hex digits, some characters of the name as "_": `DI_ANIM.WAV_25C94EF79CE94451`). A
+   `fldr` entry: its own key at +8, its parent's key and then its two names (an internal one -
+   `INSTALLDIR`, `System16Folder`, `MUSIC_E1568F666122A428` - and the folder's own) after a run of
+   fields that is 0x2C bytes long for the install's folders and shorter for Windows' and
+   InstallMate's own. The port finds entries by their tags and takes one only when every field
+   reads; the sizes must match the records'.
+
+What MordorSetup.exe installs, read so: 305 files - into `INSTALLDIR` ("Mordor v1.1 The Depths of
+Dejenol" in Program Files (32-bit)) MORDOR.EXE, the help (MORDOR.HLP, MORDOR.chm ...), MORDOR.WRI
+and SUPPORT.WRI, readme.htm, UNINSTAL.TXT; into `DATA\` the five MDATA files and MG11.DLL; into
+`MUSIC\` the 71 WAVs and 16 MIDs; `SSAVER\` the screen saver's 84 pictures; `html\` and `images\`
+the 2015 edition's help pages and pictures (cityw1.png among them); the Visual Basic 3 runtime
+(VBRUN300.DLL and the VBX controls, WAVMIX16.DLL) into Windows' 16-bit System folder; and
+WININIT.INI into the Windows folder. `DATA\` and `MUSIC\` are where the original reads its data and
+sounds (`BasePath + gc1C74` = "DATA\", `gc1C78` = "MUSIC\", MAIN.TXT). An empty `BACKUP\` folder is
+declared too.
+
+**What the port unpacks, and where.** Everything but WININIT.INI (the installer's instructions to
+Windows), into `%LOCALAPPDATA%\OpenDejenol\game\full` for the full game or `...\game\shareware`
+for the shareware - one folder per edition, told apart by `GameFiles.Check` on what was unpacked,
+not by the installer's name, so the demo never replaces the full game (or the other way round) and
+unpacking the same installer again replaces its own folder with the same files. The port reads all
+its files from one folder, so `DATA\`, `MUSIC\`, `images\` and the VB3 runtime go into the top
+folder - the layout of the developer's `game_files`, which MordorSetup.exe's files match byte for
+byte (143 files by SHA-256; `selfcheck`); `html\` and `SSAVER\`, which the port does not read,
+keep their folders. The folder is the port's own and holds no saves: they go to
+`%APPDATA%\OpenDejenol\saves` as for any game folder with no `saves` beside it (below).
+
+**Read as untrusted.** The installer is a file the player picked. The PE headers and section table,
+the archive's length and header, the LZMA stream (the decoder stops at the end of its input and at
+128 MB of output, and refuses a distance before the start) and every record are checked before use;
+the installer is capped at 64 MB; every file and folder name must be a plain name (no `..`, no
+separator, no drive, no character Windows refuses, no device name); the files are written into a
+new `.unpacking-...` folder beside the edition folders, which is checked with `GameFiles.Check` and
+only then moved into place (an earlier unpacking of that edition moved aside first and put back if
+the move fails). Anything wrong is a message - "This file isn't a Mordor installer OpenDejenol can
+read." and what to choose, the reason kept apart (`UnpackResult.Detail`) for the crash log - and
+nothing is left behind.
+
+**The LZMA decoder** (`Extraction/Lzma.cs`) is the decoding part of Igor Pavlov's LZMA SDK in C#,
+public domain, vendored rather than taken as a package: the bounds and the size limit above are
+the only changes.
+
+**The demo, measured (2026-10-27).** MordorDemoSetup.exe is the same format and unpacks to 220
+files: no `SSAVER\`, otherwise the full installer's files byte for byte but four. Its MDATA11.MDR is
+68,166 bytes with **3** levels, as the 1995 shareware's, but not the same bytes (`65ff0d07...b84108d7`
+against the 1995 file's `f2498923...f8373c14`); its MORDOR.EXE is 1,199,377 bytes like the full
+1.1's but differs from it in 1,200 bytes (`15cd6021...d4ddb1e7`), and is not the 1995 shareware's
+either. `GameFiles.Check` reads it as the shareware ("its dungeon has 3 levels"), played as the
+limited build. readme.htm and UNINSTAL.TXT are the demo's own.
+
 ## Known follow-ups
 
 - The pictures and the help are no longer in the build (below), but git history still holds the
@@ -275,6 +376,18 @@ outright. Checked with read-only scratch folders in `selfcheck` (the game files 
   public repository needs a fresh history. `decompiled*/` (the decompiled program) is still in the
   developer's tree, as are the game's own strings that the port's code reproduces; the public
   tree is made without the decompiled program and with a history of one commit.
+- The limited build's About date and order-form price are read from the player's own MORDOR.EXE
+  (`LimitedVersion.ReadProgram`, since 0.1.1): "7/20/95" and $39.99 from the 2016 demo's
+  (MordorDemoSetup.exe), whose help is the 2015 edition's too ("M1: Depths of Dejenol Help
+  Lesson"); "7/6/95" and $39.95 from the 1995 shareware's. The date is found as the length-counted
+  string after "Welcome to MORDOR 1.1!" and "Mordor" in the program's string constants, the price in
+  the order form's sentence "...at any time for only $NN.NN + S&&H!"; where either is not found,
+  the 1995 shareware's is shown. Measured on the demo's and the full 1.1's programs; the 1995
+  shareware's MORDOR.EXE was not at hand for 0.1.1 (it is inside MORDOR11.ZIP's 16-bit setup
+  archives), so for it the reading rests on the layout measured on 2026-10-25 (above: "7/6/95" at
+  byte 623888 after the same two strings, the price at 568050 in the same sentence), and the
+  fallback is that file's own pair. `selfcheck` expects each copy's own: its date and price by its
+  MORDOR.EXE, its help's title by its MORDOR.HLP.
 
 ## The game's pictures and help: read from the player's copy
 

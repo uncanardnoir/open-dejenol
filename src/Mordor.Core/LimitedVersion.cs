@@ -38,8 +38,18 @@ public static class LimitedVersion
     /// <summary>The player's data is the shareware's: the limited build's behaviour is on. Set at start.</summary>
     public static bool On { get; set; }
 
-    /// <summary>Switch on or off from the check of the folder being played.</summary>
-    public static void Apply(GameFilesCheck? check) => On = check?.Verdict == GameFilesVerdict.Limited;
+    /// <summary>
+    /// Switch on or off from the check of the folder being played; for the limited build, About's
+    /// date and the order form's price are read from that folder's MORDOR.EXE (<see cref="ReadProgram"/>).
+    /// </summary>
+    public static void Apply(GameFilesCheck? check)
+    {
+        On = check?.Verdict == GameFilesVerdict.Limited;
+        _program = On ? ReadProgram(check!.Dir) : (null, null);
+    }
+
+    /// <summary>The date and the price the player's own MORDOR.EXE holds, as <see cref="Apply"/> read them; null where not found.</summary>
+    private static (string? Date, string? Price) _program;
 
     /// <summary>mc015E and mc0624 in the limited build: "limited to 3 dungeon levels" (MORDOR.WRI).</summary>
     public const int LastLevel = GameFiles.SharewareLevels;
@@ -143,30 +153,86 @@ public static class LimitedVersion
     public static bool TeleporterIsDead(int z2) => On && z2 > LastLevel;
 
     /// <summary>
-    /// About's date, gc0196 in lblVersion's "Version 1.1 (Last Edited ...)" (FRMABOUT.BAS:23). The
-    /// full 1.1 MORDOR.EXE holds "7/20/95" (MAIN.TXT:36; at byte 624144 of that file). The shareware's
-    /// MORDOR.EXE (MORDOR11.ZIP), an earlier build, holds "7/6/95" in the same place (byte 623888,
-    /// after the same "Welcome to MORDOR 1.1!" and "Mordor" strings) and no "7/20/95" at all, so
-    /// the limited build shows that.
+    /// About's date, gc0196 in lblVersion's "Version 1.1 (Last Edited ...)" (FRMABOUT.BAS:23): a
+    /// string constant of the program, so each build shows its own. The full 1.1 MORDOR.EXE holds
+    /// "7/20/95" (MAIN.TXT:36). The limited build shows what the player's MORDOR.EXE holds
+    /// (<see cref="ReadProgram"/>): the 1995 shareware's (MORDOR11.ZIP), an earlier build, has
+    /// "7/6/95" there and no "7/20/95" at all; the limited build in Decklin's Domain's free demo
+    /// (MordorDemoSetup.exe) has "7/20/95". "7/6/95" when the program does not say.
     /// </summary>
-    public static string LastEdited => On ? SharewareLastEdited : FullLastEdited;
+    public static string LastEdited => On ? _program.Date ?? SharewareLastEdited : FullLastEdited;
 
     public const string FullLastEdited = "7/20/95";
     public const string SharewareLastEdited = "7/6/95";
 
     /// <summary>
-    /// frmOrderInfo's caption and its two labels as Form_Load writes them (FRMORDER.BAS:13-36), "&amp;&amp;" as the "&amp;" it shows.
-    /// The form is only ever shown by the limited build, and the price is the shareware MORDOR.EXE's:
-    /// "...at any time for only $39.95 + S&amp;&amp;H!" (byte 568050 of the MORDOR.EXE in MORDOR11.ZIP),
+    /// The order form's price, a literal in its Form_Load (FRMORDER.BAS:18), so again each build's
+    /// own: the full 1.1 MORDOR.EXE, which never shows the form, says $39.99; the limited build shows
+    /// what the player's MORDOR.EXE says (<see cref="ReadProgram"/>) - $39.95 in the 1995 shareware,
     /// as its MORDOR.WRI has it too ("You can now order the full version of MORDOR for only $39.95 +
-    /// S&amp;H!"). The full 1.1 MORDOR.EXE, which never shows the form, says $39.99 there
-    /// (FRMORDER.BAS:18); every other word of the form is the same in both.
+    /// S&amp;H!"), and $39.99 in the demo's. $39.95 when the program does not say.
+    /// </summary>
+    public static string Price => On ? _program.Price ?? SharewarePrice : FullPrice;
+
+    public const string FullPrice = "$39.99";
+    public const string SharewarePrice = "$39.95";
+
+    /// <summary>
+    /// About's date and the order form's price as the limited MORDOR.EXE in <paramref name="gameDir"/>
+    /// holds them; null for either it does not hold, or when there is no program to read. Never throws.
+    /// </summary>
+    public static (string? Date, string? Price) ReadProgram(string gameDir)
+    {
+        try
+        {
+            string? exe = Extraction.GameArt.Find(gameDir, "MORDOR.EXE");
+            // MORDOR.EXE is 1.2 MB; a file far larger is not it
+            if (exe == null || new FileInfo(exe).Length > 16 << 20) return (null, null);
+            return FromProgram(File.ReadAllBytes(exe));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return (null, null);
+        }
+    }
+
+    /// <summary>
+    /// The two strings, found by the text around them rather than by their place, which differs
+    /// between builds (the 1995 shareware's date is at byte 623888 of its MORDOR.EXE, the full 1.1's
+    /// at 624144). The date: Visual Basic 3 keeps the program's string constants together, each a
+    /// 16-bit length after a 16-bit word, and gc0196 comes after "Welcome to MORDOR 1.1!" and
+    /// gc0192's "Mordor" in every build measured - full, 1995 shareware and demo. The price: the
+    /// order form's sentence, "...at any time for only $39.99 + S&amp;&amp;H!" as the program keeps it
+    /// (FRMORDER.BAS:18), "&amp;&amp;" being VB's "&amp;".
+    /// </summary>
+    public static (string? Date, string? Price) FromProgram(byte[] exe)
+    {
+        string s = System.Text.Encoding.Latin1.GetString(exe);
+        string? date = null, price = null;
+        var d = System.Text.RegularExpressions.Regex.Match(s,
+            @"Welcome to MORDOR 1\.1!..\x06\x00Mordor..([\x01-\x10])\x00(\d{1,2}/\d{1,2}/\d{2})(?!\d)",
+            System.Text.RegularExpressions.RegexOptions.Singleline | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        if (d.Success && d.Groups[1].Value[0] == d.Groups[2].Length) date = d.Groups[2].Value;
+        var p = System.Text.RegularExpressions.Regex.Match(s,
+            @"  You can now pre-order the full version of MORDOR at any time for only (\$\d{1,3}\.\d\d) \+ S&&H!",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        if (p.Success) price = p.Groups[1].Value;
+        return (date, price);
+    }
+
+    /// <summary>
+    /// frmOrderInfo's caption and its two labels as Form_Load writes them (FRMORDER.BAS:13-36), "&amp;&amp;" as the "&amp;" it shows,
+    /// with this build's <see cref="Price"/>. The form is only ever shown by the limited build; every
+    /// word of it but the price is the same in the full 1.1 and the 1995 shareware.
     /// </summary>
     public const string OrderTitle = "Mordor Ordering Information";
-    public const string OrderInfo =
+    public static string OrderInfo => OrderInfoAt(Price);
+
+    /// <summary>frmOrderInfo's lblInfo with the price given (FRMORDER.BAS:15-17).</summary>
+    public static string OrderInfoAt(string price) =>
         "Whether you’re ordering MORDOR for yourself or as a gift, this first of a kind Windows FRP game designed to be played for months and even longer is guaranteed to put a smile on most any avid FRPer’s face!!  "
         + "The full commercial version of MORDOR has so many more Monsters, Items and Dungeon Levels than the PUBLIC version that we can’t even begin to get into detail.  Find out for yourself!\n\n"
-        + "  You can now pre-order the full version of MORDOR at any time for only $39.95 + S&H!  Feel free to use your VISA, MASTERCARD, Check, or Money Order to have MORDOR: the Depths of Dejenol, sent directly to your doorstep!\n\n";
+        + "  You can now pre-order the full version of MORDOR at any time for only " + price + " + S&H!  Feel free to use your VISA, MASTERCARD, Check, or Money Order to have MORDOR: the Depths of Dejenol, sent directly to your doorstep!\n\n";
     public const string OrderHow =
         "To order, call TDA! at (800) 624-2101 between 9AM and 4PM PST Monday through Friday and ask to order MORDOR!  Be sure to specify either 3.5\" disks or CD-ROM.\n\n"
         + "You can also contact the company at the following EMail addresses:\n"

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="stone" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b3b7be"/><stop offset="1" stop-color="#6a6f78"/>
+    </linearGradient>
+    <linearGradient id="void" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#050407"/><stop offset=".7" stop-color="#140f0a"/><stop offset="1" stop-color="#2a1d0e"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ffcf6a" stop-opacity=".85"/><stop offset=".55" stop-color="#e09a2c" stop-opacity=".35"/><stop offset="1" stop-color="#e09a2c" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f0cf78"/><stop offset="1" stop-color="#a8792a"/>
+    </linearGradient>
+  </defs>
+    <path d="M32 242V112A96 96 0 0 1 224 112V242Z" fill="url(#stone)" stroke="#26282d" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M72 242V112A56 56 0 0 1 184 112V242Z" fill="url(#void)"/>
+    <ellipse cx="128" cy="196" rx="54" ry="40" fill="url(#glow)"/>
+    <rect x="98" y="190" width="60" height="9" fill="#3a3027"/>
+    <rect x="90" y="199" width="76" height="11" fill="#54473a"/>
+    <rect x="81" y="210" width="94" height="13" fill="#6e5f4c"/>
+    <rect x="72" y="223" width="112" height="19" fill="#8a7860"/>
+    <path d="M72 242V112A56 56 0 0 1 184 112V242" fill="none" stroke="#26282d" stroke-width="6" stroke-linejoin="round"/>
+    <g stroke="#26282d" stroke-width="4" stroke-linecap="round">
+      <path d="M176.5 84L211.1 64M156 63.5L176 28.9M100 63.5L80 28.9M79.5 84L44.9 64"/>
+      <path d="M184 112H224M72 112H32M184 156H224M72 156H32M184 200H224M72 200H32"/>
+      <path d="M204 112V156M52 156V200M204 200V242M52 112V156" stroke-width="3" opacity=".55"/>
+    </g>
+    <path d="M137.7 56.9L144.7 17.5A96 96 0 0 0 111.3 17.5L118.3 56.9A56 56 0 0 1 137.7 56.9Z" fill="url(#gold)" stroke="#26282d" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M30 242H226" stroke="#26282d" stroke-width="7" stroke-linecap="round"/>
+</svg>

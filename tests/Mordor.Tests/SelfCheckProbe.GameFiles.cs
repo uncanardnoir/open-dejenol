@@ -74,9 +74,10 @@ public static partial class SelfCheckProbe
             Check("the order form's last line as FRMORDER has it (&& shows as &)",
                   order.Contains("\"Order the full version of MORDOR now && see just how far you can take adventure!\"")
                   && LimitedVersion.OrderHow.EndsWith("Order the full version of MORDOR now & see just how far you can take adventure!", StringComparison.Ordinal), true);
-            // the full build's own copy of the form differs from the shareware's only in its price
-            Check("the order form as FRMORDER has it, but for the shareware's $39.95 for the full build's $39.99",
-                  order.Contains("\"" + OrderSentence(LimitedVersion.OrderInfo).Replace("&", "&&").Replace("$39.95", "$39.99") + "\""), true);
+            // the full build's own copy of the form, with its price; the limited build's differs only in that
+            Check("the order form as FRMORDER has it, with the full build's $39.99 (FRMORDER.BAS:18)",
+                  order.Contains("\"" + OrderSentence(LimitedVersion.OrderInfoAt(LimitedVersion.FullPrice)).Replace("&", "&&") + "\"")
+                  && LimitedVersion.FullPrice == "$39.99", true);
             Check("About's date in the full build is gc0196 (MAIN.TXT:36)",
                   PortSource("decompiled-named", "MAIN.TXT").Contains("Global Const gc0196 = \"" + LimitedVersion.FullLastEdited + "\""), true);
         });
@@ -136,25 +137,50 @@ public static partial class SelfCheckProbe
             Check("shareware: and monsters and items found below them all the same", (deepMonster > levels, deepItem > levels), (true, true));
         }
 
-        // ---- About's date and the order form's price, against this copy's own MORDOR.EXE ----
-        // The shareware's MORDOR.EXE is an earlier build than the full 1.1's: its gc0196 is
-        // "7/6/95" and its order form says $39.95 where the full one's says 7/20/95 and $39.99
+        // ---- About's date and the order form's price, read from MORDOR.EXE (LimitedVersion.ReadProgram) ----
+        // Each build's program has its own: the full 1.1's gc0196 is "7/20/95" and its (never shown)
+        // order form says $39.99; the 1995 shareware's, an earlier build, "7/6/95" and $39.95; the
+        // limited build in Decklin's Domain's demo, 7/20/95 and $39.99 (measured 2026-10-27)
         {
-            byte[] exe = File.ReadAllBytes(Path.Combine(dir, "MORDOR.EXE"));
+            // a constant pool laid out as the 1995 shareware's (docs/GAME_FILES.md), its date shorter
+            byte[] Pool(string date, int len) => System.Text.Encoding.Latin1.GetBytes(
+                "\0\0\x06\0" + "1.1" + "\0\x18\0\x16\0" + "Welcome to MORDOR 1.1!" + "\x08\0\x06\0" + "Mordor"
+                + "\x08\0" + (char)len + "\0" + date + "\0\x04\0\x01\0,\0"
+                + "xx  You can now pre-order the full version of MORDOR at any time for only $39.95 + S&&H!  Feel free");
+            Check("found by the text around them: a 1995-style program's 7/6/95 and $39.95", LimitedVersion.FromProgram(Pool("7/6/95", 6)), ((string?)"7/6/95", (string?)"$39.95"));
+            Check("a date whose length word does not fit it is not taken", LimitedVersion.FromProgram(Pool("7/6/95", 7)).Date, null);
+            Check("a program without either: nothing", LimitedVersion.FromProgram(System.Text.Encoding.Latin1.GetBytes("Mordor 7/6/95 $39.95 + S&&H!")), ((string?)null, (string?)null));
+            bool was = LimitedVersion.On;
+            try
+            {
+                LimitedVersion.Apply(new GameFilesCheck(Path.Combine(Path.GetTempPath(), "mordor-no-such-folder"), GameFilesVerdict.Limited, ""));
+                Check("limited, with no program to read: the 1995 shareware's 7/6/95 and $39.95",
+                      (LimitedVersion.LastEdited, LimitedVersion.Price, OrderSentence(LimitedVersion.OrderInfo).Contains("only $39.95 + S&H!")), ("7/6/95", "$39.95", true));
+            }
+            finally { LimitedVersion.On = was; }
+
+            string exePath = Path.Combine(dir, "MORDOR.EXE");
+            byte[] exe = File.ReadAllBytes(exePath);
             bool Holds(string s) => IndexOf(exe, System.Text.Encoding.Latin1.GetBytes(s)) >= 0;
+            // the 1995 shareware's MORDOR.EXE by its SHA-256 (docs/GAME_FILES.md, "The shareware, measured")
+            string sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(exe));
+            bool of1995 = sha.StartsWith("BDE2DAAC", StringComparison.Ordinal) && sha.EndsWith("D9356D14", StringComparison.Ordinal);
+            var (date, price) = LimitedVersion.ReadProgram(dir);
+            Console.WriteLine($"  this MORDOR.EXE holds About's date {date ?? "(not found)"} and the order price {price ?? "(not found)"}");
+            Check(of1995 ? "this MORDOR.EXE, the 1995 shareware's: 7/6/95 and $39.95" : "this MORDOR.EXE, not the 1995 shareware's: 7/20/95 and $39.99",
+                  (date, price), of1995 ? ((string?)"7/6/95", (string?)"$39.95") : ((string?)"7/20/95", (string?)"$39.99"));
             bool before = LimitedVersion.On;
             try
             {
                 LimitedVersion.Apply(mine);
-                string other = LimitedVersion.On ? LimitedVersion.FullLastEdited : LimitedVersion.SharewareLastEdited;
-                Check($"About's \"Last Edited {LimitedVersion.LastEdited}\" is the date this MORDOR.EXE holds, and not {other}",
-                      (Holds(LimitedVersion.LastEdited), Holds(other)), (true, false));
                 // the form's sentence as VB keeps it, "&" written "&&"
-                string price = OrderSentence(LimitedVersion.OrderInfo).Replace("&", "&&");
+                string sentence = OrderSentence(LimitedVersion.OrderInfo).Replace("&", "&&");
                 if (LimitedVersion.On)
-                    Check("the order form's price sentence is this MORDOR.EXE's, word for word ($39.95)", Holds(price), true);
+                    Check("limited: About's date and the order form's price are this MORDOR.EXE's, the sentence word for word",
+                          (LimitedVersion.LastEdited, LimitedVersion.Price, Holds("\0" + LimitedVersion.LastEdited + "\0"), Holds(sentence)), (date ?? "", price ?? "", true, true));
                 else
-                    Check("this MORDOR.EXE's own order form, never shown in the full build, says $39.99 instead", (Holds(price), Holds(price.Replace("$39.95", "$39.99"))), (false, true));
+                    Check("full: About's date is gc0196, and the form (never shown) is this MORDOR.EXE's, word for word",
+                          (LimitedVersion.LastEdited, LimitedVersion.Price, Holds(sentence)), (LimitedVersion.FullLastEdited, LimitedVersion.FullPrice, true));
             }
             finally { LimitedVersion.On = before; }
         }

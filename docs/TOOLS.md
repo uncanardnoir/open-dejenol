@@ -199,6 +199,29 @@ check.sh's sweep: they write files, need arguments, or take long.
 | `combat` | random encounters fought per floor through the CombatEngine: wins, deaths, flights, experience, gold, rounds |
 | `play` | whole fights by a character in the best gear their level allows, floor by floor (long) - *no sweep* |
 
+### The port's own files
+
+| Tool | What it does |
+|---|---|
+| `icon <out.ico> <png>...` | packs square 8-bit RGBA PNGs into one Windows icon, each PNG whole as one of its images; the game folder is not read (pass any, e.g. `-`) - *no sweep* |
+
+## The program's icon
+
+`src/Mordor.App/Assets/Icon` holds the program's icon: the port's own drawing, not the game's. The
+two SVGs are the source - `opendejenol.svg` (a 256 grid, for 24 pixels and up) and
+`opendejenol-16.svg` (simplified by hand for 16) - and the PNGs and `opendejenol.ico` made from
+them are committed, so a build needs neither a browser nor the tool. The .ico is the exe's icon
+(`<ApplicationIcon>`) and every window's (the `:is(Window)` style in `App.axaml`);
+`tools/pack-release.sh` gives Velopack the .ico as the installer's icon and `opendejenol-256.png`
+as its splash. After a change to an SVG:
+
+1. render each size with a transparent background - with Edge headless, for instance, on a page
+   that holds only `<img src="opendejenol.svg" width="N" height="N">` (margin 0, transparent):
+   `msedge --headless=new --force-device-scale-factor=1 --default-background-color=00000000 --window-size=N,N --screenshot=opendejenol-N.png page.html`,
+   for N = 24, 32, 48, 64, 128 and 256, and 16 from `opendejenol-16.svg`;
+2. check each PNG is N by N with a clear corner pixel;
+3. from that folder, `dotnet run --project ../../../../tools/Mordor.Tools -c Release -- - icon opendejenol.ico opendejenol-16.png opendejenol-24.png opendejenol-32.png opendejenol-48.png opendejenol-64.png opendejenol-128.png opendejenol-256.png`.
+
 ## The other tools
 
 | Tool | What it is |

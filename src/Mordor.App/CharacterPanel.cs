@@ -285,11 +285,15 @@ public sealed class CharacterPanel : UserControl
         // the page grows with the Options fonts as a form page does (FormPage), and down to at least
         // the tallest line a row holds, so a larger chosen font never runs one row into the next
         var (growX, growY) = UiFonts.FormGrowth(form.Pass);
-        // across, no further than the page has room for (never less than the form's own size): the
-        // scroll viewer scrolls down only, and the figures are set right against the frame's edge
+        // across, elaTabFrame(0) is as wide as the page (never narrower than the form's own size): the
+        // original's Form_Resize sizes tabStatTab to the form (sub07D4, MAINMOD.BAS:1984-1987) and its
+        // Elastics carry their labels with them, so the boxes, the divider and the right-set figures and
+        // states keep their places across the frame at any width (FRMCHAR1.BAS:184-193). The fonts it
+        // also zooms by the width (sub07C5) stay the Options fonts here, and so do the rows' heights.
+        // The scroll viewer scrolls down only, so the page is never wider than its room
         double room = _statsViewer.Viewport.Width > 0 ? _statsViewer.Viewport.Width : _statsViewer.Bounds.Width;
         if (room > 0)
-            growX = Math.Max(1, Math.Min(growX, room / ((CharStatForm.FrameLeft + CharStatForm.elaTabFrame0.Width) / FormPage.Twips)));
+            growX = Math.Max(1, room / ((CharStatForm.FrameLeft + CharStatForm.elaTabFrame0.Width) / FormPage.Twips));
         double line = new[] { caption, figure, figure with { Bold = true }, special }.Max(f => UiFonts.LineHeight(form, f));
         growY = Math.Max(growY, line / (CharStatForm.lblStat0.Height / FormPage.Twips));
         double X(double twips) => (CharStatForm.FrameLeft + twips) / FormPage.Twips * growX;

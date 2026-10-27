@@ -185,6 +185,24 @@ public static class GameArt
         }
     }
 
+    /// <summary>
+    /// Whether <see cref="Prepare"/> would only find the art for this game folder, with nothing to
+    /// extract: so that a start which must extract can say so first. False when a required file is
+    /// missing or anything does not read (Prepare then says what).
+    /// </summary>
+    public static bool IsReady(string gameDir, string? cacheRoot = null)
+    {
+        try
+        {
+            if (Sources.Any(s => s.Required && Find(gameDir, s.Name) == null)) return false;
+            return Complete(Path.Combine(cacheRoot ?? CacheRoot, Key(gameDir)));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>A cache folder with its manifest, every picture, and the help if the manifest says it was made.</summary>
     private static bool Complete(string dir)
     {

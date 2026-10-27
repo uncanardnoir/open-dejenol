@@ -7067,7 +7067,9 @@ MordorTheDepthsofDejenol_1020): its MDATA1, 2, 3 and 5, MG11.DLL and sounds are 
 for byte, so its monsters and items are not reduced in the data; MDATA11 has 3 levels. Its
 MORDOR.EXE is an earlier build (6 July 1995) whose strings differ from the full one's: the limited
 build now shows its order-form price, "$39.95" (the full EXE's unshown form says $39.99), and its
-About date, "Last Edited 7/6/95" (the full EXE's `gc0196` is 7/20/95). Every other line the limited
+About date, "Last Edited 7/6/95" (the full EXE's `gc0196` is 7/20/95). Since 0.1.1 both are read from
+the player's own MORDOR.EXE (`LimitedVersion.ReadProgram`), as each build shows its own: the limited
+build in Decklin's Domain's demo holds 7/20/95 and $39.99; 7/6/95 and $39.95 when not found. Every other line the limited
 build shows is in that EXE word for word. The help opens at the .HLP's Contents topic, as WinHelp
 did: Welcome in both releases, which is the shareware help's last topic rather than its first.
 
@@ -7113,8 +7115,10 @@ the button still opens frmAbout (117), which in the limited build shows Ordering
 **The menu's caption in the shareware, and the help window's - corrected 2026-10-26.** The shareware's frame
 reads "Mordor 1.1 (Limited Version)" at the main menu already (observed in the original shareware 2026-10-26):
 MDIForm_Load sets it before the menu is shown (FRMMAIN.BAS:148-152). The port's menu window, which stands in for
-the frame there, had no caption; in the limited build it now has that one. With the full game's data it keeps
-frmMenu's own empty caption, as before (no capture of the full game's menu caption was taken).
+the frame there, had no caption; in the limited build it now has that one. With the full game's data it kept
+frmMenu's own empty caption until 0.1.1 (no capture of the full game's menu caption was taken); since then it has
+the full build's frame caption, "Mordor 1.1" - the Else branch of the same lines, and Sub Main shows frmMain in
+both builds (MAINMOD2.BAS:6456) - so the taskbar no longer shows a blank title.
 The help window had been captioned and headed "Mordor 1.1 (M1 Depths of Dejenol) Help Lesson" for both releases,
 the full help's Welcome heading. WinHelp captioned its window with the help file's own title, |SYSTEM's TITLE
 record, and the shareware's help window read "Mordor HelpLesson" (observed in the original shareware 2026-10-26).

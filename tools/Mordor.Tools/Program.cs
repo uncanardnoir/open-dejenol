@@ -199,6 +199,10 @@ var tools = new List<Tool>
         (dir, _) => Do(() => Sim.Run(dir))),
     new("play", "sims", "whole fights by a character in the best gear their level allows, floor by floor (long)",
         (dir, _) => Do(() => PlaySim.Run(dir)), Sweep: false),
+
+    // ---- the port's own files ----
+    new("icon", "port", "<out.ico> <png>... square PNGs packed into one Windows icon, each whole (the program's icon; the game folder is not read)",
+        (_, a) => IconPack.Run(a), Sweep: false),
 };
 var byName = tools.ToDictionary(t => t.Name, StringComparer.Ordinal);
 
@@ -242,6 +246,7 @@ static class Groups
         "rules" => "the rules, exercised",
         "text" => "the windows' text",
         "sims" => "simulations",
+        "port" => "the port's own files",
         _ => group,
     };
 }
