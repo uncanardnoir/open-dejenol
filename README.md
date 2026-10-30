@@ -29,6 +29,8 @@ OpenDejenol comes bundled with a few mods. These include:
 
 <p align="center"><img src="docs/images/cartographer.png" width="450" alt="The automap with Cartographer: coloured squares and a waypoint's arrow to its destination"></p>
 
+**Auto-combat** - Gives each character's fight order every round by your own ordered rules: Fight, Defend, a combat spell or an item, and which monster group to aim at, chosen by the party's hits and spell points and the monster list as shown. Every order goes through the game's own keys and Cast; nothing the game hides (a monster's hits, an unidentified monster) is read.
+
 ## Requirements
 
 - Your own copy of Mordor: The Depths of Dejenol - the full version or the shareware. The full version can be purchased from [Decklin's Domain](https://www.decklinsdemise.com/mordor.htm) as `MordorSetup.exe`, and the free demo is `MordorDemoSetup.exe` from the same site. Those installers don't run on Windows 10 or 11, and you don't need to run them: OpenDejenol unpacks the game from the installer itself.

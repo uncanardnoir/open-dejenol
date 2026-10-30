@@ -333,6 +333,9 @@ public static partial class ModProbe
             // ---- the DPS Meter mod and DamageDealt (ModProbe.DpsMeter.cs) ----
             DpsChecks(dir, scratch, bundled, items, Lookup);
 
+            // ---- the Auto-combat mod and the CombatRound action (ModProbe.AutoCombat.cs) ----
+            AutoCombatChecks(dir, scratch, bundled, items, Lookup);
+
             // ---- the Cartographer mod and the Automap hooks (ModProbe.Cartographer.cs) ----
             CartographerChecks(scratch, bundled);
 

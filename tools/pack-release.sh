@@ -45,7 +45,7 @@ AUTHORS="OpenDejenol contributors"
 APP_PROJ=src/Mordor.App/Mordor.App.csproj
 ICON=src/Mordor.App/Assets/Icon/opendejenol.ico
 SPLASH=src/Mordor.App/Assets/Icon/opendejenol-256.png
-MODS="QoL:Mordor.Mod.QoL Kaizen:Mordor.Mod.Kaizen DpsMeter:Mordor.Mod.DpsMeter Cartographer:Mordor.Mod.Cartographer"
+MODS="QoL:Mordor.Mod.QoL Kaizen:Mordor.Mod.Kaizen DpsMeter:Mordor.Mod.DpsMeter Cartographer:Mordor.Mod.Cartographer AutoCombat:Mordor.Mod.AutoCombat"
 
 if [ -z "${DOTNET:-}" ]; then
     for d in "${DOTNET_ROOT:-}" "${USERPROFILE:+$(cygpath -u "$USERPROFILE" 2>/dev/null)/.dotnet}" "$HOME/.dotnet"; do
@@ -102,7 +102,7 @@ for m in $MODS; do
     [ -f "$PUB/mods/$folder/$dll.dll" ] && [ -f "$PUB/mods/$folder/mod.json" ] \
         || die "the bundled mod $folder is not in the publish (mods/$folder/$dll.dll and mod.json)"
 done
-echo "  ok    OpenDejenol.exe, LICENSE.txt, and mods/{QoL,Kaizen,DpsMeter,Cartographer} with dll and mod.json"
+echo "  ok    OpenDejenol.exe, LICENSE.txt, and mods/{QoL,Kaizen,DpsMeter,Cartographer,AutoCombat} with dll and mod.json"
 GAMEFILES=$(cd "$PUB" && find . -type f | grep -i -E "\.(png|bmp|ico|cur|gif|jpg|wav|mid|midi|mdr|hlp|chm|vbx|ini|wri|mak)$|(^|/)(MORDOR\.EXE|MDATA[0-9]+\.MDR|MG11\.DLL|WAVMIX16\.DLL)$" | head -5)
 [ -z "$GAMEFILES" ] || die "files of the game's in the publish: $GAMEFILES"
 echo "  ok    no file of the game's (pictures, sounds, music, data, help)"
