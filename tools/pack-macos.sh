@@ -12,8 +12,8 @@
 #   3. signs it ad hoc (codesign -s -), which is what Apple Silicon needs to run it at all.
 #
 # Ad hoc is not a Developer ID: this Mac runs the app, and another Mac's Gatekeeper refuses it
-# until it is allowed by hand (right-click > Open). Notarised releases are not made here; before
-# any are, see the signing notes in CLAUDE.md. Nothing of the game's is in the bundle: the player points it at their
+# until it is allowed by hand (right-click > Open). Notarised releases are not made here: they
+# need a Developer ID, the hardened runtime and the .NET JIT's entitlements (README, "macOS"). Nothing of the game's is in the bundle: the player points it at their
 # own copy at first run, as on Windows (docs/GAME_FILES.md).
 #
 # No Velopack: an app not installed by Velopack's installer never asks for updates (Updates.cs).
