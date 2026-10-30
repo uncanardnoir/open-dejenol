@@ -7,3 +7,15 @@ obj/
 # These are the player's own game state and do not belong in the repository.
 saves/
 saves-backup-*/
+
+# the player's own copy of Mordor (docs/GAME_FILES.md): never in this repository.
+# game_files/ is the local copy the checks read (make check); the patterns below catch the
+# game's files wherever else they might land.
+game_files/
+*.MDR
+*.mdr
+MORDOR.EXE
+MORDOR.HLP
+MG11.DLL
+MordorSetup*.exe
+MordorDemoSetup*.exe
