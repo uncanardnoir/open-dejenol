@@ -1,4 +1,4 @@
-# Build and test every push and pull request (docs/RELEASING.md).
+# Build and test every push and pull request, on Windows and on macOS (docs/RELEASING.md).
 #
 # There is no copy of Mordor here, and none may be put here: the suites under `dotnet test`
 # (tests/Mordor.Tests.Runner) all read the game's own files and skip themselves without
@@ -53,3 +53,32 @@ jobs:
       - name: Package (not uploaded)
         shell: bash
         run: sh tools/pack-release.sh "$RUNNER_TEMP/release"
+
+  # The macOS (Apple Silicon) build: the same build and test project, and the app bundle made and
+  # signed ad hoc by tools/pack-macos.sh, then thrown away. As on Windows there is no game folder,
+  # so the suites skip themselves; they are run locally against one (make check, README "macOS").
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        id: dotnet
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Pin the .NET 8 SDK
+        run: dotnet new globaljson --sdk-version "${{ steps.dotnet.outputs.dotnet-version }}" --force
+
+      - name: Restore
+        run: dotnet restore Mordor.sln
+
+      - name: Build (Release, warnings are errors)
+        run: dotnet build Mordor.sln -c Release --no-restore -warnaserror
+
+      - name: Test
+        run: dotnet test Mordor.sln -c Release --no-build
+
+      - name: App bundle (not uploaded)
+        run: sh tools/pack-macos.sh "$RUNNER_TEMP/macos"

@@ -128,8 +128,11 @@ public partial class CityWindow : Window
         {
             // a session ended while the party is below: the dungeon is left first, which saves
             // the trip and the layout its children are in; the town's own are not on the frame
-            if (_below != null) { _below.Close(); Save(); return; }
-            SaveWindowLayout(); Save();
+            if (_below != null) { _below.Close(); Save(); }
+            else { SaveWindowLayout(); Save(); }
+            // a mod hears that the game's saves are all on disk (docs/MODDING.md, Saved; API
+            // version 15); with none listening, nothing
+            Mordor.Modding.ModHost.Active.SavePointReached(Mordor.Modding.SavePointKind.GameEnded);
         };
 
         Audio.Init(gameDir);
@@ -2927,6 +2930,8 @@ public partial class CityWindow : Window
         // with none, nothing is asked and nothing moves
         var (deposited, depositLine) = Mordor.Modding.ModHost.Active.ArrivedInTown(_party, _ch, Mordor.Modding.TownArrivalKind.Walked);
         RefreshSummary(); Save();
+        // and, the arrival saved, that the saves are on disk (docs/MODDING.md, Saved; API version 15)
+        Mordor.Modding.ModHost.Active.SavePointReached(Mordor.Modding.SavePointKind.ArrivedInTown);
         if (_ch.CanLevelUp()) ShowGuild(null, null!);
         foreach (var line in rested) Log(line);
         if (depositLine != null) Log(depositLine);

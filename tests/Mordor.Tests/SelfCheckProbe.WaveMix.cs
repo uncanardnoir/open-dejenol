@@ -368,8 +368,8 @@ public static partial class SelfCheckProbe
         string audio = PortSource("src/Mordor.App", "Audio.cs");
         Check("a fight's sounds and a spell's go through sub09DE", audio.Contains("foreach (string n in names ?? Array.Empty<string>()) Play(n);")
               && audio.Contains("public static void Play(string name) => Effect(name, WaveMixRoutine.Sub09DE);"), true);
-        Check("No Sound FX and MORDOR_MUTE stop every routine before WaveMix", audio.Contains("if (!Enabled || !OperatingSystem.IsWindows()) return;\r\n        if (FramePause.Paused) return;")
-              || audio.Contains("if (!Enabled || !OperatingSystem.IsWindows()) return;\n        if (FramePause.Paused) return;"), true);
+        Check("No Sound FX and MORDOR_MUTE stop every routine before WaveMix", audio.Contains("if (!Enabled || !Supported) return;\r\n        if (FramePause.Paused) return;")
+              || audio.Contains("if (!Enabled || !Supported) return;\n        if (FramePause.Paused) return;"), true);
         Check("winmm's PlaySound is gone", audio.Contains("PlaySound("), false);
     }
 }

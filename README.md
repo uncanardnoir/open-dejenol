@@ -29,10 +29,14 @@ OpenDejenol comes bundled with a few mods. These include:
 
 <p align="center"><img src="docs/images/cartographer.png" width="450" alt="The automap with Cartographer: coloured squares and a waypoint's arrow to its destination"></p>
 
+**Auto-combat** - Gives each character's fight order every round by your own ordered rules: Fight, Defend, a combat spell or an item, and which monster group to aim at, chosen by the party's hits and spell points and the monster list as shown. Every order goes through the game's own keys and Cast; nothing the game hides (a monster's hits, an unidentified monster) is read.
+
+**iCloud Saves** (macOS) - Copies your saves folder to iCloud Drive after the game saves, and offers a newer copy from another Mac at start. Whole-world snapshots, a backup before every restore, and a conflict is always your choice. Off by default; does nothing on Windows.
+
 ## Requirements
 
 - Your own copy of Mordor: The Depths of Dejenol - the full version or the shareware. The full version can be purchased from [Decklin's Domain](https://www.decklinsdemise.com/mordor.htm) as `MordorSetup.exe`, and the free demo is `MordorDemoSetup.exe` from the same site. Those installers don't run on Windows 10 or 11, and you don't need to run them: OpenDejenol unpacks the game from the installer itself.
-- 64-bit Windows 10 or 11
+- 64-bit Windows 10 or 11, or macOS 12 or later on Apple Silicon (built from source; see below)
 
 ## Installing and running
 
@@ -60,6 +64,21 @@ update on the main menu. To build it yourself instead, see [Building from source
 - `sh tools/check.sh <path to your Mordor folder>` runs the checks (Git Bash or another POSIX
   shell). A few of them read material that is not in this repository and say
   "skipped: decompiled source not present"; that is expected.
+
+### macOS
+
+- The .NET 8 SDK and Xcode's command line tools (`codesign`, `iconutil`).
+- `make mac-app` builds `dist/macos/OpenDejenol.app` for Apple Silicon, self-contained and signed
+  ad hoc: it runs on the Mac that built it. Another Mac's Gatekeeper refuses an ad-hoc app, so it
+  is not something to hand out; a release for others would need a Developer ID and notarisation,
+  which are not set up.
+- `make verify` builds as CI does; `make check GAME=<path to your Mordor folder>` runs the suites.
+  `tools/check.sh` is Windows-only.
+- Sound effects and music play through AudioToolbox, with no library added; the MIDI music uses
+  macOS's built-in General MIDI synthesiser, so it sounds different from a Windows synthesiser.
+- Known on Apple Silicon: Harmony patches do not apply, so a third-party mod that patches the game
+  through `ctx.Harmony` is disabled there (the bundled mods use none), and a few pixel-exact window
+  checks differ.
 
 ## Contributing
 There are many ways to contribute:

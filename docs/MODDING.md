@@ -28,6 +28,8 @@ and the first mod.
 | Settings windows (mod.json `settingsWindow`: a title and groups of settings by key, `ModSettingsWindowSpec`; the Mods page shows a **Settings...** button for the mod in place of its settings, on both pages and while the mod is off, one window per mod; `ModHost.MigrateSettings` runs the mod's static `Migrate(ModSettings)` first; `ModSettingsWindow` draws each group with a heading box that switches its toggles together, shown mixed when they differ) - API version 11 | built (2026-10-25, for the Quality of Life mod) |
 | `PartyGoldTo` and `CombatEngine.GoldTo` removed (the dungeon's gold is always monGetGold's even share, with any mod); `TownIncomeToBank` replaced by `TownIncomeBank` (the member whose account a sale's gold goes into, or null for the seller's hand; `TownIncome.Party`); `TownArrivalAction.PartyPool` with `TownArrivalAnswer.PoolTo` (the Bank's Party Pool into one member's account, `Party.PoolOnHandToBank`); `ShortfallAnswer.From` (who covers a shortfall, in order) and a shortfall now covered from the givers' bank accounts only; `ModChoiceSpec.OptionDescriptions` (a tooltip per option) - API version 12 | built (2026-10-25, for the Quality of Life mod's Town gold) |
 | The Automap hooks (see "The Automap" under **UI** below): `ModUI.AutomapMenu` (items for the right-click menu, whose first item is the original's re-plot), `AutomapMarks` (tints, frames and arrows drawn on the map's own squares), `AutomapHover`, `AutomapClick`; `AutomapView` (`ShownLevel`, `DeepestLevel`, `LevelSize`, `ShowLevel`, `Refresh`, `PickSquare`, `CancelPick`, `Picking`), `AutomapSquare`, `AutomapMark`, `AutomapMenuItem`; `ModHost.AutomapHooked`; `AutomapLayout.SquareAt` - API version 13 | built (2026-10-26, for the Cartographer mod) |
+| The Action `CombatRound` (each tick of an engaged fight, before any character acts: synchronous, not awaited) with a `CombatRoundContext` - a token for the fight (never the engine), the monster list as shown (`MonsterGroupView`: slot, fn0E23's name for the one in command, the count only where the list shows one, the name for one; no hit points), each member's order (`CombatOrderView`, with `OpeningChest`) and aim, and the commands a player gives between ticks for a named member: `Order` (f, d, space), `Cast` (a spell made the order, as a spell buffer fires it), `UseItem` (an item at All made the order), `Aim` (a number key 1-4); `ModHost.CombatRound` - API version 14. With no mod hooked no context is made and the round is the original's | built (2026-10-30, for the Auto-combat mod) |
+| The event `Saved` (`SavePoint`, `SavePointKind`: the game's saves are on disk at a save point - the party back in town up the stairs, after the arrival's save; the game ending, Exit to Main Menu or the program closing, after the city's last save; `ModHost.SavePointReached`) and the action `MainMenuOpened` (`MainMenuContext`: the main menu at the program's start, nothing loaded, after its own start-up boxes and before a preloaded character goes in; the saves folder, `Ask` - the game's box over the menu with the mod's buttons, `OriginalBox.Choose` - and `Quit`; `ModHost.MainMenuOpened`, `ModHost.MainMenuHooked`) - API version 15. With no mod listening or hooked, the city and the menu do exactly what they did | built (2026-10-30, for the iCloud Saves mod) |
 | Events `BlowLanded`, `HitsChanged`, `FightStarted/Ended`; restyling; data and asset mods | not yet |
 
 The Store's alignment choice is back to the original's lock by default; the unlocked choice is in the Quality of Life
@@ -374,6 +376,160 @@ hover's arrow (none across levels), the click's navigation and highlight, a new 
 switched off taking its marks away at once, and the marks rendered on the map's own device-pixel squares at 1x,
 enlarged, and at 125% (the tint filling exactly the square's inside, the edge lines untouched, the frame inside them).
 
+### The Auto-combat mod (`src/Mods/Mordor.Mod.AutoCombat`, id `AutoCombat`)
+
+Version 1.0.0 (2026-10-30, the user's request: "an auto-combat mod, similar to Kaizen ... basic rules: if an enemy
+is in melee range and no party member is injured and at least X action points are available, do Y; target the
+enemy with lowest HP; target healers first, then casters, then melee"). Off until ticked on the Mods page, and then
+both toggles are off until ticked, each read at every round: **Fight by the rules** (`FightByRules`) and **Leave the
+one in command to me** (`LeaveInCommand`: the character in command keeps the orders given by hand). It gives each
+member's fight order every round of an engaged fight, through `ModActions.CombatRound` (API version 14), and does
+nothing else: no fight is started by it (it is asked only at the tick of an engaged fight, never while monsters
+only wait, never for the free round a step gives them), nothing is cast or used there and then (an order is what
+the round then plays, as by hand), and every order goes through the game's own keys and Cast, so its checks,
+refusals and lines are the game's.
+
+**What the game has, and what the user's examples become.** The original's combat is a one-second real-time
+round in which each member carries out a standing order - None, Fight, Defend, or a spell recast each round
+(`.Att`, `.M56C4`, FIDELITY.md "Standing orders") - aimed at one of up to four monster groups (`M547A`, the
+number keys). So a rule's action is one of those orders and its target a group:
+
+- "An enemy in melee range": there are no ranges - every monster in an engaged fight is on the party's square.
+  The rules are asked only in an engaged fight, which is that condition; **groups at least / at most N** stands
+  in for "how many".
+- "No party member injured": **everyone's hits at least N%** (100% is nobody hurt), from the Party window's own
+  figures; and **someone's hits below N%**, **own hits below N%**.
+- "At least X action points": the game has no action points. The one resource a fight spends is **spell
+  points**: **spell points at least N**. A Cast rule is also passed over when the member has fewer points than
+  the spell costs (the spell page's figure) - so "cast if I can afford it, else fight" is two rules.
+- "Do Y": **Nothing** (space), **Fight** (f), **Defend** (d), **Cast** a spell the member knows, **Use** an item
+  known at All that holds a spell. A heal or a cure cannot be the order: the game refuses every non-combat spell
+  in an engaged fight (mdrcharCheckCast, MAINMOD2.BAS:512-519), so the window does not offer one and a rule naming
+  one is passed over.
+- "Target the enemy with lowest HP": the game never shows a monster's hits ("You cannot see a monster's hit
+  points", MODULE4.BAS:4392-4398), so the mod cannot read them. What the list does show is each group's count
+  (for a monster of groups of two to twelve): **\*fewest** aims at the group with fewest standing (a group shown
+  without a count counts as one), **\*most** at the most, **\*first** and **\*last** by list order.
+- "Healers first, then casters, then melee": monsters carry no such role the player is shown. A target is a
+  **name as the monster list shows it** - fn0E23's name for the one in command: the monster as the party
+  believes it (a misidentified group answers to what it is believed to be), its **class** while unidentified
+  (met in fog), "Unseen Monster" when invisible to them - tried in order, so "Priest, Mage, \*most" goes for a
+  group shown as a Priest, else a Mage, else the biggest. **A group shown as** is the matching condition. A name
+  matches whole words, case ignored, in the group's name for one (`MonsterGroupView.Singular`, so "Werewolf"
+  finds the Werewolves) or as shown now: "Rat" is a Giant Rat, "Orc" is not a Sorcerer. The window offers the
+  names the monster list has shown in a fight while the mod ran (kept, as shown for one, under the list setting
+  `SeenNames`), the monster class names, "Unseen Monster", and \*first, \*last, \*most, \*fewest.
+
+**The rules.** An ordered list; each round, for each living member who is not held fast (sub1019 does nothing for
+the paralysed, MONSMOD.BAS:291), in party order, the first rule whose conditions all hold and whose order can be
+given now wins: at most one decision per member per round. A member opening a chest (o: the Option column's
+"Open") is left to it, since any order would call the count off, as the keys do. A rule is **For** anyone or one member by name; its
+conditions are the ones above (each optional); **Do** and, for Cast and Use, the spell or item; and **Aim at**, the
+target list (for Fight, Cast and Use). A member no rule fits keeps the order they have. The decision is then given
+only where it differs from what stands: the aim first (a number key), then the order - so a rule that goes on
+holding sends nothing more, and the Party window's Option column and the list's mark show what is standing. A
+Cast is passed over when the member does not know the spell, cannot afford it, or the game refused it earlier in
+this fight (the refusal is said once, by the game; another fight asks again - so an "Anti-Magic area!" refusal
+stands for the rest of that fight even if the party steps off the square within the area); a Use when no pack
+slot holds an item of that name known at All with a combat spell (below All nothing about the item is looked
+at), or that slot's item was refused in this fight. A spell order is given as a spell buffer fires it (MAINMOD2.BAS:4151-4158: M5766 = -1, so
+an item order standing is let go rather than drained), an item order as Use (MAINMOD2.BAS:6129-6137, with the
+sub0BDE it runs at 6132); Fight, Defend, Nothing and a spell order call off a chest count first, as f, d, space
+and a buffer key do (MAINMOD2.BAS:3594-3600, 4011-4016, 4040-4044, 4137-4145); a refusal is worded as if the
+member were in command, as Kaizen's casts are.
+
+The rules are kept in settings.ini as a list setting (`ModSettings.GetRows`, key `Rules` under `[Mod:AutoCombat]`;
+not declared in mod.json, so the Mods page draws no editor for it): one row per rule, the cells `Who`,
+`PartyBelow`, `PartyAtLeast`, `SelfBelow`, `SpAtLeast`, `GroupsAtLeast`, `GroupsAtMost`, `Shown`, `Do`, `What`,
+`Targets` (comma-separated), a blank cell a condition not asked. A row that makes no sense (an unknown action, a
+number that is not a whole number at or above nought) is left out, never guessed at. Defaults: both toggles off,
+no rules.
+
+The **Auto-combat window** (the toolbar's **Auto-combat** button, an `AddWindow` window as Kaizen's): the heading,
+a grey line saying how the rules are used, in orange while Fight by the rules is off that the rules are kept and
+used once it is ticked; the rules, one numbered line each (`1. Cas: if nobody hurt, 10+ spell points → Cast
+"Firebolt" at Kobold, *most`), a click picking one; **Add**, **Copy**, **Up**, **Down**, **Remove**; and the picked
+rule's editor. Everything is chosen with the mouse - drop-downs and buttons, none focusable - because a mod window
+takes no keyboard (the frame sees every key first: a letter typed into a box would be a dungeon command, f is
+Fight). The drop-downs offer only what the game shows: the party's names, the combat spells the rule's member knows
+(anyone's for Anyone), their pack items at All holding one, percentages, spell points and group counts, the monster
+class names and "Unseen". Every change is written at once.
+
+The `mods` probe asserts the manifest and defaults, nothing made or asked with the mod off, with no host, or with
+a running mod that has no round hook, and the rules through the host against a stand-in for the dungeon's
+commands (which records them): first rule that fits per member in party order, aim before order, orders standing
+not sent again, the user's three examples as above, a member short of points passed over, a refused cast not asked
+again in that fight but in the next, a heal never sent, a spell not known passed over, the dead and the held fast
+left alone, a member opening a chest left to it, Leave the one in command to me, the shown-name (whole words,
+the name for one), group-count and hits conditions, \*fewest/\*most and a name's aim, the names kept for the
+window, an item below All not looked at, one at All made the order once and a refused Use not asked again, the
+same spell standing from an item sent again as a Cast, nonsense rows left out, the context closed once the hook
+returns, and a mod throwing in its round hook disabled. The dungeon's own commands (`DungeonWindow.Mods.cs`) are
+not reachable headless; their source is checked instead: the hook right before the round, the token rather than
+the engine, the list's count rule, the chest count called off, d refused for the held fast, the "you" wording,
+Use below All refused first and then sub0BDE, and every command's test that the fight and the member are live.
+### The iCloud Saves mod (`src/Mods/Mordor.Mod.ICloudSaves`, id `ICloudSaves`)
+
+Version 1.0.0, **macOS only**, off until ticked on the Mods page. Phase M3 of docs/MOBILE_AND_CLOUD.md for the Mac:
+copies of the saved world kept in the player's iCloud Drive, so a game can be carried on on another Mac. On any other
+system it loads, writes "macOS only" to mods.log and hooks nothing. It needs no Harmony; it uses `Saved` and
+`MainMenuOpened` (API version 15), added for it.
+
+- **Where**: `~/Library/Mobile Documents/com~apple~CloudDocs/OpenDejenol/Snapshots/`, with plain file I/O - macOS
+  syncs the folder. Not CloudKit or an iCloud container: both need an entitlement and a provisioning profile from a
+  paid Apple Developer account, and the app is signed ad hoc. When `com~apple~CloudDocs` is missing (iCloud Drive
+  turned off) the mod says so - at start and in its window - and makes nothing. `MORDOR_ICLOUD` names another folder
+  to stand for iCloud Drive (the checks use a temporary one).
+- **What**: the whole saves folder as one world, never file by file (M3: nothing is merged). Every synced file at
+  its top - the characters, party files, dungeon.json, automap.json, the shared tables and the other mods' files
+  (kaizen.json, cartographer.json, dpsmeter.json) - but not this Mac's settings.ini (its settings, which mods are
+  on), mods.log, crash.log, hidden files, `*.tmp`, or the mod's own record `icloudsaves.json` (`CloudSync.IsSynced`).
+- **A snapshot** is one zip file, `yyyyMMddTHHmmssZ_<Mac>.odsave`: `manifest.json` (format 1, time in UTC, the Mac's
+  name, each file's name, size and SHA-256, and a hash of the whole world) and the files under `world/`. It is
+  written under a hidden `.nosync` name (iCloud Drive does not sync those), read back and proven, then renamed into
+  place, so no Mac sees half of one. The manifest also records the world it grew from (the uploading Mac's world at
+  its last sync). Every upload is a new file; a Mac keeps its own last ten - the ones it recorded uploading, never
+  going by a manifest's device name - and never deletes another's. A snapshot file over 16 MB, with over 1,000
+  entries, with a field missing, or dated more than a day ahead of this Mac's clock is unreadable and never used.
+- **When**: after the game's save at each save point (`Saved`: back in town up the stairs; the game ending), when the
+  world here changed and iCloud's did not ("Upload at save points"). At start (`MainMenuOpened`, nothing loaded yet;
+  "Check iCloud at start"): a newer world from another Mac is offered (Restore / Not now); a conflict is put to the
+  player; changes left from an offline session go up. The window (toolbar button **iCloud Saves**) shows where things
+  stand, the last sync (when, uploaded/restored/matched, whose world) and the newest snapshot, with **Upload now**
+  and **Restore at next start** - a restore is never done during a game, which holds the world in memory and would
+  write it back, so it is marked and asked about again at the next start. Upload now runs on the window's thread,
+  as the game's saves do, so it never reads a world half-written; it is refused while iCloud simply has a newer world
+  and this Mac's has not changed (it would bury it).
+- **Conflicts**: "changed here" is the world's hash differing from the one recorded at the last sync; "changed in
+  iCloud" is a snapshot this Mac has not accounted for. Such a snapshot that did not grow from the world this Mac last
+  synced is a fork (another Mac that never saw this one's upload) and counts as a change on both sides. Both at once
+  is a conflict: nothing is chosen for the player,
+  the save-point upload holds back, and they are asked - **Use iCloud's** (a restore), **Keep this Mac's** (an upload;
+  iCloud's stays there as an earlier version) or **Decide later**. Both copies are always kept. A snapshot not
+  accounted for that cannot be read (damaged, or a newer format from a newer version of the mod) also holds the
+  save-point upload back, since it may be another Mac's newer world; only Upload now goes past it.
+- **Restoring** is the safe way round: only a snapshot that is on this Mac (a `.name.icloud` placeholder or a
+  dataless file - stat(2)'s SF_DATALESS - is never opened, and the player is told to download it); read whole and
+  proven against its manifest (each size and hash, nothing extra, every name a plain synced file name) before
+  anything changes; then the whole saves folder copied to `saves-backup-yyyyMMdd-HHmmss` beside it (each copy
+  checked); then each file written under a temporary name and renamed over the old, world files the snapshot lacks
+  removed; the result read back and checked against the snapshot's hash, the backup put back (and checked) if
+  anything failed. The restore is marked in `icloudsaves.json` before its first write: a program stopped part-way
+  is caught at the next start, nothing is uploaded meanwhile, and the player is asked whether to put the backup back.
+  After a restore the program closes (`MainMenuContext.Quit`), so other mods that read their files as they loaded
+  start from the restored ones. The mod never deletes a backup.
+
+The `mods` probe asserts the manifest, nothing hooked and nothing written with mods off, the menu and the city's
+calls (source), the mod off macOS hooking nothing, and on macOS the save points uploading through the host; then, on
+temporary folders for two Macs and one iCloud Drive: what is synced, a snapshot's manifest round trip, restoring onto
+a fresh Mac with a backup first and settings.ini untouched, conflict detection and the upload holding back, a
+tampered, a cut-short, a path-climbing and a settings.ini-carrying snapshot refused, the backup holding the replaced
+world, placeholders, dataless and half-written snapshots never restored from, a nulled and a future-dated manifest
+unreadable without breaking the listing and holding the upload back, keeping both, a fork seen as a conflict, Upload
+now refused over a newer world, a restore failing part-way put back, an interrupted restore caught at the next start,
+pruning only a Mac's own (a planted copy under its name left alone), iCloud Drive missing, the stat(2) offsets, and
+the start-up questions with a stand-in menu.
+
 ## How to write a mod
 
 ### Where mods go
@@ -512,6 +668,11 @@ public sealed class Entry : Mordor.Modding.IMod
   it - nought for an award to a character already pinned, and never below nought (a total past a lowered pin is
   pulled back to it, which is not counted as a loss). Raised right after the award, after any DamageDealt for the
   same blow; observe only - with no mod listening nothing more happens, and listening changes nothing.
+  `Saved(SavePoint)` (API version 15): the game's saves are on disk at a save point - `Kind` `ArrivedInTown` (the
+  stairs up into town, raised after the town's save of the arrival, so after `ArrivedInTown`, which comes before it)
+  or `GameEnded` (Exit to Main Menu or the program closing, raised after the city's last save - and after the
+  dungeon's, when the session ends below). For a mod that copies the saves (the iCloud Saves mod). Observe only, and
+  be quick: on the way out the program closes as soon as the handlers return. With no mod listening nothing more happens.
 - **Decisions** (null = the original's answer): `StoreAllowsRowChangeWhileChoosing` (any mod saying true unlocks it),
   `CityAltP` (first non-null answer wins; return `new CityAltPAnswer(CityAltPAction.PoolAndDeposit, "line")`),
   `MessagesKept` (how many lines the Messages window keeps; the original's 20, mc04F2, unless the first non-null
@@ -670,10 +831,37 @@ public sealed class Entry : Mordor.Modding.IMod
   One moment at a time: while a moment's hooks are awaited the stairs taken again do nothing, and the host runs no
   hooks of a second call made meanwhile (`ModHost.ActionRunning`). On the Mods page, Enter in a list cell keeps the
   edit and does not press Close.
+  `MainMenuOpened` (API version 15), a `Func<MainMenuContext, Task>`: the main menu is up at the program's start with
+  nothing loaded and no game in play - once a run, after the menu's own start-up boxes (the limitation notice, the
+  welcome) and before a character marked Preload Character goes in. The menu reads its characters only when asked, so
+  a mod may change the saves folder here. `MainMenuContext`: `SavesDirectory`; `Ask(title, text, buttons...)`, the
+  game's message box over the menu with a button per caption (the first the default, the last Escape's; `OriginalBox.Choose`),
+  answering the index pressed or -1; and `Quit()`, ending the program as the menu's Exit does - for a mod that changed
+  files other mods read as they loaded. Closed when the hook is done (`Ask` answers -1, `Quit` does nothing). The menu
+  asks `ModHost.MainMenuHooked` first: with no mod hooked, nothing is awaited and the menu goes on as before.
   Underneath: `CastSpellHere`, `CastAndThrow` and `UseItemSpell` take an optional caster and preset target; a cast
   by hand passes neither, and runs as before. `CheckCast` takes `asCommander` (the "you" wording for any caster)
   and `SpellThrown.Apply`/`Line` an optional `commander` (null: `party.Selected`); a cast by hand is the one in
   command casting, so both give what they always gave.
+- **The fight's round** (API version 14): `ModActions.CombatRound`, an `Action<CombatRoundContext>`, called at
+  each tick of an engaged fight (timCombat, FRMDUNM.BAS:616; the round, MULTIMOD.BAS:497) before any character
+  acts - not awaited, not for monsters only waiting, not for the free round a step gives them. The live mods'
+  hooks run in load order, each with a context of its own, closed as its hook returns. With none hooked
+  (`ModHost.CombatRound`) no context is made, nothing is read and the round is the original's. A hook that
+  throws disables its mod. `CombatRoundContext`: `Party`/`Members`, `Spells`, `Item`, `Fight` (a token, the same
+  object every round of one fight - never the engine, which holds the monsters' hits), `Groups` (the monster list
+  as shown: `MonsterGroupView(Slot, Name, Count, Singular)` - the slot 0-3 a number key aims at, fn0E23's name for
+  the one in command, the count only where the list shows one, and the same name for one; never hit points, never
+  what an unidentified or unseen group is), `KnownSpells(c)`, `OrderOf(c)` (`CombatOrderView`: the order kind, its
+  spell, an item order's slot, and `OpeningChest`, the Option column's "Open") and `AimedAt(c)`; and the commands a
+  player gives between ticks for a named member, standing for "switch to them and press it": `Order(c,
+  None/Fight/Defend)` (space, f, d - d refused for one held fast, as the key; a chest count called off first, as
+  the keys do), `Cast(c, spell)` (the spell made the order as a spell buffer fires it, the chest count called off,
+  then mdrcharCheckCast, whose refusal is said in the "you" wording and leaves what it leaves), `UseItem(c, slot)`
+  (an item known at All holding a spell made the order, after sub15CD's guards, the check at the item's level and
+  sub0BDE, as by hand; below All refused before it is looked at) and `Aim(c, slot)` (a number key). Each returns whether it went
+  through; each refuses once the hook has returned, once the fight is over or another begun, and for a member
+  not in the party or dead. Nothing is thrown or used there and then: the round plays the orders.
 - **Settings**: `Get/Set(key)` for booleans (default from the declaration), `GetText/SetText` for strings,
   `GetRows/SetRows` for a list setting (mod.json `tables`), `GetChoice/SetChoice` for a choice setting (mod.json
   `choices`, API version 10), `Changed` (one of the mod's settings changed, with its
@@ -768,7 +956,7 @@ public sealed class Entry : IMod, IModLifecycle
   included), an Objects & Spells command's visibility test and Run, a Bank command's visibility test and Run, a party
   column's visibility test and cell, a pack-line or Bank-line decoration, building a mod window, the Automap hooks
   (`AutomapMenu`, a menu item's Run, `AutomapMarks`, `AutomapHover`, `AutomapClick`, a pick's answer), and each Action
-  hook (`EnteredDungeonFromTown`, `LeavingByStairs`: a throw or a faulted task alike). A mod
+  hook (`EnteredDungeonFromTown`, `LeavingByStairs`: a throw or a faulted task alike; `CombatRound`). A mod
   that throws in one of those is disabled for the rest of the session, its Harmony patches are removed, the
   exception goes to the log, and the game gives the original's answer.
 - What the game does not call is not guarded. The event handlers of controls a mod builds itself (a button's Click

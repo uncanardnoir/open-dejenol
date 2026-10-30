@@ -179,7 +179,7 @@ public static class ModApi
     public const string GameVersion = "1.1";
 
     /// <summary>Raised whenever a hook is added or its meaning changes.</summary>
-    public const int ApiVersion = 13;
+    public const int ApiVersion = 15;
 
     /// <summary>The file that marks a mod's folder.</summary>
     public const string ManifestFile = "mod.json";

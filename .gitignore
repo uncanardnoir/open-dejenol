@@ -7,3 +7,37 @@ obj/
 # These are the player's own game state and do not belong in the repository.
 saves/
 saves-backup-*/
+
+# the player's own copy of Mordor (docs/GAME_FILES.md): never in this repository.
+# game_files/ is the local copy the checks read (make check); the patterns below catch the
+# game's files wherever else they might land, in any case (a case-sensitive checkout matches
+# exactly). The repo has no WAV, MIDI, VBX, WRI or CHM files of its own.
+game_files/
+*.[Mm][Dd][Rr]
+*.[Ww][Aa][Vv]
+*.[Mm][Ii][Dd]
+*.[Vv][Bb][Xx]
+*.[Ww][Rr][Ii]
+*.[Cc][Hh][Mm]
+*.[Hh][Ll][Pp]
+[Mm][Oo][Rr][Dd][Oo][Rr].[Ee][Xx][Ee]
+[Mm][Oo][Rr][Dd][Oo][Rr].[Ii][Nn][Ii]
+[Mm][Oo][Rr][Dd][Oo][Rr]11.[Zz][Ii][Pp]
+[Mm][Gg]11.[Dd][Ll][Ll]
+[Ww][Aa][Vv][Mm][Ii][Xx]16.[Dd][Ll][Ll]
+[Ww][Aa][Vv][Ee][Mm][Ii][Xx].[Ii][Nn][Ii]
+[Vv][Bb][Rr][Uu][Nn]300.[Dd][Ll][Ll]
+[Ff][Hh]_[Bb][Mm][Pp].[Dd][Ll][Ll]
+[Mm][Mm][Ss][Yy][Ss][Tt][Ee][Mm].[Dd][Ll][Ll]
+[Mm]ordor*[Ss]etup*.[Ee][Xx][Ee]
+# the decompiled original and the saved dejenol.com pages are not in the public tree (tools/check.sh)
+decompiled/
+decompiled-named/
+docs/dejenol-formulas/
+
+# dotnet's own state, kept in the tree by the Makefile so builds need nothing outside it
+.dotnet-home/
+.nuget/
+
+# the macOS app bundle (tools/pack-macos.sh)
+dist/

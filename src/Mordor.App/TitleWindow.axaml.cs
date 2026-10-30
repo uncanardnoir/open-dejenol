@@ -118,6 +118,14 @@ public partial class TitleWindow : Window
             // a character marked "Preload Character" goes straight in, password and all
             if (_preloadTried) { MenuReady(); return; }
             _preloadTried = true;
+            // the port's own (docs/MODDING.md, MainMenuOpened, API version 15): a mod may act here,
+            // with nothing loaded yet - the iCloud Saves mod offers a newer world from iCloud before
+            // a preloaded character reads the old one. With no mod hooked nothing is asked.
+            if (Mordor.Modding.ModHost.Active.MainMenuHooked)
+            {
+                await ModStartup.MainMenuOpened(this);
+                if (!OriginalBox.CanOwn(this)) return;
+            }
             if (Preloaded() is Character ready) { _loaded = ready; ShowMenuState(); await Play(ready); }
             MenuReady();
         };

@@ -1,6 +1,7 @@
 # Mobile and cloud saves - spec (not yet built)
 
-Status: proposal, 2026-10-04. Nothing here is implemented. Companion to docs/MODDING.md.
+Status: proposal, 2026-10-04. Companion to docs/MODDING.md. Built since: M3 for macOS only, as the iCloud Saves
+mod (2026-10-30, "M3 on the Mac today" below); the rest is not implemented.
 
 ## Goals
 
@@ -98,6 +99,50 @@ Character files and the world files change together, and the original never merg
 1. **Now (desktop):** option A as a "Save folder" setting with a lease file and conflict detection - a few days, no services.
 2. **With mobile:** option **B with one provider** (OneDrive or Google Drive, your choice) implementing the lease/versions above in a hidden app folder of the player's own drive. No backend, no data held by us, works on PC, Android and iOS.
 3. **Only if you want shared worlds between different players** (the original's multi-user idea): option D, since leases and permissions between people need a server.
+
+### M3 on the Mac today: the iCloud Saves mod
+
+Option A of the table, done as a mod for the macOS build (docs/MODDING.md, "The iCloud Saves mod"; off by default,
+macOS only). It keeps the saves folder where it is and copies whole-world snapshots to and from
+`~/Library/Mobile Documents/com~apple~CloudDocs/OpenDejenol/` - the iCloud Drive folder, plain files, synced by
+macOS - because CloudKit and an app's iCloud container need entitlements and a provisioning profile that an ad hoc
+signed app cannot have. Of the design above it follows: whole worlds, nothing merged; every upload versioned (each Mac
+keeps its own last ten); upload on returning to town and on quit, download (offered) at start; offline play with the
+same conflict rule; conflicts never decided silently, both copies kept (the other in iCloud as an earlier version, or
+in a `saves-backup-*` folder). Not built: the lease ("This world is open on HOME-PC since 21:04"); a conflict is
+caught at the next save point or start instead, and only then. Nor "every few minutes of play": the game's own save
+points are the upload points.
+
+### Apple Games / Game Center (investigated, not built)
+
+What GameKit (achievements, leaderboards, the access point) would take for the macOS build:
+
+- **An entitlement**, `com.apple.developer.game-center`, in the app's signature - and an entitlement Apple honours
+  needs a **provisioning profile**, which needs a **paid Apple Developer Program** membership (99 USD a year). The ad
+  hoc signature `tools/pack-macos.sh` makes cannot carry it: GameKit refuses to authenticate the player
+  (`GKLocalPlayer.authenticateHandler` returns an error) without it.
+- **An App Store Connect app record** for the bundle id, with Game Center switched on and each achievement and
+  leaderboard defined there (ids, titles, points, images). Whether a Developer ID build (notarised, given out
+  directly, outside the Mac App Store) may use Game Center is to be checked against Apple's current "Supported
+  capabilities" table before any work starts - it has been a Mac App Store-only capability - and that decides how
+  the game would be distributed.
+- **Signing for distribution**: Developer ID or Mac App Store signing, hardened runtime, notarisation.
+- **Calling GameKit from .NET**: Avalonia has no binding. Either (a) the Objective-C runtime from C# directly -
+  `objc_getClass`, `sel_registerName` and `objc_msgSend` P/Invoked from `/usr/lib/libobjc.dylib`, with blocks for the
+  completion handlers (workable for a handful of calls, fiddly for blocks); (b) a **small native shim** - a few Swift
+  or Objective-C functions with C entry points (`gc_authenticate`, `gc_report_achievement(id, percent)`,
+  `gc_submit_score(board, value)`, `gc_show_access_point(bool)`) built as a dylib inside the app bundle and
+  P/Invoked, which is the least code and the easiest to keep working; or (c) the .NET macOS workload (`net8.0-macos`,
+  Microsoft's Apple bindings, GameKit included), which would mean moving the macOS head of the app to that target
+  framework - a large change for this alone. (b) is the one to choose.
+- **Authentication and UI**: the player signs in with their Apple Account in the system's Game Center sheet, which
+  needs an NSWindow to present over; Avalonia's main window on macOS is one (its native handle), so the shim can be
+  handed it.
+- **Fidelity**: the original has no achievements or leaderboards (docs/FIDELITY.md: nothing invented), so any would
+  be a mod's addition, off by default like every mod - e.g. a mod listening to `ExperienceGained`, `DamageDealt` and
+  `ArrivedInTown` that reports milestones through the shim. Game Center's saved games (`GKSavedGame`) also exist, but
+  they need the same entitlement and an iCloud container, so the iCloud Drive mod is what works without a paid
+  account.
 
 ## Licensing and distribution (before anything public)
 

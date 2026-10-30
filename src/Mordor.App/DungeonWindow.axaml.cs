@@ -4251,6 +4251,9 @@ public partial class DungeonWindow : Window
                 // PlayRound draws the blows a quarter-second apart, so it outlives this call.
                 // It clears _inRound itself; the guard has to hold until the round really ends.
                 _keepRoundGuard = true;
+                // the mods' orders for this round (ModActions.CombatRound), given as keys pressed
+                // between ticks would be; with no mod hooked nothing happens here
+                BeforeCombatRound();
                 PlayRound();
                 return;
             }
