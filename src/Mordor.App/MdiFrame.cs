@@ -93,15 +93,15 @@ public sealed class MdiFrame
     private static extern int GetSystemMetrics(int index);
 
     /// <summary>
-    /// GetSystemMetrics, in pixels. Where there is no user32 to ask (macOS), the two the layout reads
-    /// are what Windows 10 and 11 give at 100% scaling - SM_CYCAPTION 23, SM_CYFRAME 4 - so the
-    /// windows are arranged as on a Windows desktop, not with Messages pushed to the frame's bottom
-    /// edge; anything else is nought.
+    /// GetSystemMetrics, in pixels; nought where there is no user32 to ask. On macOS the two the
+    /// layout reads are what Windows 10 and 11 give at 100% scaling - SM_CYCAPTION 23, SM_CYFRAME 4 -
+    /// so the windows are arranged as on a Windows desktop, not with Messages pushed to the frame's
+    /// bottom edge.
     /// </summary>
     private static double SystemMetric(int index)
     {
-        if (!OperatingSystem.IsWindows()) return index switch { 4 => 23, 33 => 4, _ => 0 };
-        try { return GetSystemMetrics(index); }
+        if (OperatingSystem.IsMacOS()) return index switch { 4 => 23, 33 => 4, _ => 0 };
+        try { return OperatingSystem.IsWindows() ? GetSystemMetrics(index) : 0; }
         catch { return 0; }
     }
 

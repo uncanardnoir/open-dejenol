@@ -18,6 +18,13 @@ SLN := Mordor.sln
 
 export DOTNET_NOLOGO := true
 export DOTNET_CLI_TELEMETRY_OPTOUT := true
+# On macOS, dotnet's first-run state and the NuGet package cache go in the tree (both gitignored),
+# not in ~/.dotnet and ~/.nuget, so a build writes nothing of its own outside the repository.
+# Elsewhere dotnet keeps its usual folders.
+ifeq ($(shell uname -s),Darwin)
+export DOTNET_CLI_HOME := $(CURDIR)/.dotnet-home
+export NUGET_PACKAGES := $(CURDIR)/.nuget/packages
+endif
 
 .PHONY: verify restore build test check check-full mac-app clean
 

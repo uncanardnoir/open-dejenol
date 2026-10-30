@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Mordor.Core;
 
 namespace Mordor.App;
@@ -18,9 +19,16 @@ internal sealed class AudioQueueStream : IDisposable
     private readonly IntPtr _queue;
     private readonly IntPtr[] _buffers = new IntPtr[WaveOutStream.Buffers];
     private readonly short[] _mix = new short[WaveOutStream.BufferFrames];
-    private readonly GCHandle _self;
+    private GCHandle _self;   // not readonly: Free() must change this field, not a copy of it
     private volatile bool _stop;
-    private bool _disposed;
+    private int _disposed;     // 0 or 1, by Interlocked: Shutdown (ProcessExit) and a minimise may race
+
+    /// <summary>
+    /// The queue refused a buffer - the output device went away, or coreaudiod restarted - so no
+    /// more callbacks will come and the effects are silent. <see cref="Audio"/> opens a new stream
+    /// at the next effect.
+    /// </summary>
+    public bool Broken { get; private set; }
 
     /// <summary>The callback, kept alive for as long as any queue may call it.</summary>
     private static readonly OutputCallback Callback = OnBufferDone;
@@ -88,9 +96,11 @@ internal sealed class AudioQueueStream : IDisposable
     private void Fill(IntPtr buffer)
     {
         _mixer.Mix(_mix);
-        Marshal.Copy(_mix, 0, Marshal.ReadIntPtr(buffer, BufferAudioDataAt), _mix.Length);
-        Marshal.WriteInt32(buffer, BufferByteSizeAt, _mix.Length * 2);
-        AudioQueueEnqueueBuffer(_queue, buffer, 0, IntPtr.Zero);
+        // never more than the buffer holds, whatever BufferFrames becomes
+        int samples = Math.Min(_mix.Length, Marshal.ReadInt32(buffer, BufferCapacityAt) / 2);
+        Marshal.Copy(_mix, 0, Marshal.ReadIntPtr(buffer, BufferAudioDataAt), samples);
+        Marshal.WriteInt32(buffer, BufferByteSizeAt, samples * 2);
+        if (AudioQueueEnqueueBuffer(_queue, buffer, 0, IntPtr.Zero) != 0) Broken = true;
     }
 
     /// <summary>
@@ -99,16 +109,19 @@ internal sealed class AudioQueueStream : IDisposable
     /// </summary>
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _stop = true;
+        if (_self.IsAllocated && _self.Target is Holder h) h.Stream = null;   // a late callback finds no stream
+        bool gone;
         try
         {
             AudioQueueStop(_queue, true);
-            AudioQueueDispose(_queue, true);
+            gone = AudioQueueDispose(_queue, true) == 0;
         }
-        catch { }
-        if (_self.IsAllocated) _self.Free();
+        catch { gone = false; }
+        // only once the queue is gone can nothing call back with the handle; if it would not go, the
+        // handle is kept (a few bytes) rather than freed under a queue that may still use it
+        if (gone && _self.IsAllocated) _self.Free();
     }
 
     // ---- AudioToolbox ----
@@ -116,7 +129,7 @@ internal sealed class AudioQueueStream : IDisposable
     private const uint FormatLinearPCM = 0x6C70636D;   // 'lpcm'
     private const uint FlagSignedInteger = 0x4, FlagPacked = 0x8;
     // AudioQueueBuffer: UInt32 mAudioDataBytesCapacity, then (aligned) void *mAudioData, UInt32 mAudioDataByteSize
-    private const int BufferAudioDataAt = 8, BufferByteSizeAt = 16;
+    private const int BufferCapacityAt = 0, BufferAudioDataAt = 8, BufferByteSizeAt = 16;
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate void OutputCallback(IntPtr userData, IntPtr queue, IntPtr buffer);

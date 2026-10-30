@@ -148,6 +148,8 @@ public static class Audio
     private static WaveMixSession? Session()
     {
         EnsureSession();
+        // macOS: a stream the system stopped taking buffers from is replaced, not left silent
+        if (_out is AudioQueueStream { Broken: true } broken) { broken.Dispose(); _out = null; }
         if (_out == null && !_outFailed && _channels != null && !_channels.Closed)
         {
             _out = OpenOutput(_channels);
