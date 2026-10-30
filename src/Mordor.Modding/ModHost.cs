@@ -553,14 +553,14 @@ public sealed class ModHost
     /// leaves it complete too.
     /// </summary>
     public Task EnteredDungeonFromTown(Func<DungeonContext> make) =>
-        RunActions("EnteredDungeonFromTown", a => a.EnteredDungeonFromTown, make);
+        RunActions("EnteredDungeonFromTown", a => a.EnteredDungeonFromTown, make, c => c.Close());
 
     /// <summary>
     /// The party is taking the stairs up out of level 1: each live mod's
     /// <see cref="ModActions.LeavingByStairs"/>, as <see cref="EnteredDungeonFromTown"/>.
     /// </summary>
     public Task LeavingByStairs(Func<DungeonContext> make) =>
-        RunActions("LeavingByStairs", a => a.LeavingByStairs, make);
+        RunActions("LeavingByStairs", a => a.LeavingByStairs, make, c => c.Close());
 
     /// <summary>
     /// A round of an engaged fight is about to be played: each live mod's
@@ -583,7 +583,32 @@ public sealed class ModHost
         }
     }
 
-    private Task RunActions(string where, Func<ModActions, Func<DungeonContext, Task>?> pick, Func<DungeonContext> make)
+    /// <summary>
+    /// The main menu is up at the program's start, nothing loaded (API version 15): each live mod's
+    /// <see cref="ModActions.MainMenuOpened"/>, as <see cref="EnteredDungeonFromTown"/> - in load
+    /// order, each awaited, each with a <see cref="MainMenuContext"/> of its own closed when its hook
+    /// is done. With no mod hooked the task is already complete and <paramref name="make"/> is never
+    /// called (the menu asks <see cref="MainMenuHooked"/> first and does nothing otherwise).
+    /// </summary>
+    public Task MainMenuOpened(Func<MainMenuContext> make) =>
+        RunActions("MainMenuOpened", a => a.MainMenuOpened, make, c => c.Close());
+
+    /// <summary>Whether any running mod hooks <see cref="ModActions.MainMenuOpened"/>.</summary>
+    public bool MainMenuHooked => Live.Any(lm => lm.Context.Actions.MainMenuOpened != null);
+
+    /// <summary>
+    /// The game's saves are on disk at a save point (<see cref="ModEvents.Saved"/>, API version 15):
+    /// every live mod hears of it, each guarded. With no mod loaded, nothing.
+    /// </summary>
+    public void SavePointReached(SavePointKind kind)
+    {
+        var live = Live.ToList();
+        if (live.Count == 0) return;
+        var point = new SavePoint(kind);
+        foreach (var lm in live) Guard(lm, "Saved", () => lm.Context.Events.RaiseSaved(point));
+    }
+
+    private Task RunActions<TContext>(string where, Func<ModActions, Func<TContext, Task>?> pick, Func<TContext> make, Action<TContext> close)
     {
         var hooked = Live.Where(lm => pick(lm.Context.Actions) != null).ToList();
         if (hooked.Count == 0) return Task.CompletedTask;
@@ -605,7 +630,7 @@ public sealed class ModHost
                     // to the game: the mod is disabled and the next one is asked
                     try { await hook(ctx); }
                     catch (Exception ex) { Fault(lm, where, ex); }
-                    finally { ctx.Close(); }
+                    finally { close(ctx); }
                 }
             }
             finally { _actionRunning = false; }

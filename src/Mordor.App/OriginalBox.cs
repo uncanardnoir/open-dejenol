@@ -36,6 +36,52 @@ public static class OriginalBox
         Show(owner, title, text, yesNo: true, yesText: yes, noText: no);
 
     /// <summary>
+    /// The port's own, for a mod's question at the main menu (<see cref="Mordor.Modding.MainMenuContext.Ask"/>):
+    /// this box's look with a button for each caption, the first the default and the last the one
+    /// Escape presses. The index of the button pressed, or -1 when the box closed another way.
+    /// </summary>
+    public static async System.Threading.Tasks.Task<int> Choose(Window owner, string title, string text,
+                                                                System.Collections.Generic.IReadOnlyList<string> captions)
+    {
+        if (!CanOwn(owner) || captions.Count == 0) return -1;
+        int chosen = -1;
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var win = new Window
+        {
+            Title = title,
+            Width = 460, SizeToContent = SizeToContent.Height,
+            Background = Brush.Parse("#101018"),
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        };
+        UiFonts.MessageBox(win);
+        Button? first = null;
+        for (int i = 0; i < captions.Count; i++)
+        {
+            int at = i;
+            var b = new Button { Content = captions[i], IsDefault = i == 0, IsCancel = i == captions.Count - 1 };
+            b.Click += (_, _) => { chosen = at; win.Close(); };
+            buttons.Children.Add(b);
+            first ??= b;
+        }
+        win.Opened += (_, _) => first?.Focus();
+        win.Content = new Border
+        {
+            Padding = new Avalonia.Thickness(14),
+            Child = new StackPanel
+            {
+                Spacing = 12,
+                Children =
+                {
+                    new TextBlock { Text = text, Foreground = Brushes.LightGray, TextWrapping = TextWrapping.Wrap },
+                    buttons,
+                },
+            },
+        };
+        await ShowOver(win, owner);
+        return chosen;
+    }
+
+    /// <summary>
     /// MDIForm_QueryUnload's first test (FRMMAIN.BAS:171-175): an UnloadMode of 0 - the frame's
     /// close box, its system menu or Alt+F4 - is refused with "Please use the Mordor EXIT buttons to
     /// leave the game." (MsgBox 64, "Exit Mordor"), and nothing else happens. frmMain is the one

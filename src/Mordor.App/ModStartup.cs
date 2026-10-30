@@ -54,6 +54,21 @@ internal static class ModStartup
         }
     }
 
+    /// <summary>
+    /// The mods' moment at the main menu's start (<see cref="ModActions.MainMenuOpened"/>, API version
+    /// 15): each gets the saves folder, the game's box over <paramref name="menu"/> and a way to end
+    /// the program, as the menu's Exit ends it.
+    /// </summary>
+    public static System.Threading.Tasks.Task MainMenuOpened(Avalonia.Controls.Window menu) =>
+        ModHost.Active.MainMenuOpened(() => new MainMenuContext(
+            Saves.DirFor(TitleWindow.GameDir),
+            (title, text, buttons) => OriginalBox.Choose(menu, title, text, buttons),
+            () =>
+            {
+                if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime life)
+                    life.Shutdown();
+            }));
+
     /// <summary>Characters already warned about this session, so each is told once.</summary>
     private static readonly HashSet<string> Warned = new(StringComparer.OrdinalIgnoreCase);
 

@@ -157,6 +157,18 @@ public enum TownArrivalKind
 /// <param name="How">How it came up.</param>
 public sealed record TownArrival(Party Party, Character Selected, TownArrivalKind How);
 
+/// <summary>Which save point a <see cref="ModEvents.Saved"/> is (API version 15).</summary>
+public enum SavePointKind
+{
+    /// <summary>The party walked up the stairs into town, and the town saved them after its rest.</summary>
+    ArrivedInTown,
+    /// <summary>The game ended - Exit to Main Menu, or the program closing - after the city's last save.</summary>
+    GameEnded,
+}
+
+/// <summary>A save point reached: the game's saves are on disk as they stand (<see cref="ModEvents.Saved"/>).</summary>
+public sealed record SavePoint(SavePointKind Kind);
+
 /// <summary>
 /// Things that happened. Handlers cannot change the outcome. A handler that throws disables its
 /// mod for the session.
@@ -211,7 +223,20 @@ public sealed class ModEvents
     /// the clamp at the pin. Observe only; with no mod listening the engine does nothing more.
     /// </summary>
     public event Action<CombatExperience>? ExperienceGained;
+    /// <summary>
+    /// The game has just written its saves at one of its save points (API version 15,
+    /// <see cref="SavePoint"/>): the party back in town up the stairs, saved after the town's rest and
+    /// after whatever <see cref="ModDecisions.TownArrival"/> asked for (so after
+    /// <see cref="ArrivedInTown"/>, which is raised before that save); and the game ending - Exit to
+    /// Main Menu or the program closing - once the city's last save is written. Everything the
+    /// game keeps in the saves folder is on disk at that moment, so it is the time for a mod that
+    /// copies the saves somewhere (the iCloud Saves mod). Observe only, and keep it short: on the
+    /// way out the program closes as soon as the handlers return. With no mod listening nothing
+    /// more happens.
+    /// </summary>
+    public event Action<SavePoint>? Saved;
 
+    internal void RaiseSaved(SavePoint p) => Saved?.Invoke(p);
     internal void RaiseDamageDealt(CombatDamage d) => DamageDealt?.Invoke(d);
     internal void RaiseExperienceGained(CombatExperience e) => ExperienceGained?.Invoke(e);
     internal void RaiseCharacterDeleted(string name) => CharacterDeleted?.Invoke(name);
@@ -452,6 +477,17 @@ public sealed class ModActions
     /// made and the round is the original's.
     /// </summary>
     public Action<CombatRoundContext>? CombatRound { get; set; }
+
+    /// <summary>
+    /// The main menu is up at the program's start, with nothing loaded and no game in play (API
+    /// version 15): raised once a run, after the menu's own start-up boxes (the limitation notice,
+    /// the welcome) and before a character marked Preload Character goes straight in. Nothing of
+    /// the saves is held open then - the menu reads its list of characters only when asked - so a
+    /// mod may change the saves folder here (the iCloud Saves mod restores a newer world), asking
+    /// the player first through <see cref="MainMenuContext.Ask"/>. With no mod hooked the menu goes on
+    /// at once, as before.
+    /// </summary>
+    public Func<MainMenuContext, Task>? MainMenuOpened { get; set; }
 }
 
 /// <summary>
@@ -572,6 +608,49 @@ public sealed class CombatRoundContext
     public bool Aim(Character c, int slot) => IsOpen && _aim(c, slot);
 
     /// <summary>The host closes it when the hook has returned.</summary>
+    public void Close() => IsOpen = false;
+}
+
+/// <summary>
+/// The main menu at start-up, as <see cref="ModActions.MainMenuOpened"/> hands it to a mod (API
+/// version 15): the saves folder, the game's own message box over the menu, and a way to end the
+/// program. Valid only while the hook runs: afterwards <see cref="Ask"/> answers -1 at once and
+/// <see cref="Quit"/> does nothing.
+/// </summary>
+public sealed class MainMenuContext
+{
+    private readonly Func<string, string, IReadOnlyList<string>, Task<int>> _ask;
+    private readonly Action _quit;
+
+    /// <param name="savesDirectory">The saves folder in use (<c>Saves.DirFor</c>).</param>
+    /// <param name="ask">The game's box over the menu: title, text and button captions in; the button pressed out, or -1.</param>
+    /// <param name="quit">Ends the program, as the menu's Exit does once answered.</param>
+    public MainMenuContext(string savesDirectory, Func<string, string, IReadOnlyList<string>, Task<int>> ask, Action quit)
+    {
+        SavesDirectory = savesDirectory; _ask = ask; _quit = quit;
+    }
+
+    /// <summary>The saves folder in use: where the characters, the world's files and settings.ini are.</summary>
+    public string SavesDirectory { get; }
+
+    /// <summary>False once the hook it was handed to has finished.</summary>
+    public bool IsOpen { get; private set; } = true;
+
+    /// <summary>
+    /// A box over the main menu in the game's message-box look: <paramref name="text"/> and a button
+    /// for each caption, the first the default and the last the one Escape presses. The index of the
+    /// button pressed, or -1 when the box was closed another way (the program ending under it).
+    /// </summary>
+    public Task<int> Ask(string title, string text, params string[] buttons) =>
+        IsOpen && buttons.Length > 0 ? _ask(title, text, buttons) : Task.FromResult(-1);
+
+    /// <summary>
+    /// End the program, as the menu's Exit does after its question - for a mod that has changed the
+    /// saves under other mods that read theirs as they loaded, so that everything starts afresh.
+    /// </summary>
+    public void Quit() { if (IsOpen) _quit(); }
+
+    /// <summary>The host closes it when the hook is done.</summary>
     public void Close() => IsOpen = false;
 }
 

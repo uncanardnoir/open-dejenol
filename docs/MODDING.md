@@ -29,6 +29,7 @@ and the first mod.
 | `PartyGoldTo` and `CombatEngine.GoldTo` removed (the dungeon's gold is always monGetGold's even share, with any mod); `TownIncomeToBank` replaced by `TownIncomeBank` (the member whose account a sale's gold goes into, or null for the seller's hand; `TownIncome.Party`); `TownArrivalAction.PartyPool` with `TownArrivalAnswer.PoolTo` (the Bank's Party Pool into one member's account, `Party.PoolOnHandToBank`); `ShortfallAnswer.From` (who covers a shortfall, in order) and a shortfall now covered from the givers' bank accounts only; `ModChoiceSpec.OptionDescriptions` (a tooltip per option) - API version 12 | built (2026-10-25, for the Quality of Life mod's Town gold) |
 | The Automap hooks (see "The Automap" under **UI** below): `ModUI.AutomapMenu` (items for the right-click menu, whose first item is the original's re-plot), `AutomapMarks` (tints, frames and arrows drawn on the map's own squares), `AutomapHover`, `AutomapClick`; `AutomapView` (`ShownLevel`, `DeepestLevel`, `LevelSize`, `ShowLevel`, `Refresh`, `PickSquare`, `CancelPick`, `Picking`), `AutomapSquare`, `AutomapMark`, `AutomapMenuItem`; `ModHost.AutomapHooked`; `AutomapLayout.SquareAt` - API version 13 | built (2026-10-26, for the Cartographer mod) |
 | The Action `CombatRound` (each tick of an engaged fight, before any character acts: synchronous, not awaited) with a `CombatRoundContext` - a token for the fight (never the engine), the monster list as shown (`MonsterGroupView`: slot, fn0E23's name for the one in command, the count only where the list shows one, the name for one; no hit points), each member's order (`CombatOrderView`, with `OpeningChest`) and aim, and the commands a player gives between ticks for a named member: `Order` (f, d, space), `Cast` (a spell made the order, as a spell buffer fires it), `UseItem` (an item at All made the order), `Aim` (a number key 1-4); `ModHost.CombatRound` - API version 14. With no mod hooked no context is made and the round is the original's | built (2026-10-30, for the Auto-combat mod) |
+| The event `Saved` (`SavePoint`, `SavePointKind`: the game's saves are on disk at a save point - the party back in town up the stairs, after the arrival's save; the game ending, Exit to Main Menu or the program closing, after the city's last save; `ModHost.SavePointReached`) and the action `MainMenuOpened` (`MainMenuContext`: the main menu at the program's start, nothing loaded, after its own start-up boxes and before a preloaded character goes in; the saves folder, `Ask` - the game's box over the menu with the mod's buttons, `OriginalBox.Choose` - and `Quit`; `ModHost.MainMenuOpened`, `ModHost.MainMenuHooked`) - API version 15. With no mod listening or hooked, the city and the menu do exactly what they did | built (2026-10-30, for the iCloud Saves mod) |
 | Events `BlowLanded`, `HitsChanged`, `FightStarted/Ended`; restyling; data and asset mods | not yet |
 
 The Store's alignment choice is back to the original's lock by default; the unlocked choice is in the Quality of Life
@@ -467,6 +468,67 @@ returns, and a mod throwing in its round hook disabled. The dungeon's own comman
 not reachable headless; their source is checked instead: the hook right before the round, the token rather than
 the engine, the list's count rule, the chest count called off, d refused for the held fast, the "you" wording,
 Use below All refused first and then sub0BDE, and every command's test that the fight and the member are live.
+### The iCloud Saves mod (`src/Mods/Mordor.Mod.ICloudSaves`, id `ICloudSaves`)
+
+Version 1.0.0, **macOS only**, off until ticked on the Mods page. Phase M3 of docs/MOBILE_AND_CLOUD.md for the Mac:
+copies of the saved world kept in the player's iCloud Drive, so a game can be carried on on another Mac. On any other
+system it loads, writes "macOS only" to mods.log and hooks nothing. It needs no Harmony; it uses `Saved` and
+`MainMenuOpened` (API version 15), added for it.
+
+- **Where**: `~/Library/Mobile Documents/com~apple~CloudDocs/OpenDejenol/Snapshots/`, with plain file I/O - macOS
+  syncs the folder. Not CloudKit or an iCloud container: both need an entitlement and a provisioning profile from a
+  paid Apple Developer account, and the app is signed ad hoc. When `com~apple~CloudDocs` is missing (iCloud Drive
+  turned off) the mod says so - at start and in its window - and makes nothing. `MORDOR_ICLOUD` names another folder
+  to stand for iCloud Drive (the checks use a temporary one).
+- **What**: the whole saves folder as one world, never file by file (M3: nothing is merged). Every synced file at
+  its top - the characters, party files, dungeon.json, automap.json, the shared tables and the other mods' files
+  (kaizen.json, cartographer.json, dpsmeter.json) - but not this Mac's settings.ini (its settings, which mods are
+  on), mods.log, crash.log, hidden files, `*.tmp`, or the mod's own record `icloudsaves.json` (`CloudSync.IsSynced`).
+- **A snapshot** is one zip file, `yyyyMMddTHHmmssZ_<Mac>.odsave`: `manifest.json` (format 1, time in UTC, the Mac's
+  name, each file's name, size and SHA-256, and a hash of the whole world) and the files under `world/`. It is
+  written under a hidden `.nosync` name (iCloud Drive does not sync those), read back and proven, then renamed into
+  place, so no Mac sees half of one. The manifest also records the world it grew from (the uploading Mac's world at
+  its last sync). Every upload is a new file; a Mac keeps its own last ten - the ones it recorded uploading, never
+  going by a manifest's device name - and never deletes another's. A snapshot file over 16 MB, with over 1,000
+  entries, with a field missing, or dated more than a day ahead of this Mac's clock is unreadable and never used.
+- **When**: after the game's save at each save point (`Saved`: back in town up the stairs; the game ending), when the
+  world here changed and iCloud's did not ("Upload at save points"). At start (`MainMenuOpened`, nothing loaded yet;
+  "Check iCloud at start"): a newer world from another Mac is offered (Restore / Not now); a conflict is put to the
+  player; changes left from an offline session go up. The window (toolbar button **iCloud Saves**) shows where things
+  stand, the last sync (when, uploaded/restored/matched, whose world) and the newest snapshot, with **Upload now**
+  and **Restore at next start** - a restore is never done during a game, which holds the world in memory and would
+  write it back, so it is marked and asked about again at the next start. Upload now runs on the window's thread,
+  as the game's saves do, so it never reads a world half-written; it is refused while iCloud simply has a newer world
+  and this Mac's has not changed (it would bury it).
+- **Conflicts**: "changed here" is the world's hash differing from the one recorded at the last sync; "changed in
+  iCloud" is a snapshot this Mac has not accounted for. Such a snapshot that did not grow from the world this Mac last
+  synced is a fork (another Mac that never saw this one's upload) and counts as a change on both sides. Both at once
+  is a conflict: nothing is chosen for the player,
+  the save-point upload holds back, and they are asked - **Use iCloud's** (a restore), **Keep this Mac's** (an upload;
+  iCloud's stays there as an earlier version) or **Decide later**. Both copies are always kept. A snapshot not
+  accounted for that cannot be read (damaged, or a newer format from a newer version of the mod) also holds the
+  save-point upload back, since it may be another Mac's newer world; only Upload now goes past it.
+- **Restoring** is the safe way round: only a snapshot that is on this Mac (a `.name.icloud` placeholder or a
+  dataless file - stat(2)'s SF_DATALESS - is never opened, and the player is told to download it); read whole and
+  proven against its manifest (each size and hash, nothing extra, every name a plain synced file name) before
+  anything changes; then the whole saves folder copied to `saves-backup-yyyyMMdd-HHmmss` beside it (each copy
+  checked); then each file written under a temporary name and renamed over the old, world files the snapshot lacks
+  removed; the result read back and checked against the snapshot's hash, the backup put back (and checked) if
+  anything failed. The restore is marked in `icloudsaves.json` before its first write: a program stopped part-way
+  is caught at the next start, nothing is uploaded meanwhile, and the player is asked whether to put the backup back.
+  After a restore the program closes (`MainMenuContext.Quit`), so other mods that read their files as they loaded
+  start from the restored ones. The mod never deletes a backup.
+
+The `mods` probe asserts the manifest, nothing hooked and nothing written with mods off, the menu and the city's
+calls (source), the mod off macOS hooking nothing, and on macOS the save points uploading through the host; then, on
+temporary folders for two Macs and one iCloud Drive: what is synced, a snapshot's manifest round trip, restoring onto
+a fresh Mac with a backup first and settings.ini untouched, conflict detection and the upload holding back, a
+tampered, a cut-short, a path-climbing and a settings.ini-carrying snapshot refused, the backup holding the replaced
+world, placeholders, dataless and half-written snapshots never restored from, a nulled and a future-dated manifest
+unreadable without breaking the listing and holding the upload back, keeping both, a fork seen as a conflict, Upload
+now refused over a newer world, a restore failing part-way put back, an interrupted restore caught at the next start,
+pruning only a Mac's own (a planted copy under its name left alone), iCloud Drive missing, the stat(2) offsets, and
+the start-up questions with a stand-in menu.
 
 ## How to write a mod
 
@@ -606,6 +668,11 @@ public sealed class Entry : Mordor.Modding.IMod
   it - nought for an award to a character already pinned, and never below nought (a total past a lowered pin is
   pulled back to it, which is not counted as a loss). Raised right after the award, after any DamageDealt for the
   same blow; observe only - with no mod listening nothing more happens, and listening changes nothing.
+  `Saved(SavePoint)` (API version 15): the game's saves are on disk at a save point - `Kind` `ArrivedInTown` (the
+  stairs up into town, raised after the town's save of the arrival, so after `ArrivedInTown`, which comes before it)
+  or `GameEnded` (Exit to Main Menu or the program closing, raised after the city's last save - and after the
+  dungeon's, when the session ends below). For a mod that copies the saves (the iCloud Saves mod). Observe only, and
+  be quick: on the way out the program closes as soon as the handlers return. With no mod listening nothing more happens.
 - **Decisions** (null = the original's answer): `StoreAllowsRowChangeWhileChoosing` (any mod saying true unlocks it),
   `CityAltP` (first non-null answer wins; return `new CityAltPAnswer(CityAltPAction.PoolAndDeposit, "line")`),
   `MessagesKept` (how many lines the Messages window keeps; the original's 20, mc04F2, unless the first non-null
@@ -764,6 +831,14 @@ public sealed class Entry : Mordor.Modding.IMod
   One moment at a time: while a moment's hooks are awaited the stairs taken again do nothing, and the host runs no
   hooks of a second call made meanwhile (`ModHost.ActionRunning`). On the Mods page, Enter in a list cell keeps the
   edit and does not press Close.
+  `MainMenuOpened` (API version 15), a `Func<MainMenuContext, Task>`: the main menu is up at the program's start with
+  nothing loaded and no game in play - once a run, after the menu's own start-up boxes (the limitation notice, the
+  welcome) and before a character marked Preload Character goes in. The menu reads its characters only when asked, so
+  a mod may change the saves folder here. `MainMenuContext`: `SavesDirectory`; `Ask(title, text, buttons...)`, the
+  game's message box over the menu with a button per caption (the first the default, the last Escape's; `OriginalBox.Choose`),
+  answering the index pressed or -1; and `Quit()`, ending the program as the menu's Exit does - for a mod that changed
+  files other mods read as they loaded. Closed when the hook is done (`Ask` answers -1, `Quit` does nothing). The menu
+  asks `ModHost.MainMenuHooked` first: with no mod hooked, nothing is awaited and the menu goes on as before.
   Underneath: `CastSpellHere`, `CastAndThrow` and `UseItemSpell` take an optional caster and preset target; a cast
   by hand passes neither, and runs as before. `CheckCast` takes `asCommander` (the "you" wording for any caster)
   and `SpellThrown.Apply`/`Line` an optional `commander` (null: `party.Selected`); a cast by hand is the one in

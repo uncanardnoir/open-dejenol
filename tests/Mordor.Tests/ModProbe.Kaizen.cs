@@ -630,7 +630,7 @@ public static partial class ModProbe
         Check("a switch and a redraw: told each time", told, 3);
         // AskCastOnWho: the game's own box, for a mod's window (API version 4)
         var someSpell = spells.First(s => s.Name.Trim() != "");
-        Check("API version 14 (7: IModLifecycle, mods switched on and off on the main menu; 8: ExperienceGained; 9: MessageLineColour; 10: choice settings; 11: settings windows; 12: PartyGoldTo gone, TownIncomeBank, the arrival Party Pool, ShortfallAnswer.From, option tooltips; 13: the Automap hooks; 14: CombatRound)", ModApi.ApiVersion, 14);
+        Check("API version 15 (7: IModLifecycle, mods switched on and off on the main menu; 8: ExperienceGained; 9: MessageLineColour; 10: choice settings; 11: settings windows; 12: PartyGoldTo gone, TownIncomeBank, the arrival Party Pool, ShortfallAnswer.From, option tooltips; 13: the Automap hooks; 14: CombatRound; 15: Saved and MainMenuOpened)", ModApi.ApiVersion, 15);
         Check("no box (headless): Cancel", game.AskCastOnWho(someSpell).GetAwaiter().GetResult() == null, true);
         string asked = "";
         int answer = 1, startedOn = -1;

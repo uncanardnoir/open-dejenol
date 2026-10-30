@@ -77,7 +77,7 @@ public static partial class ModProbe
         var kzHost = Host(kzOnly.Path, log, bundled);
         kzHost.CombatRound(() => { made++; return null!; });
         Check("a mod running with no round hook (Kaizen): no context made", made, 0);
-        Check("API version 14 (CombatRound)", ModApi.ApiVersion, 14);
+        Check("API version 14 or later (CombatRound arrived in 14)", ModApi.ApiVersion >= 14, true);
 
         // ---- the party, the spells, the item ----
         var guilds = GuildData.All.ToList();
