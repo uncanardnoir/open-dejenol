@@ -562,6 +562,27 @@ public sealed class ModHost
     public Task LeavingByStairs(Func<DungeonContext> make) =>
         RunActions("LeavingByStairs", a => a.LeavingByStairs, make);
 
+    /// <summary>
+    /// A round of an engaged fight is about to be played: each live mod's
+    /// <see cref="ModActions.CombatRound"/> in load order, synchronously, each with a
+    /// <see cref="CombatRoundContext"/> of its own made by <paramref name="make"/> and closed as its
+    /// hook returns. With no mod hooked <paramref name="make"/> is never called and nothing happens,
+    /// so the round is the original's. A hook that throws disables its mod; the next is asked.
+    /// </summary>
+    public void CombatRound(Func<CombatRoundContext> make)
+    {
+        var hooked = Live.Where(lm => lm.Context.Actions.CombatRound != null).ToList();
+        foreach (var lm in hooked)
+        {
+            if (!lm.Running || lm.Context.Actions.CombatRound is not { } hook) continue;
+            CombatRoundContext? ctx = null;
+            try { ctx = make(); }
+            catch (Exception ex) { _log($"mods: the combat round's context could not be made - {ex.GetType().Name}: {ex.Message}"); return; }
+            try { Guard(lm, "CombatRound", () => hook(ctx)); }
+            finally { ctx.Close(); }
+        }
+    }
+
     private Task RunActions(string where, Func<ModActions, Func<DungeonContext, Task>?> pick, Func<DungeonContext> make)
     {
         var hooked = Live.Where(lm => pick(lm.Context.Actions) != null).ToList();

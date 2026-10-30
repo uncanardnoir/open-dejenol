@@ -441,6 +441,138 @@ public sealed class ModActions
     /// awaited do nothing, and the host itself runs no hooks of a second call made meanwhile.
     /// </remarks>
     public Func<DungeonContext, Task>? LeavingByStairs { get; set; }
+
+    /// <summary>
+    /// A round of an engaged fight is about to be played (API version 14): the one-second combat
+    /// timer has ticked (timCombat, FRMDUNM.BAS:616; the round, MULTIMOD.BAS:497) and no character
+    /// has acted yet. The hook may give orders through <see cref="CombatRoundContext"/> - the same
+    /// order keys and Cast a player presses between ticks - and they are what the round plays.
+    /// Called once per tick, synchronously and not awaited; never for monsters only waiting, never
+    /// for the free round a step gives them, never outside a fight. With no mod hooked nothing is
+    /// made and the round is the original's.
+    /// </summary>
+    public Action<CombatRoundContext>? CombatRound { get; set; }
+}
+
+/// <summary>
+/// One row of the dungeon's monster list as the player sees it (monShowMonsters, MONSMOD.BAS:4400-4404).
+/// Nothing the list does not show: no hit points ("You cannot see a monster's hit points"), no
+/// monster behind a class name or "Unseen Monster".
+/// </summary>
+/// <param name="Slot">The group's slot, 0 to 3: the number key 1 to 4 that aims at it (MAINMOD2.BAS:4131-4136).</param>
+/// <param name="Name">The name the list shows, through fn0E23 for the character in command: the monster as the
+/// party believes it, its class while unidentified (met in fog), "Unseen Monster(s)" when invisible to them.</param>
+/// <param name="Count">How many stand, as the list shows it - only for a monster that comes in groups of two to
+/// twelve; null where the list shows no count.</param>
+/// <param name="Singular">The same name for one (fn0E23 at a count of one, as the row reads when one is left), for
+/// matching a name whatever the count: "Kobold" where <paramref name="Name"/> is "Kobolds".</param>
+public sealed record MonsterGroupView(int Slot, string Name, int? Count, string Singular);
+
+/// <summary>A member's standing order as the Party window's Option column has it (<c>gv1E66(i)</c>).</summary>
+/// <param name="Kind">None, Fight, Defend, or Spell (<c>.Att</c>, or a spell in <c>.M56C4</c>).</param>
+/// <param name="SpellId">The spell, for Spell; 0 otherwise.</param>
+/// <param name="ItemSlot">The pack slot an item order casts from (<c>M5766</c> with M56C4 the item's own spell), or null.</param>
+/// <param name="OpeningChest">A chest count is running for them (o): the Option column's "Open". f, d, space and
+/// a spell buffer call it off, as by hand.</param>
+public sealed record CombatOrderView(OrderKind Kind, short SpellId, InventorySlot? ItemSlot, bool OpeningChest = false);
+
+/// <summary>
+/// An engaged fight between two ticks, handed to <see cref="ModActions.CombatRound"/>: the party,
+/// the monster list as shown (<see cref="Groups"/>), each member's order and aim, and the commands a
+/// player gives between ticks - the order keys f, d and space (MAINMOD2.BAS:3594-3604, 4011-4054),
+/// a number key's aim (4131-4136), Cast with monsters engaged (cmdCast_Click, FRMCHAR3.BAS:174-184)
+/// and Use on an item that holds a spell (sub15CD, MAINMOD2.BAS:6129-6137) - each for a named
+/// member, standing for "switch to them and press it". Each runs the game's own path: the checks,
+/// refusals and lines are the game's (a refusal in the "you" wording, as by hand), and the order
+/// is what the round then plays. No command touches the fight in any other way.
+///
+/// Every command refuses (false, nothing done) once the hook has returned, once the fight is over
+/// or another has begun, and for a member not in the party or dead.
+/// </summary>
+public sealed class CombatRoundContext
+{
+    private readonly Func<Character, OrderKind, bool> _order;
+    private readonly Func<Character, Spell, bool> _cast;
+    private readonly Func<Character, InventorySlot, bool> _use;
+    private readonly Func<Character, int, bool> _aim;
+    private readonly Func<Character, int?> _aimed;
+    private readonly Func<Character, CombatOrderView> _orderOf;
+
+    /// <param name="party">The party, in its order.</param>
+    /// <param name="spells">Every spell (MDATA2).</param>
+    /// <param name="item">The item table (MDATA3), by id.</param>
+    /// <param name="fight">An object standing for the fight: the same for every round of one fight. Never the engine.</param>
+    /// <param name="groups">The monster list as shown, the groups still standing.</param>
+    /// <param name="orderOf">A member's standing order.</param>
+    /// <param name="aimedAt">The slot a member is aiming at, or null.</param>
+    /// <param name="order">f, d or space for a member (Fight, Defend, None).</param>
+    /// <param name="cast">Cast for a member with monsters engaged: the spell becomes the order.</param>
+    /// <param name="useItem">Use for a member on a pack slot whose item holds a spell: it becomes the order.</param>
+    /// <param name="aim">A number key for a member: aim at the slot.</param>
+    public CombatRoundContext(Party party, IReadOnlyList<Spell> spells, Func<short, Item?> item, object fight,
+                              IReadOnlyList<MonsterGroupView> groups, Func<Character, CombatOrderView> orderOf,
+                              Func<Character, int?> aimedAt, Func<Character, OrderKind, bool> order,
+                              Func<Character, Spell, bool> cast, Func<Character, InventorySlot, bool> useItem,
+                              Func<Character, int, bool> aim)
+    {
+        Party = party; Spells = spells; Item = item; Fight = fight; Groups = groups;
+        _orderOf = orderOf; _aimed = aimedAt; _order = order; _cast = cast; _use = useItem; _aim = aim;
+    }
+
+    /// <summary>The party, in order: hits, spell points, guilds, packs - what the Party window shows.</summary>
+    /// <remarks>
+    /// <c>Party.Orders</c> is the game's own: an order's <c>Target</c> there is the engine's index into
+    /// every single monster, which the list does not show. Read the aim through <see cref="AimedAt"/>
+    /// (a slot, as the list has it) and give orders through the commands here, never through
+    /// <c>Orders</c> directly.
+    /// </remarks>
+    public Party Party { get; }
+    public IReadOnlyList<Character> Members => Party.Members;
+    /// <summary>Every spell (MDATA2), in table order.</summary>
+    public IReadOnlyList<Spell> Spells { get; }
+    /// <summary>The item table (MDATA3), by id.</summary>
+    public Func<short, Item?> Item { get; }
+    /// <summary>
+    /// An object standing for the fight: the same every round of one fight, another for the next. It is
+    /// only a token - the engine, which holds the monsters' hits, is never handed out.
+    /// </summary>
+    public object Fight { get; }
+    /// <summary>The monster list as shown, in slot order: only groups with someone standing.</summary>
+    public IReadOnlyList<MonsterGroupView> Groups { get; }
+    /// <summary>False once the hook it was handed to has returned.</summary>
+    public bool IsOpen { get; private set; } = true;
+
+    /// <summary>The spells this member knows (<c>Spellbook.Known</c>, the spell page's list).</summary>
+    public IReadOnlyList<Spell> KnownSpells(Character c) => Spellbook.Known(c, Spells);
+    /// <summary>The member's standing order, as the Option column shows it.</summary>
+    public CombatOrderView OrderOf(Character c) => _orderOf(c);
+    /// <summary>The slot (0-3) the member is aiming at, or null.</summary>
+    public int? AimedAt(Character c) => _aimed(c);
+
+    /// <summary>
+    /// f, d or space: the member's order becomes Fight, Defend (refused while held fast, as the d key) or
+    /// None; a chest count running for them is called off first, as the keys do.
+    /// </summary>
+    public bool Order(Character c, OrderKind kind) =>
+        IsOpen && kind is OrderKind.None or OrderKind.Fight or OrderKind.Defend && _order(c, kind);
+    /// <summary>
+    /// Cast with monsters engaged: the spell becomes the member's standing order, recast each round,
+    /// after the game's own check (mdrcharCheckCast); a refusal is said and leaves what it leaves, and
+    /// gives false. A heal or a cure is refused here as by hand (MAINMOD2.BAS:512-519).
+    /// </summary>
+    public bool Cast(Character c, Spell spell) => IsOpen && _cast(c, spell);
+    /// <summary>
+    /// Use on a pack slot: an item known at All that holds a spell becomes the member's order, cast
+    /// each round at the item's level, a charge each. Below All refused before it is looked at. As by
+    /// hand, sub0BDE then runs (MAINMOD2.BAS:6131-6132): every member with no order drops a chest count
+    /// and takes up their Combat Setting.
+    /// </summary>
+    public bool UseItem(Character c, InventorySlot slot) => IsOpen && _use(c, slot);
+    /// <summary>A number key: aim the member at the group in <paramref name="slot"/> (0-3), if anyone stands in it.</summary>
+    public bool Aim(Character c, int slot) => IsOpen && _aim(c, slot);
+
+    /// <summary>The host closes it when the hook has returned.</summary>
+    public void Close() => IsOpen = false;
 }
 
 // ------------------------------------------------------------------------------------- decisions
