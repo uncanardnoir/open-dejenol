@@ -339,6 +339,9 @@ public static partial class ModProbe
             // ---- the Cartographer mod and the Automap hooks (ModProbe.Cartographer.cs) ----
             CartographerChecks(scratch, bundled);
 
+            // ---- the iCloud Saves mod, Saved and MainMenuOpened (ModProbe.ICloudSaves.cs) ----
+            ICloudSavesChecks(scratch, bundled);
+
             // ---- switching mods on and off on the main menu (ModProbe.Switch.cs) ----
             SwitchChecks(scratch, bundled, items, Lookup);
 
