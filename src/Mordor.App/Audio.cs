@@ -6,18 +6,23 @@ using Mordor.Core;
 namespace Mordor.App;
 
 /// <summary>
-/// Plays the original WAV effects and MIDI music through the Windows multimedia API
-/// (winmm.dll), so no third-party audio library is needed. On other platforms every
-/// call is a silent no-op. Toggle with <see cref="Enabled"/>.
+/// Plays the original WAV effects and MIDI music through the system's own audio API, so no
+/// third-party audio library is needed: the Windows multimedia API (winmm.dll) on Windows, and
+/// AudioToolbox on macOS (<see cref="AudioQueueStream"/>, <see cref="MacMidi"/>). On other platforms
+/// every call is a silent no-op. Toggle with <see cref="Enabled"/>.
 ///
 /// The effects go through the port's WaveMix (<see cref="WaveMixSession"/> over
-/// <see cref="WaveMixChannels"/>, out through <see cref="WaveOutStream"/>): eight channels mixed
+/// <see cref="WaveMixChannels"/>, out through <see cref="WaveOutStream"/> or
+/// <see cref="AudioQueueStream"/>): eight channels mixed
 /// together, as the original's WAVMIX16 mixes them, where winmm's PlaySound had one sound at a
 /// time and each new one cut off the last.
 /// </summary>
 public static class Audio
 {
     public static bool Enabled { get; set; } = true;
+
+    /// <summary>Where there is a system audio API the port speaks: Windows and macOS.</summary>
+    private static bool Supported => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
     public static bool MusicEnabled { get; set; } = true;
     private static string _dir = "";
     private static string _currentMusic = "";
@@ -131,8 +136,8 @@ public static class Audio
     /// <summary>MUSIC.BAS's bookkeeping over them.</summary>
     private static WaveMixSession? _session;
     /// <summary>The device, open from the first effect until a minimise or the end.</summary>
-    private static WaveOutStream? _out;
-    /// <summary>Windows refused the device: not asked again until the game comes back from minimised.</summary>
+    private static IDisposable? _out;
+    /// <summary>The system refused the device: not asked again until the game comes back from minimised.</summary>
     private static bool _outFailed;
 
     /// <summary>
@@ -145,11 +150,15 @@ public static class Audio
         EnsureSession();
         if (_out == null && !_outFailed && _channels != null && !_channels.Closed)
         {
-            _out = WaveOutStream.Open(_channels);
+            _out = OpenOutput(_channels);
             _outFailed = _out == null;
         }
         return _session;
     }
+
+    /// <summary>The wave device: winmm on Windows, an AudioQueue on macOS; null where there is none.</summary>
+    private static IDisposable? OpenOutput(WaveMixChannels channels) =>
+        OperatingSystem.IsMacOS() ? AudioQueueStream.Open(channels) : WaveOutStream.Open(channels);
 
     /// <summary>The session and its channels, made once; no device is opened here.</summary>
     private static void EnsureSession()
@@ -188,7 +197,7 @@ public static class Audio
     {
         if (_muted) return;
         Enabled = false;
-        if (!OperatingSystem.IsWindows()) return;
+        if (!Supported) return;
         EnsureSession();
         _session!.DeInitialize();
         _channels!.CloseSession();
@@ -205,11 +214,11 @@ public static class Audio
     {
         if (_muted) return true;
         Enabled = true;
-        if (!OperatingSystem.IsWindows()) return true;
+        if (!Supported) return true;
         EnsureSession();
         _channels!.OpenSession();
         _outFailed = false;
-        _out ??= WaveOutStream.Open(_channels);
+        _out ??= OpenOutput(_channels);
         if (_out == null) { _outFailed = true; return false; }
         Play("RAISE");
         return true;
@@ -268,7 +277,7 @@ public static class Audio
 
     private static void Effect(string name, WaveMixRoutine routine)
     {
-        if (!Enabled || !OperatingSystem.IsWindows()) return;
+        if (!Enabled || !Supported) return;
         if (FramePause.Paused) return;   // WaveMixActivate(..., False) while minimised (FRMMAIN.BAS:210-212)
         if (_options.NoDing && string.Equals(name, "MESSAGE", StringComparison.OrdinalIgnoreCase)) return;
         if (_options.NoHelpSound && string.Equals(name, "HELP", StringComparison.OrdinalIgnoreCase)) return;
@@ -277,7 +286,7 @@ public static class Audio
         try { Session()?.Play(n, routine); } catch { }
     }
 
-    // ---- MIDI music via MCI ----
+    // ---- MIDI music via MCI (Windows) or AudioToolbox's MusicPlayer (macOS, MacMidi) ----
     [DllImport("winmm.dll", CharSet = CharSet.Unicode)]
     private static extern int mciSendString(string command, System.Text.StringBuilder? ret, int retLen, IntPtr callback);
 
@@ -289,7 +298,7 @@ public static class Audio
     /// <summary>Loop a MIDI by base name ("CITY", "DUNGEON", "THEME"...). Re-requesting the current track is a no-op.</summary>
     public static void Music(string name)
     {
-        if (!OperatingSystem.IsWindows()) return;
+        if (!Supported) return;
         if (!MusicEnabled) { StopMusic(); return; }
         string path = Path.Combine(_dir, name.ToUpperInvariant() + ".MID");
         if (!File.Exists(path)) return;
@@ -297,23 +306,29 @@ public static class Audio
         if (FramePause.Paused) { _resumeMusic = path; return; }
         if (_currentMusic == path) return;
         StopMusic();
-        Mci($"open \"{path}\" type sequencer alias bgm");
-        Mci("play bgm");
+        if (OperatingSystem.IsMacOS()) { if (!MacMidi.Play(path)) return; }
+        else
+        {
+            Mci($"open \"{path}\" type sequencer alias bgm");
+            Mci("play bgm");
+        }
         _currentMusic = path;
     }
 
     public static void StopMusic()
     {
         if (_currentMusic == "") return;
-        Mci("stop bgm"); Mci("close bgm");
+        if (OperatingSystem.IsMacOS()) MacMidi.Stop();
+        else { Mci("stop bgm"); Mci("close bgm"); }
         _currentMusic = "";
     }
 
     /// <summary>Music tracks loop: call from a timer to restart a finished track.</summary>
     public static void TickMusic()
     {
-        if (_currentMusic == "" || !OperatingSystem.IsWindows()) return;
+        if (_currentMusic == "" || !Supported) return;
         if (FramePause.Paused) return;   // timMusic_Timer: "If Settings.Paused = False Then" (FRMMAIN.BAS:296)
+        if (OperatingSystem.IsMacOS()) { if (MacMidi.Finished) MacMidi.Restart(); return; }
         var sb = new System.Text.StringBuilder(64);
         try { mciSendString("status bgm mode", sb, sb.Capacity, IntPtr.Zero); } catch { return; }
         if (sb.ToString().Trim() == "stopped") { Mci("seek bgm to start"); Mci("play bgm"); }
@@ -334,7 +349,8 @@ public static class Audio
         if (Environment.GetEnvironmentVariable("MORDOR_TRACE_BEEP") is string trace && trace != "")
             try { System.IO.File.AppendAllText(trace, DateTime.Now.ToString("HH:mm:ss.fff") + " beep\n"); } catch { }
         if (_muted) return;
-        try { MessageBeep(0); } catch { }   // MB_OK: the system default sound
+        if (OperatingSystem.IsMacOS()) MacMidi.Beep();
+        else try { MessageBeep(0); } catch { }   // MB_OK: the system default sound
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
