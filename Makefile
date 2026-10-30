@@ -7,6 +7,7 @@
 #   make check-full GAME=<dir>
 #                           tools/check.sh, the full gate (adds the tools' sweep and the app's
 #                           start-up smoke). Windows only: it runs .exe files, powershell and cygpath.
+#   make mac-app            tools/pack-macos.sh: dist/macos/OpenDejenol.app, arm64, signed ad hoc.
 #
 # GAME defaults to game_files/, a local copy that .gitignore keeps out of git. The game's files are
 # never committed (docs/GAME_FILES.md).
@@ -18,7 +19,7 @@ SLN := Mordor.sln
 export DOTNET_NOLOGO := true
 export DOTNET_CLI_TELEMETRY_OPTOUT := true
 
-.PHONY: verify restore build test check check-full clean
+.PHONY: verify restore build test check check-full mac-app clean
 
 verify: build test
 
@@ -37,6 +38,9 @@ check: build
 
 check-full:
 	sh tools/check.sh "$(GAME)"
+
+mac-app:
+	sh tools/pack-macos.sh
 
 clean:
 	$(DOTNET) clean $(SLN) -c Release

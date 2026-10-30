@@ -19,3 +19,6 @@ MORDOR.HLP
 MG11.DLL
 MordorSetup*.exe
 MordorDemoSetup*.exe
+
+# the macOS app bundle (tools/pack-macos.sh)
+dist/
