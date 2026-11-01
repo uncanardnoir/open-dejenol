@@ -622,6 +622,11 @@ public partial class CityWindow : Window
                                 : $"You are no longer carrying \"{m.CarryingCharacter.TrimEnd()}\".");
                 m.CarryingCharacter = "";
             }
+            // FRMCTYM.BAS:133, the last thing in each one's turn: sub15F7 fills their guild items
+            // back up, "Your Guild Item(s) were recharged when you entered the city." or
+            // "\"Ann\" had their Guild Item(s) recharged when they entered the city." (MAINMOD2.BAS:4250-4271).
+            // The port had no recharge at all.
+            if (ItemUse.RechargeGuildItems(m, party, Lookup) is string recharged) lines.Add(recharged);
         }
         // mdrcharAddAge calls mdrReplenishStore with the days you just aged, so other
         // adventurers have been trading with the store while you recovered

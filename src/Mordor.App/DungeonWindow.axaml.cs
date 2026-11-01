@@ -1684,6 +1684,7 @@ public partial class DungeonWindow : Window
         PackList.ItemsSource = rows;
         PackList.SelectedIndex = Math.Clamp(sel, 0, Character.PackSize - 1);
         (_packShownFor, _packShown) = (_ch, PackStamp());
+        RefreshPartyRows();   // a mod column may read the pack (the QoL quest mark)
     }
 
     /// <summary>
@@ -1799,6 +1800,15 @@ public partial class DungeonWindow : Window
             _combat?.ItemOrders.Clear();
         }
 
+        RefreshPartyRows();
+    }
+
+    /// <summary>
+    /// The party rows alone, without modUpdateStats' clearing of orders: what <see cref="RefreshPack"/>
+    /// asks for, so a mod column that reads the pack (the QoL quest mark) follows it.
+    /// </summary>
+    private void RefreshPartyRows()
+    {
         PartyRows.Children.Clear();
         var modColumns = ModSlots.PartyHeader(PartyHeader, 5);   // the mods' party columns, if any (docs/MODDING.md)
         for (int i = 0; i < _party.Size; i++)

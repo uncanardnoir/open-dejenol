@@ -791,6 +791,7 @@ public partial class CityWindow
         }
         PackList.ItemsSource = rows;
         PackList.SelectedIndex = Math.Clamp(sel, 0, Character.PackSize - 1);
+        RefreshParty();   // a mod column may read the pack (the QoL quest mark)
     }
 
     /// <summary>

@@ -1014,6 +1014,69 @@ top.Close();
             }
         }
 
+        // 2026-10-30: "i can't drag my companion into the confinement". The town as the player has
+        // it: Objects & Spells on its Companions page beside the Confinement, the picture dragged
+        // (picCompanion_MouseMove, FRMCHAR3.BAS:795-799) and let go over the Identify, Realign & Sell
+        // panel's Comp. box - txtID_DragDrop puts "Source.Index + 1" there and presses Enter
+        // (FRMCITYC.BAS:788-796), which names it and offers Sell (txtID_KeyPress, 804-846)
+        {
+            var dragSource = RecordingDragSource.Bound!;   // bound for the Companions page above
+            var monsters = Get<List<Monster>>("_monsters");
+            var pet = CompanionRef.Of(monsters.First(m => m.PicId > 10));
+            pet.Hits = 5; pet.MaxHits = 5;
+            hero.Companions.Add(pet);
+            Call("RefreshCompanions");
+            var sheet = Get<MdiChild>("_sheetChild");
+            sheet.IsVisible = true;
+            sheet.PlaceAt(new Rect(10, 10, 420, 360));
+            Get<MdiChild>("_characterChild").IsVisible = false;   // the Ctrl-key checks above left it up, over this
+            town.FindControl<TabControl>("SheetTabs")!.SelectedIndex = 2;
+            Call("ShowConfinement", town, null);
+            Pump();
+            var confine = services.Cast<object>().First(s => Of<GameWindow?>(s, "Key") == GameWindow.CompanionStore);
+            Of<MdiChild>(confine, "Child").PlaceAt(new Rect(450, 10, 700, 500));
+            Pump(); Pump();
+            var compPage = Get<CompanionsPage>("_companionPage");
+            var picture = compPage.Pictures[0];
+            var boxes = Of<ContentControl>(confine, "Page").GetVisualDescendants().OfType<TextBox>().ToList();
+            // txtID: the box of the panel that has Sell on it
+            var txtID = boxes.First(t => t.Parent is Canvas c && c.Children.OfType<Button>().Any(b => (b.Content as TextBlock)?.Text == "Sell"));
+            var sell = ((Canvas)txtID.Parent!).Children.OfType<Button>().First(b => (b.Content as TextBlock)?.Text == "Sell");
+            Point Mid(Visual v) => v.TranslatePoint(new Point(v.Bounds.Width / 2, v.Bounds.Height / 2), town)!.Value;
+            DragPayload? DraggedFrom(Point from)
+            {
+                dragSource.Last = null;
+                town.MouseDown(from, MouseButton.Left); Pump();
+                town.MouseMove(from + new Point(3, 3), RawInputModifiers.LeftMouseButton); Pump();
+                town.MouseMove(from + new Point(12, 12), RawInputModifiers.LeftMouseButton); Pump();
+                town.MouseUp(from + new Point(12, 12), MouseButton.Left); Pump();
+                Apart();
+                return dragSource.Last;
+            }
+            // lblCompName carries the Tag "COMP" in the form data (MORDOR.EXE RCDATA 10) but is never
+            // dragged: its one event is Click, Name (FRMCHAR3.BAS:478-487) - a DragMode of Automatic
+            // would have taken that Click away - and nothing calls lblCompName.Drag; picCompanion is
+            // the only one with a .Drag (797)
+            Check("Town: a companion's name on Objects & Spells starts no drag (lblCompName has only Click)",
+                  DraggedFrom(compPage.Names[0].TranslatePoint(new Point(10, compPage.Names[0].Bounds.Height / 2), town)!.Value), null);
+            DraggedFrom(Mid(picture));
+            Check("Town: the companion's picture on Objects & Spells starts a drag of it (\"COMP\", slot 0)", dragSource.Last, DragPayload.Companion(0));
+            var onto = Mid(txtID);
+            var data = (dragSource.Last ?? DragPayload.Companion(0)).Wrapped();
+            town.DragDrop(onto, Avalonia.Input.Raw.RawDragEventType.DragEnter, data, DragDropEffects.Move, RawInputModifiers.None);
+            town.DragDrop(onto, Avalonia.Input.Raw.RawDragEventType.DragOver, data, DragDropEffects.Move, RawInputModifiers.None);
+            town.DragDrop(onto, Avalonia.Input.Raw.RawDragEventType.Drop, data, DragDropEffects.Move, RawInputModifiers.None);
+            Pump();
+            Check("Town: dropped there, it is named in the box and Sell is offered (FRMCITYC.BAS:788-796, 828-830)",
+                  (txtID.Text != "" && txtID.Text != "1", sell.IsEnabled).ToString(), "(True, True)");
+            typeof(CityWindow).GetField("_svc", flags)!.SetValue(town, confine);
+            Call("CloseService", null, null);
+            hero.Companions.Release(0);
+            Call("RefreshCompanions");
+            sheet.IsVisible = false;
+            Pump();
+        }
+
         Call("ShowStore", town, null);
         Pump();
         Call("ShowBank", town, null);
@@ -2517,6 +2580,9 @@ return failed == 0 ? 0 : 1;
 sealed class RecordingDragSource : Avalonia.Input.Platform.IPlatformDragSource
 {
     public DragPayload? Last;
+    /// <summary>The one the Companions page bound, for the town checks after it.</summary>
+    public static RecordingDragSource? Bound;
+    public RecordingDragSource() => Bound = this;
     public Task<DragDropEffects> DoDragDrop(PointerEventArgs triggerEvent, Avalonia.Input.IDataObject data, DragDropEffects allowedEffects)
     {
         Last = data.Get(DragPayload.Format) as DragPayload;

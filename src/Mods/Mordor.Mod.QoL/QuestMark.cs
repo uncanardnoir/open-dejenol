@@ -25,15 +25,25 @@ public static class QuestMark
     /// <summary>The prefix of the tooltip's quest line; what follows is the game's own F5 line.</summary>
     public const string TipPrefix = "Guild quest: ";
 
-    /// <summary>The mark for a member; null with no quest in the current guild.</summary>
+    /// <summary>The tooltip's addition when an item quest's item is carried, fully identified.</summary>
+    public const string CarriedTip = " (one is in your pack)";
+
+    /// <summary>
+    /// The mark for a member; null with no quest in the current guild. An item quest stays Active
+    /// in the game until the guild takes the item (<see cref="Progress.QuestState.Done"/>), but a
+    /// fully identified copy in the pack is something the player can see for themselves, so it
+    /// gets the tick. A copy not fully identified shows under another name, so it does not: the
+    /// guild would take it all the same (FRMCTYG.BAS:254-259), but the player has no way to know.
+    /// </summary>
     public static Mark? Of(Character c, Func<short, Monster?> monster, Func<short, Item?> item)
     {
         var state = Progress.QuestStateOf(c);
         if (state == Progress.QuestState.None) return null;
         string tip = TipPrefix + (Progress.Quest(c, monster, item) ?? "");
-        return state == Progress.QuestState.Done
-            ? new Mark(DoneMark, DoneColour, tip)
-            : new Mark(ActiveMark, ActiveColour, tip);
+        if (state == Progress.QuestState.Done) return new Mark(DoneMark, DoneColour, tip);
+        if (c.Guild.QuestType == 2 && c.Inventory.Any(s => s.ItemId == c.Guild.QuestTarget && s.Known == IdLevel.All))
+            return new Mark(DoneMark, DoneColour, tip + CarriedTip);
+        return new Mark(ActiveMark, ActiveColour, tip);
     }
 
     /// <summary>The Next column's text with the mark before it, as drawn: "!4.3K", "✓Pinned"; the figure alone with none.</summary>

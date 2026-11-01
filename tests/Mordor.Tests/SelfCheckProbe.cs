@@ -5198,6 +5198,7 @@ public static partial class SelfCheckProbe
         Section(() => LibrarySightingChecks(dir));
         Section(() => LibraryFindChecks(dir));
         Section(() => LibraryRefChecks(dir));
+        Section(() => GuildRechargeChecks(dir));
         Section(() => LibraryRestockChecks(dir));
         Section(() => ObjectsFocusChecks());
         Section(() => UiBehaviourChecks());

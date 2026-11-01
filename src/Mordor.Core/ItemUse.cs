@@ -40,6 +40,36 @@ public static class ItemUse
         it.SpecialType >= GuildIssuedBase && it.SpecialType < GuildIssuedBase + GuildData.All.Count;
 
     /// <summary>
+    /// <c>sub15F7</c> (MAINMOD2.BAS:4250-4271), called for each character in turn by the city's
+    /// Form_Load, after their rest, the carried body left behind and the save (FRMCTYM.BAS:103-134):
+    /// every guild-issued item in pack slots 1 to 39 (<c>For l0654 = 1 To mc0190 - 1</c> - slot 0,
+    /// the hands, is not looked at) with fewer charges than the item's own is filled back up to them.
+    /// If anything was, the one line: "Your Guild Item(s) were recharged when you entered the city."
+    /// when nobody else is loaded (<c>UBound(Chars) = m00A6</c>, m00A6 = 0), else
+    /// <c>"Name" had their Guild Item(s) recharged when they entered the city.</c> Null if nothing
+    /// was below full. The help's Guild_Crests page has it too: "Crests will recharge by themselves
+    /// as soon as you enter town."
+    /// </summary>
+    public static string? RechargeGuildItems(Character c, bool party, Func<short, Item?> item)
+    {
+        bool recharged = false;
+        for (int i = 1; i < Character.PackSize; i++)
+        {
+            // If Chars(pv0652).Pack(l0654).Ref > 0
+            if (c.Pack[i] is not InventorySlot sl || sl.ItemId <= 0 || item(sl.ItemId) is not Item it) continue;
+            // Ailments in 500 .. 500 + (NumGuilds - 1), and Pack charges < Items charges
+            if (IsGuildIssued(it) && sl.Charges < it.Charges)
+            {
+                recharged = true;
+                sl.Charges = (short)it.Charges;
+            }
+        }
+        if (!recharged) return null;
+        return party ? $"\"{c.Name.TrimEnd()}\" had their Guild Item(s) recharged when they entered the city."
+                     : "Your Guild Item(s) were recharged when you entered the city.";
+    }
+
+    /// <summary>
     /// Whether the item has to be worn before it will do anything - MAINMOD2.BAS:6113-6119. The list
     /// is written out as item types rather than classes: 1 to 22 is everything from a Dagger to an
     /// Amulet, then Stone, Artifact, Miscellaneous Item and Guild Crest. A wand or a potion works

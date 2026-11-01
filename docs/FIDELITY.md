@@ -7158,3 +7158,26 @@ the original - sub0BDE only fills an order that is empty, the party window clear
 (FRMGROUP.BAS:418-422), and nothing clears them when a character is unloaded and another loaded. The port starts
 every session with no orders, so that left-over state, which depends on what was played before in the same run, is
 not carried.
+
+**Guild items recharge on entering the city - corrected 2026-10-31.** The city's Form_Load ends each character's
+turn - after the rest, the carried body left behind and the save - with `sub15F7 gv1A84` (FRMCTYM.BAS:103-134), and
+sub15F7 (MAINMOD2.BAS:4250-4271) fills every guild-issued item in pack slots 1 to 39 (`For l0654 = 1 To mc0190 - 1`,
+mc0190 = 40; slot 0, the hands, is not looked at) whose charges are below the item's own back up to them. A guild
+item is one whose `Ailments` - the port's `SpecialType` - is 500 to 500 + NumGuilds - 1: the twelve crests, of which
+nine carry charges (MDATA3: Paladin 12, Thief 12, Villain, Seeker, Scavenger, Mage, Sorcerer, Wizard and Healer 6;
+Nomad, Warrior and Ninja none). If any was filled, one line: "Your Guild Item(s) were recharged when you entered the
+city." with nobody else loaded (`UBound(Chars) = m00A6`, m00A6 = 0), else `"Ann" had their Guild Item(s) recharged
+when they entered the city.` It runs wherever frmCityMain is loaded: walking up out of level 1, a raise at level 0,
+and a character signed in at level 0 (whose lines are dropped, said before gv1B52 is True). The community's
+Guild_Crests page says the same ("Crests will recharge by themselves as soon as you enter town"). The port had no
+recharge at all: a Crest of the Thief used down stayed down. `ItemUse.RechargeGuildItems` is sub15F7, called last in
+each member's turn of `RestOnArrival`, so its line follows that member's rest and body lines as in the original.
+One difference of timing, not of play: the original saves each character before sub15F7, so the refilled charges
+reach the file at the next save; the port's arrival saves once after the whole turn, with them. Checked by
+selfcheck (GuildRechargeChecks).
+The same day every other write of `Pack().Charges` in the source was set against the port's and found to match:
+the crest awarded to a new Guildmaster (FRMCTYG.BAS:746, `Guildmasters`), a purchase (FRMCTYS.BAS:74), a sale of a
+charge-sold kind (FRMCTYS.BAS:240-262), Combine (FRMCTYS.BAS:677, `Combining`), an item taken out
+(mdrcharRemoveItem, MAINMOD2.BAS:4343), a charge spent (mdrcharSubtractItemUse, MAINMOD2.BAS:5689-5708, and its
+callers at 843 and 6145) and a chest's item (MONSMOD.BAS:3816-3827, `Loot.RollCharges`), with the reads that gate on
+charges (sub15CD's two refusals, 6098-6105; the buy and sell prices, FRMCTYS.BAS:605-607 and 735-746).

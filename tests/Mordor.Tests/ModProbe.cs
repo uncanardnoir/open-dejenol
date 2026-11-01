@@ -1027,9 +1027,16 @@ public static partial class ModProbe
         Check("item quest: Active", Progress.QuestStateOf(who), Progress.QuestState.Active);
         Check("item quest: marked text", Text(who), "!4.3K");
         Check("item quest: the tooltip's line is F5's", Tip(who), "Guild quest: You must return with one " + item.Name.Trim() + ".");
-        who.PutInPack(new InventorySlot { ItemId = item.Id });
+        var carried = new InventorySlot { ItemId = item.Id, Known = IdLevel.Barely };
+        who.PutInPack(carried);
         Check("item quest, the item carried: still Active (the game says nothing more)", Progress.QuestStateOf(who), Progress.QuestState.Active);
         Check("... the guild would take it", who.QuestSatisfied(consume: false), true);
+        Check("... not fully identified: still the gold ! (the player can't tell it's the one)", Text(who), "!4.3K");
+        carried.Known = IdLevel.All;
+        Check("... fully identified: the tick", Text(who), "✓4.3K");
+        Check("... and the tooltip says it's carried", Tip(who), "Guild quest: You must return with one " + item.Name.Trim() + ". (one is in your pack)");
+        who.RemoveFromPack(carried);
+        Check("... gone from the pack: the gold ! again", Text(who), "!4.3K");
 
         // a kind the game does not know: no readout says anything, so no mark
         who.Guild.QuestType = 3;
