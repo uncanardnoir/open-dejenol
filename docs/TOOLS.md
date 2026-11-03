@@ -76,7 +76,7 @@ sweeps the tools and starts the app.
 | Suite | What it checks |
 |---|---|
 | `selfcheck` | the numbers that have a source to be checked against: dejenol.com's formulas, the help, the game data, the forms in MORDOR.EXE, the decompiled source, the port's own code where a rule lives in it |
-| `mods` | the mod system: the loader, the default answers, the bundled QoL, Kaizen, DPS Meter and Cartographer mods (docs/MODDING.md) |
+| `mods` | the mod system: the loader, the default answers, the bundled QoL, Kaizen, DPS Meter, Cartographer and Auto-combat mods (docs/MODDING.md) |
 | `citations` | every `FILE.BAS:LINE` citation in docs/FIDELITY.md and the code, against the routine it names (selfcheck asserts the same count; this lists each problem) |
 
 Each prints one `ok` or `FAIL` line per check and exits 1 when anything failed. Some analyses the

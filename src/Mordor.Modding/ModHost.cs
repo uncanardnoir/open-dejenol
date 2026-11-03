@@ -553,16 +553,62 @@ public sealed class ModHost
     /// leaves it complete too.
     /// </summary>
     public Task EnteredDungeonFromTown(Func<DungeonContext> make) =>
-        RunActions("EnteredDungeonFromTown", a => a.EnteredDungeonFromTown, make);
+        RunActions("EnteredDungeonFromTown", a => a.EnteredDungeonFromTown, make, c => c.Close());
 
     /// <summary>
     /// The party is taking the stairs up out of level 1: each live mod's
     /// <see cref="ModActions.LeavingByStairs"/>, as <see cref="EnteredDungeonFromTown"/>.
     /// </summary>
     public Task LeavingByStairs(Func<DungeonContext> make) =>
-        RunActions("LeavingByStairs", a => a.LeavingByStairs, make);
+        RunActions("LeavingByStairs", a => a.LeavingByStairs, make, c => c.Close());
 
-    private Task RunActions(string where, Func<ModActions, Func<DungeonContext, Task>?> pick, Func<DungeonContext> make)
+    /// <summary>
+    /// A round of an engaged fight is about to be played: each live mod's
+    /// <see cref="ModActions.CombatRound"/> in load order, synchronously, each with a
+    /// <see cref="CombatRoundContext"/> of its own made by <paramref name="make"/> and closed as its
+    /// hook returns. With no mod hooked <paramref name="make"/> is never called and nothing happens,
+    /// so the round is the original's. A hook that throws disables its mod; the next is asked.
+    /// </summary>
+    public void CombatRound(Func<CombatRoundContext> make)
+    {
+        var hooked = Live.Where(lm => lm.Context.Actions.CombatRound != null).ToList();
+        foreach (var lm in hooked)
+        {
+            if (!lm.Running || lm.Context.Actions.CombatRound is not { } hook) continue;
+            CombatRoundContext? ctx = null;
+            try { ctx = make(); }
+            catch (Exception ex) { _log($"mods: the combat round's context could not be made - {ex.GetType().Name}: {ex.Message}"); return; }
+            try { Guard(lm, "CombatRound", () => hook(ctx)); }
+            finally { ctx.Close(); }
+        }
+    }
+
+    /// <summary>
+    /// The main menu is up at the program's start, nothing loaded (API version 15): each live mod's
+    /// <see cref="ModActions.MainMenuOpened"/>, as <see cref="EnteredDungeonFromTown"/> - in load
+    /// order, each awaited, each with a <see cref="MainMenuContext"/> of its own closed when its hook
+    /// is done. With no mod hooked the task is already complete and <paramref name="make"/> is never
+    /// called (the menu asks <see cref="MainMenuHooked"/> first and does nothing otherwise).
+    /// </summary>
+    public Task MainMenuOpened(Func<MainMenuContext> make) =>
+        RunActions("MainMenuOpened", a => a.MainMenuOpened, make, c => c.Close());
+
+    /// <summary>Whether any running mod hooks <see cref="ModActions.MainMenuOpened"/>.</summary>
+    public bool MainMenuHooked => Live.Any(lm => lm.Context.Actions.MainMenuOpened != null);
+
+    /// <summary>
+    /// The game's saves are on disk at a save point (<see cref="ModEvents.Saved"/>, API version 15):
+    /// every live mod hears of it, each guarded. With no mod loaded, nothing.
+    /// </summary>
+    public void SavePointReached(SavePointKind kind)
+    {
+        var live = Live.ToList();
+        if (live.Count == 0) return;
+        var point = new SavePoint(kind);
+        foreach (var lm in live) Guard(lm, "Saved", () => lm.Context.Events.RaiseSaved(point));
+    }
+
+    private Task RunActions<TContext>(string where, Func<ModActions, Func<TContext, Task>?> pick, Func<TContext> make, Action<TContext> close)
     {
         var hooked = Live.Where(lm => pick(lm.Context.Actions) != null).ToList();
         if (hooked.Count == 0) return Task.CompletedTask;
@@ -584,7 +630,7 @@ public sealed class ModHost
                     // to the game: the mod is disabled and the next one is asked
                     try { await hook(ctx); }
                     catch (Exception ex) { Fault(lm, where, ex); }
-                    finally { ctx.Close(); }
+                    finally { close(ctx); }
                 }
             }
             finally { _actionRunning = false; }

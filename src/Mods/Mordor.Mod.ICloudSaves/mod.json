@@ -1,0 +1,24 @@
+{
+  "id": "ICloudSaves",
+  "name": "iCloud Saves",
+  "version": "1.0.0",
+  "author": "OpenDejenol",
+  "gameVersion": "1.1",
+  "assembly": "Mordor.Mod.ICloudSaves.dll",
+  "entryType": "Mordor.Mod.ICloudSaves.ICloudSavesMod",
+  "description": "macOS only: keeps copies of your saved world in iCloud Drive, to carry on playing on another Mac",
+  "settings": [
+    {
+      "key": "UploadAtSavePoints",
+      "label": "Upload at save points",
+      "description": "Copies the saves to iCloud Drive on returning to town and when the game ends.",
+      "default": true
+    },
+    {
+      "key": "CheckAtStart",
+      "label": "Check iCloud at start",
+      "description": "Offers a newer world from iCloud Drive at the main menu, before anything is loaded.",
+      "default": true
+    }
+  ]
+}

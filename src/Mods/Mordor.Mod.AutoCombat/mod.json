@@ -1,0 +1,24 @@
+{
+  "id": "AutoCombat",
+  "name": "Auto-combat",
+  "version": "1.0.0",
+  "author": "OpenDejenol",
+  "gameVersion": "1.1",
+  "assembly": "Mordor.Mod.AutoCombat.dll",
+  "entryType": "Mordor.Mod.AutoCombat.AutoCombatMod",
+  "description": "Gives each member's fight order every round by your own rules, through the game's own order keys and Cast.",
+  "settings": [
+    {
+      "key": "FightByRules",
+      "label": "Fight by the rules",
+      "description": "Each round of a fight, gives every member the order of the first rule that fits.",
+      "default": false
+    },
+    {
+      "key": "LeaveInCommand",
+      "label": "Leave the one in command to me",
+      "description": "The character in command keeps the orders you give them by hand.",
+      "default": false
+    }
+  ]
+}

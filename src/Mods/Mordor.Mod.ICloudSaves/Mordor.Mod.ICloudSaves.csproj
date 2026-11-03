@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The iCloud Saves mod (docs/MODDING.md, docs/MOBILE_AND_CLOUD.md Phase M3). Built with the game:
+       src/Mods/ShipMods.targets copies its .dll and mod.json into <program>/mods/ICloudSaves, where the
+       loader finds it. macOS only at run time; elsewhere it loads and does nothing. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- the game's own copies are used at run time, so none is copied beside the mod -->
+    <ProjectReference Include="..\..\Mordor.Modding\Mordor.Modding.csproj" Private="false" />
+    <ProjectReference Include="..\..\Mordor.Core\Mordor.Core.csproj" Private="false" />
+    <!-- the mod's window; the game supplies Avalonia at run time, so none is copied -->
+    <PackageReference Include="Avalonia" Version="11.2.3" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="mod.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
