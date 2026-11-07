@@ -23,6 +23,7 @@ using Mordor.Core;
 //     (cmdCommand_DragDrop, FRMCHAR3.BAS:252-254)
 //
 //   Mordor.UiCheck <gamedir>        exit code 1 if anything failed
+//   add --body-recovery-only for the fatal-step/pickup regression alone
 
 string game = args.Length > 0 ? args[0] : Path.Combine("..", "game_files");
 string mdr = Path.Combine(game, "MDATA11.MDR");
@@ -41,9 +42,13 @@ Environment.SetEnvironmentVariable("MORDOR_ART_CACHE", artRoot);
 string? artError = Art.Prepare(game);
 if (artError != null) { Console.WriteLine($"  FAIL  the game's art could not be read: {artError}"); return 1; }
 
-if (args.Skip(1).Any(a => a is "--uncurse-only" or "--m1full-only"))
+if (args.Skip(1).Any(a => a is "--uncurse-only" or "--m1full-only" or "--body-recovery-only"))
 {
-    try { return args.Contains("--m1full-only") ? LegacyInstallerCheck.Run(game) : StoreUncurseCheck.Run(game); }
+    try
+    {
+        return args.Contains("--m1full-only") ? LegacyInstallerCheck.Run(game)
+            : args.Contains("--body-recovery-only") ? BodyRecoveryCheck.Run(game) : StoreUncurseCheck.Run(game);
+    }
     finally
     {
         Environment.SetEnvironmentVariable("MORDOR_ART_CACHE", artWas);
@@ -2584,6 +2589,7 @@ Console.WriteLine("\nthe program's icon on the windows:");
 
 failed += StoreUncurseCheck.Run(game);
 failed += LegacyInstallerCheck.Run(game);
+failed += BodyRecoveryCheck.Run(game);
 
 Environment.SetEnvironmentVariable("MORDOR_ART_CACHE", artWas);
 try { Directory.Delete(artRoot, true); } catch { }

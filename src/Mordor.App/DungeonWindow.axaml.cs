@@ -3120,6 +3120,10 @@ public partial class DungeonWindow : Window
     /// <summary>Called after a successful step: handle chutes/teleporters, then roll for an encounter.</summary>
     private string AfterMove()
     {
+        // The move precedes sub0835 (fn1521, MAINMOD2.BAS:3770-3902). Keep the character
+        // records at that position before a pit or a leave round can unload someone dead.
+        // SaveChar comes later, after the prune, so it cannot move an already saved body.
+        SavePos();   // in-memory only; does not force an autosave
         var fl = _nav.Floor;
         int x = _nav.X, y = _nav.Y;
 

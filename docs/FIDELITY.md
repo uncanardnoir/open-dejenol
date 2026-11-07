@@ -7192,3 +7192,14 @@ charge-sold kind (FRMCTYS.BAS:240-262), Combine (FRMCTYS.BAS:677, `Combining`), 
 (mdrcharRemoveItem, MAINMOD2.BAS:4343), a charge spent (mdrcharSubtractItemUse, MAINMOD2.BAS:5689-5708, and its
 callers at 843 and 6145) and a chest's item (MONSMOD.BAS:3816-3827, `Loot.RollCharges`), with the reads that gate on
 charges (sub15CD's two refusals, 6098-6105; the buy and sell prices, FRMCTYS.BAS:605-607 and 735-746).
+
+**Bodies stay on the fatal square — corrected 2026-11-07.** Movement precedes the square
+routine (fn1521, MAINMOD2.BAS:3770-3902); a pit can then kill someone before the area settles
+(MAZEMOD.BAS:1743-1774, 1879-1889). The party update saves each dead member before unloading
+them (FRMGROUP.BAS:321-348). The port moved its navigator first but updated the character
+records only in a later `SaveChar`, after that unload. A fall could therefore save the body
+on the previous square, or in the previous room, making Pickup report nobody in the area.
+`AfterMove` now synchronizes the in-memory party position before processing the square or
+the departure round. This does not add a disk write or change No Autosave. A headless
+regression walks into a fatal pit both within a room and across a room boundary, checks
+the saved body location, then picks it up through the normal dialog with autosaves off.
