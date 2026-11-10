@@ -41,9 +41,9 @@ Environment.SetEnvironmentVariable("MORDOR_ART_CACHE", artRoot);
 string? artError = Art.Prepare(game);
 if (artError != null) { Console.WriteLine($"  FAIL  the game's art could not be read: {artError}"); return 1; }
 
-if (args.Skip(1).Contains("--uncurse-only"))
+if (args.Skip(1).Any(a => a is "--uncurse-only" or "--m1full-only"))
 {
-    try { return StoreUncurseCheck.Run(game); }
+    try { return args.Contains("--m1full-only") ? LegacyInstallerCheck.Run(game) : StoreUncurseCheck.Run(game); }
     finally
     {
         Environment.SetEnvironmentVariable("MORDOR_ART_CACHE", artWas);
@@ -2583,6 +2583,7 @@ Console.WriteLine("\nthe program's icon on the windows:");
 }
 
 failed += StoreUncurseCheck.Run(game);
+failed += LegacyInstallerCheck.Run(game);
 
 Environment.SetEnvironmentVariable("MORDOR_ART_CACHE", artWas);
 try { Directory.Delete(artRoot, true); } catch { }

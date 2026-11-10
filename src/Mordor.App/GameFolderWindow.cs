@@ -91,7 +91,7 @@ public sealed class GameFolderWindow : Window
                  + "the MDATA files.\n\n"
                  + "The shareware (\"PUBLIC Limited Version\") plays as the shareware did, with its "
                  + GameFiles.SharewareLevels + " dungeon levels; the full version has all " + GameFiles.FullLevels + ".\n\n"
-                 + "Decklin's Domain sells Mordor as MordorSetup.exe, and gives the demo away as MordorDemoSetup.exe. "
+                 + "Choose M1FULL.zip or MordorSetup.exe for the full game, or MordorDemoSetup.exe for the demo. "
                  + "Those installers do not run on Windows 10 or 11, and there is no need to: choose the installer "
                  + "and OpenDejenol unpacks the game from it. A Mordor already installed (from the original CD-ROM "
                  + "or disks, or the shareware) can be chosen by its folder instead. The choice is remembered.",
@@ -282,12 +282,12 @@ public sealed class GameFolderWindow : Window
         catch { }
         var picked = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Use the installer - choose MordorSetup.exe or MordorDemoSetup.exe",
+            Title = "Use the installer - choose M1FULL.zip or a Mordor setup",
             AllowMultiple = false,
             SuggestedStartLocation = start,
             FileTypeFilter = new[]
             {
-                new FilePickerFileType("Mordor installer (MordorSetup.exe, MordorDemoSetup.exe)") { Patterns = new[] { "*.exe" } },
+                new FilePickerFileType("Mordor installer (M1FULL.zip, MordorSetup.exe, MordorDemoSetup.exe)") { Patterns = new[] { "*.zip", "*.exe" } },
             },
         });
         return picked.FirstOrDefault()?.TryGetLocalPath();

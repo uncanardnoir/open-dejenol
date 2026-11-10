@@ -16,8 +16,9 @@ public sealed record UnpackResult(string? Dir, string Message, GameFilesCheck? C
 }
 
 /// <summary>
-/// Mordor from Decklin's Domain's installers, MordorSetup.exe (the full game, 1.1) and
-/// MordorDemoSetup.exe (the shareware), without running them. Both are Tarma InstallMate 9 setups
+/// Mordor from Decklin's M1FULL.zip or its newer MordorSetup.exe (full game, 1.1) and
+/// MordorDemoSetup.exe (shareware), without running them. The ZIP's nested WIP archives are read
+/// by ReadLegacyZip. The executables are Tarma InstallMate 9 setups
 /// of 2016 that refuse Windows 10 and 11 ("Windows 10 (x64) ... not supported"; compatibility modes
 /// do not help), so a player who buys Mordor today could not install it. The port reads the
 /// installer's payload itself, as docs/GAME_FILES.md ("The installers") sets out:
@@ -54,7 +55,7 @@ public sealed record UnpackResult(string? Dir, string Message, GameFilesCheck? C
 /// the files are written to a fresh folder that is moved into place only when the whole game is
 /// there and <see cref="GameFiles.Check"/> plays it. Anything wrong is a message, never a throw.</para>
 /// </summary>
-public static class InstallerUnpack
+public static partial class InstallerUnpack
 {
     /// <summary>
     /// The message for a file that is not one of the installers this reads, then what to choose
@@ -62,10 +63,10 @@ public static class InstallerUnpack
     /// <see cref="UnpackResult.Detail"/>, for the crash log, not the player.
     /// </summary>
     public const string NotAnInstaller = "This file isn't a Mordor installer OpenDejenol can read.";
-    public const string NotAnInstallerHint = "Choose MordorSetup.exe or MordorDemoSetup.exe, as downloaded from Decklin's Domain.";
+    public const string NotAnInstallerHint = "Choose M1FULL.zip, MordorSetup.exe or MordorDemoSetup.exe, as downloaded from Decklin's Domain.";
 
     /// <summary>The installers' names on Decklin's Domain.</summary>
-    public static readonly string[] InstallerNames = { "MordorSetup.exe", "MordorDemoSetup.exe" };
+    public static readonly string[] InstallerNames = { "MordorSetup.exe", "M1FULL.zip", "MordorDemoSetup.exe" };
 
     /// <summary>Moves <see cref="Root"/>, for the checks.</summary>
     public const string EnvRoot = "MORDOR_UNPACK_DIR";
@@ -118,7 +119,8 @@ public static class InstallerUnpack
     }
 
     /// <summary><see cref="Read"/>, from the installer's bytes.</summary>
-    public static Contents Parse(byte[] exe) => ReadArchive(Unwrap(exe));
+    public static Contents Parse(byte[] exe) => exe.AsSpan().StartsWith("PK"u8)
+        ? ReadLegacyZip(exe) : ReadArchive(Unwrap(exe));
 
     /// <summary>The installer's archive, unpacked: its tzf3 records, back to back (steps 1 and 2 of the class).</summary>
     public static byte[] Unwrap(byte[] exe)
@@ -439,7 +441,7 @@ public static class InstallerUnpack
     // ---- the installers in the player's Downloads ----
 
     /// <summary>
-    /// MordorSetup.exe and MordorDemoSetup.exe in the player's Downloads folder (the known folder,
+    /// Supported ZIP/setup packages in the player's Downloads folder (the known folder,
     /// wherever it has been moved to), the full game's first; for the first-run window to offer.
     /// </summary>
     public static IReadOnlyList<string> InDownloads(string? downloads = null)
