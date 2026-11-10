@@ -1745,6 +1745,17 @@ If slot.M572A = False Then  "Item is not cursed!"   : Exit Sub    ' the slot's c
 If slot.M577E = 0      Then "Item isn't equipped!"  : Exit Sub    ' the slot's equipped bit
 ```
 
+**Uncurse input event ordering (2026-11-09).** `txtUncurse_Change` (FRMCTYS.BAS:937-942)
+invalidates the old quote synchronously; Enter and drag/drop then format the slot caption and
+enable a fresh quote (944-974). Avalonia's queued `TextChanged` ran after that fresh quote,
+clearing its price and greying Uncurse again. The port now observes `TextBox.TextProperty`
+synchronously and writes the new fee after formatting the caption. One Enter or drop retains
+the quote, while a subsequent edit invalidates it immediately. Headless Store regression tests
+exercise a Ball and Chain and a known cursed item through real input/drop and button clicks,
+check the fee is paid once, and reload the saved character to verify equipment, curse flags
+and experience. In the affected build, confirming the already-formatted caption with Enter
+again enables Uncurse; this workaround was also verified through payment and save/reload.
+
 This is the only place in the game that tests the slot flag without also testing equipped - the
 other six reads all pair them - which is what makes both refusals visible and both of them odd.
 

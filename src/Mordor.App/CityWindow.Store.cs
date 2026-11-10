@@ -155,16 +155,20 @@ public partial class CityWindow
             int i = TypedSlot(txtUncurse.Text);
             if (i > 0 && At(i).it is Item it)
             {
-                uncurseCost.Text = $"{(long)Math.Round(0.8 * it.Price / 0.5, MidpointRounding.ToEven):N0}";
                 txtUncurse.Text = Caption(i);
+                uncurseCost.Text = $"{(long)Math.Round(0.8 * it.Price / 0.5, MidpointRounding.ToEven):N0}";
                 uncurseBtn.IsEnabled = true;
             }
             else { uncurseCost.Text = ""; uncurseBtn.IsEnabled = false; }
         }
-        // txtUncurse_Change (937-942): touching the box takes the offer away again
-        txtUncurse.TextChanged += (_, _) =>
+        // txtUncurse_Change (937-942) runs synchronously in VB, before KeyPress enables the new
+        // offer (960-974). Avalonia's queued TextChanged would instead clear that fresh offer
+        // after Enter/drop rewrites the slot number into its caption. Invalidate on the actual
+        // property change, and write the new fee after the caption above.
+        txtUncurse.PropertyChanged += (_, change) =>
         {
-            if (uncurseBtn.IsEnabled) { uncurseBtn.IsEnabled = false; uncurseCost.Text = ""; }
+            if (change.Property == TextBox.TextProperty && uncurseBtn.IsEnabled)
+            { uncurseBtn.IsEnabled = false; uncurseCost.Text = ""; }
         };
 
         // ---------------- Combine Items ----------------

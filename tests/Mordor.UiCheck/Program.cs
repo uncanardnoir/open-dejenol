@@ -41,6 +41,18 @@ Environment.SetEnvironmentVariable("MORDOR_ART_CACHE", artRoot);
 string? artError = Art.Prepare(game);
 if (artError != null) { Console.WriteLine($"  FAIL  the game's art could not be read: {artError}"); return 1; }
 
+if (args.Skip(1).Contains("--uncurse-only"))
+{
+    try { return StoreUncurseCheck.Run(game); }
+    finally
+    {
+        Environment.SetEnvironmentVariable("MORDOR_ART_CACHE", artWas);
+        if (new DirectoryInfo(artRoot).Parent?.FullName != Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.GetTempPath())))
+            throw new InvalidOperationException("Refusing cleanup outside the test art cache.");
+        Directory.Delete(artRoot, true);
+    }
+}
+
 int failed = 0;
 void Check(string what, object? got, object? want)
 {
@@ -2569,6 +2581,8 @@ Console.WriteLine("\nthe program's icon on the windows:");
     catch (Exception ex) { Check("the windows could be shown", ex.GetType().Name + ": " + ex.Message, ""); }
     finally { try { plain?.Close(); helpWin?.Close(); Pump(); } catch { } }
 }
+
+failed += StoreUncurseCheck.Run(game);
 
 Environment.SetEnvironmentVariable("MORDOR_ART_CACHE", artWas);
 try { Directory.Delete(artRoot, true); } catch { }
