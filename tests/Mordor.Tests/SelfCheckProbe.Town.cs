@@ -11,6 +11,7 @@ public static partial class SelfCheckProbe
         Section(() => QuestTargetChecks(dir));
         Section(() => RestockChecks(dir));
         Section(() => PauseChecks());
+        Section(() => MusicChecks(dir));
         Section(() => GiveChecks(dir));
         Section(() => DepositUpdateChecks());
     }
@@ -187,11 +188,92 @@ public static partial class SelfCheckProbe
         Check("the port: effects, the music timer and new tunes all wait while paused",
               audio.Contains("if (FramePause.Paused) return;   // WaveMixActivate")
               && audio.Contains("if (FramePause.Paused) return;   // timMusic_Timer")
-              && audio.Contains("if (FramePause.Paused) { _resumeMusic = path; return; }"), true);
+              && audio.Contains("if (FramePause.Paused) { _resumeMusic = track; return; }"), true);
         Check("the port: the menu and the town frame are watched",
               Norm(PortSource("src/Mordor.App", "TitleWindow.axaml.cs")).Contains("FramePauseWatch.Watch(this);")
               && Norm(PortSource("src/Mordor.App", "CityWindow.axaml.cs")).Contains("FramePauseWatch.Watch(this);")
               && watch.Contains("case FramePause.Change.Paused: Audio.Pause(); break;"), true);
+    }
+
+    /// <summary>A Random whose NextDouble gives the values it is handed, in order.</summary>
+    private sealed class Draws : System.Random
+    {
+        private readonly System.Collections.Generic.Queue<double> _next;
+        public Draws(params double[] values) => _next = new(values);
+        public override double NextDouble() => _next.Dequeue();
+    }
+
+    /// <summary>
+    /// Which tune plays (MUSIC.BAS:79-97, 401-469). A bug report: the title screen played INTRO,
+    /// where frmMenu asks for THEME. The audit behind it found the port also ignored Use Sound
+    /// Canvas MIDI and looped every tune, where the original plays a tune once and sub1A50 chooses
+    /// the next.
+    /// </summary>
+    private static void MusicChecks(string dir)
+    {
+        Console.WriteLine("\nwhich tune plays (MUSIC.BAS:79-97, 401-469)");
+        string Norm(string s) => s.Replace("\r\n", "\n");
+        string music = Norm(PortSource("decompiled-named", "MUSIC.BAS"));
+        string menu = Norm(PortSource("decompiled-named", "FRMMENU.BAS"));
+        Check("FRMMENU.BAS: the title menu asks for track 7",
+              menu.Contains("Const mc0090 = 7 ' &H7%") && menu.Contains("    sub063F mc0090\n    sub2D2E"), true);
+        Check("MUSIC.BAS: track 7 is THEME, or THEMESC with Sound Canvas",
+              music.Contains("gv2164(gc20A4) = \"THEMESC.MID\"") && music.Contains("gv2164(gc20A4) = \"THEME.MID\""), true);
+        Check("MUSIC.BAS: sub1A50 as MusicTrack.Next has it",
+              music.Contains("    If  gv1B52 = False Then\n        sub063F gc20A4\n    Else\n        If  Int(Rnd * 100) <= 25 Then\n            sub063F Val(frmMain!mciMusic.Tag)\n        Else\n            If  Chars(m0112).DungeonLevel = False Then\n                sub063F gv2096\n            Else\n                sub063F Int(Rnd * (gc2094 - 1)) + 1"), true);
+        Check("MUSIC.BAS: sub063F does nothing for the tune in the tag, and turns Notify off",
+              music.Contains("    If  Val(frmMain!mciMusic.Tag) = p01B2 Then\n        Exit Sub\n    End If")
+              && music.Contains("    frmMain!mciMusic.Notify = False\n"), true);
+
+        // the record holds 1 from the walk down (FRMCTYM.BAS:208); the port's follows _level only at
+        // a save or an area change, so below, the level sub1A50 is given is the dungeon's own
+        string cityMenu = Norm(PortSource("decompiled-named", "FRMCTYM.BAS"));
+        string dun = Norm(PortSource("src/Mordor.App", "DungeonWindow.axaml.cs"));
+        Check("FRMCTYM.BAS: the walk down sets the record's DungeonLevel to 1",
+              cityMenu.Contains("            Chars(m0040).DungeonLevel = 1\n"), true);
+        Check("below, the next tune is chosen by the dungeon's level, and the town's comes back after",
+              dun.Contains("        var townLevel = Audio.LeaderLevel;\n        Audio.LeaderLevel = () => _level;\n        Ended += () => Audio.LeaderLevel = townLevel;"), true);
+
+        Check("the files, plain and Sound Canvas",
+              string.Join(",", System.Linq.Enumerable.Select(System.Linq.Enumerable.Range(0, MusicTrack.Count), t => MusicTrack.File(t, false))) + "|"
+              + string.Join(",", System.Linq.Enumerable.Select(System.Linq.Enumerable.Range(0, MusicTrack.Count), t => MusicTrack.File(t, true))),
+              "CITY,MAIN,DUNGEON,INTRO,GENERAL,GEN2,GEN3,THEME|CITYSC,MAINSC,DUNGEOSC,INTROSC,GENERASC,GEN2SC,GEN3SC,THEMESC");
+        Check("no party in play: THEME, and no draw", MusicTrack.Next(MusicTrack.Dungeon, null, new Draws()), MusicTrack.Theme);
+        Check("in play, a first draw of 25 (of 0-99) replays the tag", MusicTrack.Next(MusicTrack.Gen2, 3, new Draws(0.2599)), MusicTrack.Gen2);
+        Check("an empty tag there is Val(\"\") = 0, CITY", MusicTrack.Next(null, 3, new Draws(0.1)), MusicTrack.City);
+        Check("26 or more, in town: CITY", MusicTrack.Next(MusicTrack.Dungeon, 0, new Draws(0.26)), MusicTrack.City);
+        Check("26 or more, below: 1 to 7 from the second draw",
+              MusicTrack.Next(MusicTrack.City, 4, new Draws(0.5, 0.0)) + "," + MusicTrack.Next(MusicTrack.City, 4, new Draws(0.5, 0.9999)),
+              "1,7");
+
+        // THEME.MID's Expression: 0 on every channel at the first tick, never raised; Windows'
+        // synthesizer obeys it and plays the title tune silent, so the port plays an unmuted copy
+        string games = dir;
+        int Expressions(byte[] m, bool zero)
+        {
+            int n = 0;
+            for (int i = 0; i + 2 < m.Length; i++)
+                if ((m[i] & 0xF0) == 0xB0 && m[i + 1] == 11 && (m[i + 2] == 0) == zero) n++;
+            return n;
+        }
+        byte[] theme = System.IO.File.ReadAllBytes(System.IO.Path.Combine(games, "THEME.MID"));
+        byte[]? unmuted = MidiExpression.Unmuted(theme);
+        Check("THEME.MID is unmuted, and only its Expression bytes change",
+              unmuted != null && unmuted.Length == theme.Length
+              && System.Linq.Enumerable.Count(System.Linq.Enumerable.Range(0, theme.Length), i => theme[i] != unmuted[i]) == 5
+              && Expressions(unmuted, zero: true) == 0, true);
+        Check("THEME.MID's five Expression values were 0", Expressions(theme, zero: true), 5);
+        var touched = new System.Collections.Generic.List<string>();
+        foreach (string f in System.IO.Directory.GetFiles(games, "*.MID"))
+            if (MidiExpression.Unmuted(System.IO.File.ReadAllBytes(f)) != null) touched.Add(System.IO.Path.GetFileName(f).ToUpperInvariant());
+        Check("no other tune is touched (GEN3SC's Expression 0s shape its notes)", string.Join(",", touched), "THEME.MID");
+
+        string audio = Norm(PortSource("src/Mordor.App", "Audio.cs"));
+        string title = Norm(PortSource("src/Mordor.App", "TitleWindow.axaml.cs"));
+        Check("the port: the title asks for THEME, nothing asks for INTRO",
+              title.Contains("Audio.Music(MusicTrack.Theme);") && !title.Contains("INTRO"), true);
+        Check("the port: a tune is not looped, the timer chooses with MusicTrack.Next",
+              audio.Contains("seek bgm to start") == false && audio.Contains("Music(MusicTrack.Next(_tag, LeaderLevel?.Invoke(), _rng));"), true);
     }
 
     /// <summary>

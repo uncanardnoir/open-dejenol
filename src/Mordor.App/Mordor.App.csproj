@@ -17,7 +17,7 @@
          release workflow refuses a tag that differs. It names the installer's package, is what
          the update check compares, and is shown on the Mods page. Only the program carries it:
          Mordor.Core and Mordor.Modding, which mods are built against, keep their own. -->
-    <Version>0.1.3</Version>
+    <Version>0.1.4</Version>
   </PropertyGroup>
 
   <ItemGroup>

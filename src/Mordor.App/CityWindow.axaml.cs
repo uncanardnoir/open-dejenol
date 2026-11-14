@@ -133,10 +133,12 @@ public partial class CityWindow : Window
         };
 
         Audio.Init(gameDir);
-        Audio.Music("CITY");
+        // gv1B52 for the music timer, from the party's load to the menu (MAINMOD2.BAS:6308-6317)
+        Audio.LeaderLevel = () => _party.Leader.DungeonLevel;
+        Audio.Music(MusicTrack.City);
         // no HELLO: the port played one on arrival in town, but FRMCTYM.BAS plays no sound at all,
         // and the original's only HELLO is the dungeon's, for strangers on the square (MAZEMOD.BAS:371-372)
-        Closed += (_, _) => Audio.Music("THEME");
+        Closed += (_, _) => Audio.LeaderLevel = null;
         // sub14E0 (MAINMOD2.BAS:3166-3178): "If Chars(Me).DungeonLevel = 0 And Chars(Me).DeathState =
         // False Then frmCityMain.Show", else frmDungeonMain is shown and frmCityMain is never loaded,
         // so its Form_Load - the rest, the ageing, the store turned over (FRMCTYM.BAS:105-134) - does
@@ -2915,7 +2917,7 @@ public partial class CityWindow : Window
         if (win.ExitedToMainMenu) { Save(); Close(); return; }
         // a session end answered Yes from the dungeon has already unloaded the party
         if (OriginalBox.Ending) return;
-        Audio.Music("CITY");
+        Audio.Music(MusicTrack.City);
         // Waiting out a rescue leaves the body at level 0 still in frmDungeonMain: cmdWait_Click ends
         // in sub0930 Me (FRMDUNM.BAS:194), its boxes, and the city is not loaded - no Form_Load, no
         // rest. The rest comes after a raise, when sub14CC shows frmCityMain (MAINMOD2.BAS:3150-3152).

@@ -7203,3 +7203,43 @@ on the previous square, or in the previous room, making Pickup report nobody in 
 the departure round. This does not add a disk write or change No Autosave. A headless
 regression walks into a fatal pit both within a room and across a room boundary, checks
 the saved body location, then picks it up through the normal dialog with autosaves off.
+
+**Which tune plays - corrected 2026-11-12, from a bug report.** The title screen played INTRO.MID; frmMenu's Form_Load
+asks for track 7 (`sub063F mc0090`, mc0090 = 7, FRMMENU.BAS:132), which `sub10AB`'s table makes THEME.MID
+(MUSIC.BAS:401-422). INTRO is asked for once, by `mdrEndProgram` as the program quits (MAINMOD.BAS:935), and closed
+again by fn19DC two lines later. The audit behind the report found two more differences:
+- Use Sound Canvas MIDI (M5F39) was saved and never read. With it, sub10AB names the Sound Canvas files instead:
+  CITYSC, MAINSC, INTROSC, DUNGEOSC, GENERASC, GEN2SC, GEN3SC, THEMESC. Ticking or clearing it stops the player and asks
+  for THEME at once (FRMOPTIO.BAS:110-114).
+- The port looped each place's tune. The original plays a tune once. `sub063F` (MUSIC.BAS:433-469) does nothing when
+  asked for the tune in `mciMusic.Tag`, finished or not; `mciMusic_Done` would reset the tag (FRMMAIN.BAS:122-124), but
+  sub063F turns Notify off before every Open and Play, so it never fires. Every ten seconds with no tune playing,
+  `timMusic` calls `sub1A50` (MUSIC.BAS:79-97): with no party in play THEME, so the menu falls quiet after one THEME;
+  in play, 26 times in 100 the tag's own tune (nothing, or CITY after a minimise emptied the tag), else CITY when the
+  leader (`Chars(m0112)`, a Static never set, so 0) is in town, else a random one of tracks 1 to 7 - MAIN, DUNGEON,
+  INTRO, GENERAL, GEN2, GEN3, THEME. A choice equal to the tag does nothing and the timer asks again ten seconds later.
+  Coming back from minimised runs sub1A50 too (FRMMAIN.BAS:221), where the port restarted the place's tune.
+- The Options window's No Music is live, as the original's box is (FRMOPTIO.BAS:76-87): ticked closes the player,
+  cleared plays THEME. Cancel puts the flags back and stops the player (FRMOPTIO.BAS:138-154), and closing the window
+  either way asks for THEME unless a tune is playing (Form_Unload, FRMOPTIO.BAS:376-387) - so a Cancel in the dungeon
+  changes the tune to THEME, as in the original.
+- The title window no longer restarts the music each time it is activated; the original has no such call.
+`Mordor.Core.MusicTrack` holds the table and sub1A50; `Audio` keeps the tag. Checked by selfcheck (MusicChecks).
+
+**The title tune is heard - the port's own, 2026-11-13.** With the title asking for THEME, it played silent on
+Windows. THEME.MID sets Expression (controller 11) to 0 on all five of its channels at its first tick and never
+raises it; the sound cards of 1995 ignored Expression, and Windows' synthesizer obeys it, so every note of the
+two and a half minutes sounds at nothing - the original under a modern Windows is silent at its menu too, unless
+Use Sound Canvas MIDI is on (THEMESC.MID has no such zeros). The port hands the sequencer a copy, in the temp
+folder, with those five values at 127, the controller's default: the tune as those cards played it. No other
+byte changes, and no other of the sixteen MIDIs is touched - GEN3SC's four Expression 0s are among 512 changes
+that shape its notes. The game folder is never written. `Mordor.Core.MidiExpression`; checked by selfcheck
+(MusicChecks).
+
+**The next tune below - corrected 2026-11-13, from play.** Once the first dungeon tune ended, nothing more played.
+sub1A50 asks the leader's record for the level (MUSIC.BAS:79-97). The original's record holds 1 from the walk down,
+"Chars(m0040).DungeonLevel = 1" (FRMCTYM.BAS:208), and follows the party from there. The port's record follows the
+dungeon's level only at a save or a change of area, so until then it still read 0, the town. The tune after DUNGEON
+was then CITY. Once CITY had played, sub1A50 chose CITY every time: either the tag's own tune or the town's. That
+was the tag, so nothing played. In the dungeon the level sub1A50 is given is now the dungeon's own, and the town's
+comes back on the way out. Checked by selfcheck (MusicChecks).

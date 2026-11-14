@@ -123,6 +123,12 @@ public sealed class OptionsWindow : Window
         var noFx = Box(nameof(GameOptions.NoFX), "No Sound FX", _o.NoFX);
         // the form greys the slider out while its "No" box is ticked
         noMusic.IsCheckedChanged += (_, _) => _music.IsEnabled = noMusic.IsChecked != true;
+        // No Music is live too (chkCheck_Click, Case 1, FRMOPTIO.BAS:76-87): ticked, the player is
+        // closed; cleared, THEME plays
+        noMusic.IsCheckedChanged += (_, _) => Audio.NoMusicChanged(noMusic.IsChecked == true);
+        // Cancel puts both music flags back and stops the player (FRMOPTIO.BAS:138-154); then,
+        // either way, Form_Unload (FRMOPTIO.BAS:376-387)
+        Closed += (_, _) => Audio.OptionsClosed(!Accepted, _o.NoMusic, _o.SoundCanvas);
         // No Sound FX is live (chkCheck_Click, Case 2, FRMOPTIO.BAS:88-99): ticked, the slider greys
         // and mdrDeInitializeFX closes the effects down; cleared, the slider comes back, fn1A08 opens
         // them again and sub09DE plays RAISE - or, if the device will not open, the form's box and
@@ -235,6 +241,10 @@ public sealed class OptionsWindow : Window
                 },
             },
         };
+        // Use Sound Canvas MIDI is live (Case 4, FRMOPTIO.BAS:110-114): the player stopped, the
+        // table filled again and THEME asked for
+        if (_boxes.TryGetValue(nameof(GameOptions.SoundCanvas), out var soundCanvas))
+            soundCanvas.IsCheckedChanged += (_, _) => Audio.SoundCanvasChanged(soundCanvas.IsChecked == true);
     }
 
     private static Control Place(Control c, int column)

@@ -97,9 +97,9 @@ public partial class MainWindow : Window
             Mdata1.LoadFrom(dir); RaceData.LoadFrom(dir);   // real tables from MDATA1
             GuildData.LoadFrom(dir);  // real guild requirements from MDATA1
             Audio.Init(dir);
-            Audio.Music("THEME");
+            Audio.Music(MusicTrack.Theme);
             SoundBox.IsCheckedChanged += (_, _) => Audio.Enabled = SoundBox.IsChecked == true;
-            MusicBox.IsCheckedChanged += (_, _) => { Audio.MusicEnabled = MusicBox.IsChecked == true; if (Audio.MusicEnabled) Audio.Music("THEME"); };
+            MusicBox.IsCheckedChanged += (_, _) => { Audio.MusicEnabled = MusicBox.IsChecked == true; if (Audio.MusicEnabled) Audio.Music(MusicTrack.Theme); };
             MonsterGrid.ItemsSource = MdrLoader.LoadMonsters(P("MDATA5.MDR"));
             ItemGrid.ItemsSource = MdrLoader.LoadItems(P("MDATA3.MDR"));
             SpellGrid.ItemsSource = MdrLoader.LoadSpells(P("MDATA2.MDR"));

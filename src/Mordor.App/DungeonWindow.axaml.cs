@@ -190,7 +190,15 @@ public partial class DungeonWindow : Window
         // level an established game next visits would log "was the first to go to level N"
         if (_dstate.DeepestReached == 0) _dstate.DeepestReached = _map.DeepestVisited;
         Audio.Init(gameDir);
-        Audio.Music("DUNGEON");
+        Audio.Music(MusicTrack.Dungeon);
+        // sub1A50 asks Chars(m0112).DungeonLevel whether the party is in town (MUSIC.BAS:79-97). The
+        // original's record holds the level from the walk down on: "Chars(m0040).DungeonLevel = 1"
+        // (FRMCTYM.BAS:208). The port's record follows _level only at a save or a change of area, so
+        // until then it still said 0, the town. The next tune was then CITY, and once that had
+        // played, CITY every time: it was the tag, and nothing more played. Below, it is _level.
+        var townLevel = Audio.LeaderLevel;
+        Audio.LeaderLevel = () => _level;
+        Ended += () => Audio.LeaderLevel = townLevel;
         _nav = NavFor(_level);
         _nav.SetPosition(x, y);
         // the way the record faces (Chars(Me).Facing, MAIN.TXT:329); the walk down from town sets

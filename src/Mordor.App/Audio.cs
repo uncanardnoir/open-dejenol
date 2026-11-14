@@ -20,40 +20,53 @@ public static class Audio
     public static bool Enabled { get; set; } = true;
     public static bool MusicEnabled { get; set; } = true;
     private static string _dir = "";
-    private static string _currentMusic = "";
     private static bool _muted;
 
     /// <summary>
-    /// The track to start again when the game comes back from minimised, or "" - see
-    /// <see cref="Pause"/>.
+    /// <c>mciMusic.Tag</c>: the <see cref="MusicTrack"/> last opened, which <see cref="Music"/> will
+    /// not play again; null once the player is closed. See <see cref="MusicTrack"/>.
     /// </summary>
-    private static string _resumeMusic = "";
+    private static int? _tag;
+
+    /// <summary>A tune asked for while minimised, started when the game comes back - see <see cref="Pause"/>.</summary>
+    private static int? _resumeMusic;
+
+    /// <summary>M5F39, Use Sound Canvas MIDI: which of <c>sub10AB</c>'s two tables names the files.</summary>
+    private static bool _soundCanvas;
+
+    /// <summary>
+    /// <c>gv1B52</c> and <c>Chars(0).DungeonLevel</c> for <see cref="MusicTrack.Next"/>: the town sets
+    /// it while a party is in play, and null means none is.
+    /// </summary>
+    public static Func<int>? LeaderLevel { get; set; }
+
+    private static readonly Random _rng = new();
 
     /// <summary>
     /// The game was minimised (FRMMAIN.BAS:206-213): <c>mciMusic.Command = "Stop"</c>, then
-    /// <c>"Close"</c>, and with Sound FX on <c>WaveMixActivate(gv20C8, False)</c>
-    /// (MODULE13.BAS:8), which gives up the wave device, so no effect sounds until it is given back.
+    /// <c>"Close"</c> and <c>mciMusic.Tag = ""</c>, and with Sound FX on
+    /// <c>WaveMixActivate(gv20C8, False)</c> (MODULE13.BAS:8), which gives up the wave device, so
+    /// no effect sounds until it is given back.
     /// </summary>
     public static void Pause()
     {
-        if (_currentMusic != "") _resumeMusic = _currentMusic;
         StopMusic();
         Deactivate();
     }
 
     /// <summary>
     /// The game came back (FRMMAIN.BAS:214-226): <c>sub1A50</c> starts the music again and the
-    /// wave device is taken back. sub1A50 (MUSIC.BAS:79-97) chooses a track afresh with Rnd - a
-    /// quarter of the time <c>Val(mciMusic.Tag)</c>, which the minimise has just cleared, else the
-    /// town's tune or a random dungeon one. The port plays one tune per place and has no such
-    /// choice (a difference of its own, not of this pause), so the tune of the place you are in
-    /// starts again from its beginning.
+    /// wave device is taken back. sub1A50 chooses afresh (<see cref="MusicTrack.Next"/>): with the
+    /// tag emptied by the minimise, the menu's THEME, or in play CITY in town and otherwise most
+    /// often a random tune. A tune asked for while minimised starts first, as the original would
+    /// already be playing it, and sub1A50 may then change it.
     /// </summary>
     public static void Resume()
     {
-        string track = _resumeMusic;
-        _resumeMusic = "";
-        if (track != "") Music(Path.GetFileNameWithoutExtension(track));
+        int? track = _resumeMusic;
+        _resumeMusic = null;
+        if (track is int t) Music(t);
+        if (MusicEnabled) Music(MusicTrack.Next(_tag, LeaderLevel?.Invoke(), _rng));
         // WaveMixActivate(gv20C8, True) (FRMMAIN.BAS:223): the device is opened again by the next effect
         if (_channels != null) _channels.Active = true;
         _outFailed = false;
@@ -101,6 +114,7 @@ public static class Audio
     public static void Apply(GameOptions o)
     {
         _options = o;
+        _soundCanvas = o.SoundCanvas;
         SetFxVolume(o.FXVolume);
         if (_muted) return;
         Enabled = !o.NoFX;
@@ -226,6 +240,49 @@ public static class Audio
         Enabled = !noFx;
     }
 
+    /// <summary>
+    /// No Music ticked or cleared in the Options window, at once (chkCheck_Click, Case 1,
+    /// FRMOPTIO.BAS:76-87): ticked, <c>fn19DC</c> stops and closes the player and empties the tag;
+    /// cleared, <c>sub063F</c> plays THEME.
+    /// </summary>
+    public static void NoMusicChanged(bool noMusic)
+    {
+        if (_muted) return;
+        MusicEnabled = !noMusic;
+        if (noMusic) StopMusic();
+        else Music(MusicTrack.Theme);
+    }
+
+    /// <summary>
+    /// Use Sound Canvas MIDI ticked or cleared, at once (Case 4, FRMOPTIO.BAS:110-114): the player
+    /// is stopped, <c>sub10AB</c> fills the table again, and <c>sub063F</c> asks for THEME - which
+    /// does nothing if THEME was the tune, so the menu's music then stays stopped.
+    /// </summary>
+    public static void SoundCanvasChanged(bool soundCanvas)
+    {
+        _soundCanvas = soundCanvas;
+        Mci("stop bgm");
+        Music(MusicTrack.Theme);
+    }
+
+    /// <summary>
+    /// The Options window closing. Cancel first puts both flags back as the form found them, stops
+    /// the player and fills the table again (FRMOPTIO.BAS:138-154). Then, either way,
+    /// <c>Form_Unload</c> (FRMOPTIO.BAS:376-387): with No Music, fn19DC; otherwise THEME, unless a
+    /// tune is still playing.
+    /// </summary>
+    public static void OptionsClosed(bool cancelled, bool noMusic, bool soundCanvas)
+    {
+        if (cancelled)
+        {
+            if (!_muted) MusicEnabled = !noMusic;
+            _soundCanvas = soundCanvas;
+            Mci("stop bgm");
+        }
+        if (!MusicEnabled) StopMusic();
+        else if (!MusicPlaying()) Music(MusicTrack.Theme);
+    }
+
     /// <summary>The minimise: WaveMixActivate(gv20C8, False) (FRMMAIN.BAS:211).</summary>
     private static void Deactivate()
     {
@@ -286,37 +343,74 @@ public static class Audio
         try { mciSendString(cmd, null, 0, IntPtr.Zero); } catch { }
     }
 
-    /// <summary>Loop a MIDI by base name ("CITY", "DUNGEON", "THEME"...). Re-requesting the current track is a no-op.</summary>
-    public static void Music(string name)
+    /// <summary>
+    /// <c>sub063F</c> (MUSIC.BAS:433-469): play a <see cref="MusicTrack"/> once. Nothing happens if
+    /// it is the tag, playing or finished. Otherwise the player is closed, and the file, if there
+    /// is one, opened and played and its number made the tag. A tune does not loop: when it ends,
+    /// <see cref="TickMusic"/> chooses what comes next.
+    /// </summary>
+    public static void Music(int track)
     {
         if (!OperatingSystem.IsWindows()) return;
         if (!MusicEnabled) { StopMusic(); return; }
-        string path = Path.Combine(_dir, name.ToUpperInvariant() + ".MID");
-        if (!File.Exists(path)) return;
         // minimised, the player is closed (FRMMAIN.BAS:207-208): the tune asked for waits for Resume
-        if (FramePause.Paused) { _resumeMusic = path; return; }
-        if (_currentMusic == path) return;
-        StopMusic();
-        Mci($"open \"{path}\" type sequencer alias bgm");
+        if (FramePause.Paused) { _resumeMusic = track; return; }
+        if (_tag == track) return;
+        Mci("stop bgm"); Mci("close bgm");
+        string path = Path.Combine(_dir, MusicTrack.File(track, _soundCanvas) + ".MID");
+        if (!File.Exists(path)) return;
+        Mci($"open \"{Playable(path)}\" type sequencer alias bgm");
         Mci("play bgm");
-        _currentMusic = path;
+        _tag = track;
     }
 
+    /// <summary>
+    /// The file to hand the sequencer: the game's own, or for THEME.MID a copy in the temp folder
+    /// with its Expression set as the sound cards of the time played it (<see cref="MidiExpression"/>).
+    /// The game folder is never written.
+    /// </summary>
+    private static string Playable(string path)
+    {
+        try
+        {
+            byte[]? unmuted = MidiExpression.Unmuted(File.ReadAllBytes(path));
+            if (unmuted == null) return path;
+            string dir = Path.Combine(Path.GetTempPath(), "OpenDejenol");
+            Directory.CreateDirectory(dir);
+            string copy = Path.Combine(dir, Path.GetFileName(path));
+            File.WriteAllBytes(copy, unmuted);
+            return copy;
+        }
+        catch { return path; }
+    }
+
+    /// <summary><c>fn19DC</c> (MUSIC.BAS:291-301): the player stopped and closed, and the tag emptied.</summary>
     public static void StopMusic()
     {
-        if (_currentMusic == "") return;
+        if (!OperatingSystem.IsWindows()) return;
         Mci("stop bgm"); Mci("close bgm");
-        _currentMusic = "";
+        _tag = null;
     }
 
-    /// <summary>Music tracks loop: call from a timer to restart a finished track.</summary>
+    /// <summary><c>mciMusic.Mode = 526</c>, MCI_MODE_PLAY.</summary>
+    private static bool MusicPlaying()
+    {
+        if (!OperatingSystem.IsWindows()) return false;
+        var sb = new System.Text.StringBuilder(64);
+        try { mciSendString("status bgm mode", sb, sb.Capacity, IntPtr.Zero); } catch { return false; }
+        return sb.ToString().Trim() == "playing";
+    }
+
+    /// <summary>
+    /// <c>timMusic_Timer</c> (FRMMAIN.BAS:291-303), every ten seconds: with music on, not paused
+    /// and no tune playing, <c>sub1A50</c> (<see cref="MusicTrack.Next"/>).
+    /// </summary>
     public static void TickMusic()
     {
-        if (_currentMusic == "" || !OperatingSystem.IsWindows()) return;
+        if (!OperatingSystem.IsWindows() || !MusicEnabled) return;
         if (FramePause.Paused) return;   // timMusic_Timer: "If Settings.Paused = False Then" (FRMMAIN.BAS:296)
-        var sb = new System.Text.StringBuilder(64);
-        try { mciSendString("status bgm mode", sb, sb.Capacity, IntPtr.Zero); } catch { return; }
-        if (sb.ToString().Trim() == "stopped") { Mci("seek bgm to start"); Mci("play bgm"); }
+        if (MusicPlaying()) return;
+        Music(MusicTrack.Next(_tag, LeaderLevel?.Invoke(), _rng));
     }
 
     /// <summary>

@@ -64,8 +64,9 @@ public partial class TitleWindow : Window
 
         Audio.Init(GameDir);
         Audio.Apply(GameOptions.Load(GameDir));
-        Audio.Music("INTRO");
-        Activated += (_, _) => Audio.Music("INTRO");
+        // frmMenu's Form_Load: THEME, track 7 (FRMMENU.BAS:132). It plays once; when it ends the
+        // music timer asks for THEME again, which is already the tag, so the menu falls quiet
+        Audio.Music(MusicTrack.Theme);
         FramePauseWatch.Watch(this);   // minimised, the game pauses (FRMMAIN.BAS:202-233)
         ShowMenuState();
 
@@ -434,7 +435,7 @@ public partial class TitleWindow : Window
         var win = new OptionsWindow(GameOptions.Load(GameDir), GameDir);
         await OriginalBox.ShowOver(win, this);
         // the fonts too: the Hall of Records and the next game's windows are drawn in them (UiFonts)
-        if (win.Accepted) { Audio.Apply(GameOptions.Load(GameDir)); UiFonts.Use(GameOptions.Load(GameDir)); Audio.Music("INTRO"); }
+        if (win.Accepted) { Audio.Apply(GameOptions.Load(GameDir)); UiFonts.Use(GameOptions.Load(GameDir)); }
         ShowMenuState();
     }
 
@@ -575,7 +576,8 @@ public partial class TitleWindow : Window
         await ModStartup.WarnIfModsMissing(this, ch);
         Hide();
         var city = new CityWindow(ch, GameDir);
-        city.Closed += (_, _) => { Show(); Audio.Music("INTRO"); };
+        // the game loop over, frmMenu is loaded again and its Form_Load asks for THEME (FRMMENU.BAS:132)
+        city.Closed += (_, _) => { Show(); Audio.Music(MusicTrack.Theme); };
         city.Show();
         await System.Threading.Tasks.Task.CompletedTask;
     }
