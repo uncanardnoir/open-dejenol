@@ -1057,7 +1057,7 @@ public partial class CityWindow : Window
         _serviceKeys = null;
         closing.Key = null;
         ServicePanel.IsVisible = false;
-        ServicePage.Content = null;
+        SetServicePage(null);
         // a child window unloaded hands the activation to the one beneath it: another service
         // still up, the topmost, or the town
         var under = OpenServices.OrderByDescending(o => o.Child.ZIndex).FirstOrDefault();
@@ -2473,7 +2473,7 @@ public partial class CityWindow : Window
             sp.Children.Add(btn); sp.Children.Add(msg);
             visit = Visit;
         }
-        ServicePage.Content = sp;
+        SetServicePage(sp);
 
         if (_arrivedDead)
         {

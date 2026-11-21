@@ -538,8 +538,25 @@ public partial class CityWindow
         ServiceScroll.HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled;
         ServiceScroll.VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled;
         _serviceChild.BodyMargin = new Avalonia.Thickness(0);
-        ServicePage.Content = page.Page;
+        SetServicePage(page.Page);
         if (!was && ServicePanel.IsVisible) PlaceService();
+    }
+
+    /// <summary>
+    /// The service window's page replaced (or, with null, taken down). The keyboard focus is taken
+    /// off the old page first: Avalonia clears the focus of a control only once it is out of the
+    /// tree, and the Store's list (a DataGrid) answers that LostFocus by unloading a focused row
+    /// that had been scrolled out of view - a child removed from the rows' panel in the middle of
+    /// its own detach, which is an ArgumentOutOfRangeException in Visual.OnDetachedFromVisualTreeCore
+    /// (a row clicked, the list wheeled on, then EXIT). Lost while the page still stands, it is harmless.
+    /// </summary>
+    private void SetServicePage(object? content)
+    {
+        if (FocusManager?.GetFocusedElement() is Avalonia.Visual f
+            && Avalonia.VisualTree.VisualExtensions.IsVisualAncestorOf(ServicePage, f)
+            && !Focus())
+            FocusManager.ClearFocus();
+        ServicePage.Content = content;
     }
 
     /// <summary>The service window back to the port's own page: heading strip, margin and scrolling.</summary>
