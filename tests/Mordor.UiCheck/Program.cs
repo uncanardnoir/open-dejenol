@@ -42,12 +42,13 @@ Environment.SetEnvironmentVariable("MORDOR_ART_CACHE", artRoot);
 string? artError = Art.Prepare(game);
 if (artError != null) { Console.WriteLine($"  FAIL  the game's art could not be read: {artError}"); return 1; }
 
-if (args.Skip(1).Any(a => a is "--uncurse-only" or "--m1full-only" or "--body-recovery-only"))
+if (args.Skip(1).Any(a => a is "--uncurse-only" or "--m1full-only" or "--body-recovery-only" or "--store-exit-only"))
 {
     try
     {
         return args.Contains("--m1full-only") ? LegacyInstallerCheck.Run(game)
-            : args.Contains("--body-recovery-only") ? BodyRecoveryCheck.Run(game) : StoreUncurseCheck.Run(game);
+            : args.Contains("--body-recovery-only") ? BodyRecoveryCheck.Run(game)
+            : args.Contains("--store-exit-only") ? StoreExitCheck.Run(game) : StoreUncurseCheck.Run(game);
     }
     finally
     {
@@ -2597,6 +2598,7 @@ Console.WriteLine("\nthe program's icon on the windows:");
 }
 
 failed += StoreUncurseCheck.Run(game);
+failed += StoreExitCheck.Run(game);
 failed += LegacyInstallerCheck.Run(game);
 failed += BodyRecoveryCheck.Run(game);
 
