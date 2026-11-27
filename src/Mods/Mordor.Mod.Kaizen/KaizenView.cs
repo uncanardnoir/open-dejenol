@@ -7,6 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Mordor.Core;
 using Mordor.Modding;
 
@@ -34,6 +35,12 @@ namespace Mordor.Mod.Kaizen;
 /// </summary>
 internal static class KaizenView
 {
+    /// <summary>
+    /// The game's drags as a mod reads them (docs/MODDING.md, ModDragged): an in-process format under
+    /// ModDragged.Format, which matches the game's own by its kind and name.
+    /// </summary>
+    private static readonly DataFormat<ModDragged> Dragged = DataFormat.CreateInProcessFormat<ModDragged>(ModDragged.Format);
+
     // the game's colour roles (ThemeKeys, docs/MODDING.md): one brush each, which the game recolours when
     // the theme changes, so the window follows it with nothing of its own; the Dark colours when no game
     // publishes them (the mod's checks)
@@ -228,7 +235,7 @@ internal static class KaizenView
                 {
                     // the game's own drag distance (Dragging.DragDistance): the system's drag rectangle,
                     // four pixels either way when the platform does not say
-                    var room = TopLevel.GetTopLevel(b)?.PlatformSettings?.GetTapSize(PointerType.Mouse) is { Width: > 0, Height: > 0 } s
+                    var room = b.GetPlatformSettings()?.GetTapSize(PointerType.Mouse) is { Width: > 0, Height: > 0 } s
                         ? s : new Size(4, 4);
                     if (Math.Abs(p.X - d.Start.X) < room.Width && Math.Abs(p.Y - d.Start.Y) < room.Height) return;
                     d.Moving = true;
@@ -345,7 +352,7 @@ internal static class KaizenView
         DragDrop.SetAllowDrop(root, true);
         root.AddHandler(DragDrop.DragOverEvent, (_, e) => Safe("a drag over the window", () =>
         {
-            bool takes = shown != null && !asking && e.Data.Get(ModDragged.Format) is ModDragged;
+            bool takes = shown != null && !asking && e.DataTransfer.TryGetValue(Dragged) is ModDragged;
             e.DragEffects = takes ? DragDropEffects.Link : DragDropEffects.None;
             Mark(takes ? GapAt(v => e.GetPosition(v)) : -1);
             e.Handled = true;
@@ -355,7 +362,7 @@ internal static class KaizenView
         {
             Mark(-1);
             e.Handled = true;
-            if (shown == null || asking || e.Data.Get(ModDragged.Format) is not ModDragged d) return;
+            if (shown == null || asking || e.DataTransfer.TryGetValue(Dragged) is not ModDragged d) return;
             int gap = GapAt(v => e.GetPosition(v));
             // the box is not opened inside the drop: the drag's own loop is still running
             Dispatcher.UIThread.Post(() => SafeAsync("taking a drop", () => TakeDrop(d, gap)));

@@ -13,16 +13,16 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <!-- net10.0 makes NuGet audit transitive packages too: Avalonia 11.2.3's Linux D-Bus library
-       (Tmds.DBus.Protocol 0.20.0, the same one every release so far ships) has this advisory,
-       fixed in 0.21.3; kept as it is until a deliberate Avalonia or D-Bus update -->
+  <!-- crops of CI's own pictures, for the checks of the picture comparison's noise threshold (PictureTools.SelfTest) -->
   <ItemGroup>
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-xrw6-gwf8-vvr9" />
+    <None Include="test-data\**\*.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia.Headless" Version="11.2.3" />
-    <PackageReference Include="Avalonia.Skia" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Headless" Version="12.2.0" />
+    <PackageReference Include="Avalonia.Skia" Version="12.2.0" />
+    <!-- Avalonia 12 has its text shaper apart from Skia: UseSkia names no shaper, so UseHarfBuzz does (the app's UsePlatformDetect brings it) -->
+    <PackageReference Include="Avalonia.HarfBuzz" Version="12.2.0" />
   </ItemGroup>
 
   <ItemGroup>

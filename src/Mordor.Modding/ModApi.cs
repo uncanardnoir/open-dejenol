@@ -329,9 +329,11 @@ public enum ModDragKind { Spell, PackItem }
 /// the spell table (<see cref="ModGame.Spells"/>) or the pack slot (0 is the Hands, and an empty
 /// slot is dragged too).
 ///
-/// The game puts it in the drag's data under <see cref="Format"/> beside its own; a mod's
-/// drop target reads it with Avalonia's <c>e.Data.Get(ModDragged.Format) as ModDragged</c>
-/// (<c>DragDrop.DragOverEvent</c>, <c>DragDrop.DropEvent</c>, the effect <c>Link</c>). It says
+/// The game puts it in the drag's data beside its own, under an in-process format named
+/// <see cref="Format"/>; a mod's drop target makes the same format once,
+/// <c>DataFormat.CreateInProcessFormat&lt;ModDragged&gt;(ModDragged.Format)</c>, and reads it with
+/// <c>e.DataTransfer.TryGetValue(format)</c> (Avalonia 12, API version 18; Avalonia 11's
+/// <c>e.Data.Get(ModDragged.Format)</c> is gone) (<c>DragDrop.DragOverEvent</c>, <c>DragDrop.DropEvent</c>, the effect <c>Link</c>). It says
 /// which line was dragged, nothing more: what the line shows the player (an item's level of
 /// identification included) is the mod's to respect - read <see cref="Slot"/>'s <c>Known</c>
 /// before anything else about the item.

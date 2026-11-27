@@ -561,7 +561,7 @@ public partial class CityWindow
     private void SetServicePage(object? content)
     {
         if (ServicePage.Content is Avalonia.Input.InputElement { IsKeyboardFocusWithin: true })
-            FocusManager?.ClearFocus();
+            FocusManager?.Focus(null);   // Avalonia 11's ClearFocus, which was this call
         ServicePage.Content = content;
         // a crash in town says which window was up, not the dungeon's last key from long before
         CrashLog.Context = content == null ? "in town" : $"in town, {_svc.Key?.ToString() ?? "a service"} open";

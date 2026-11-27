@@ -20,28 +20,18 @@
     <Version>0.1.8</Version>
   </PropertyGroup>
 
-  <!-- net10.0 makes NuGet audit transitive packages too: Avalonia 11.2.3's Linux D-Bus library
-       (Tmds.DBus.Protocol 0.20.0, the same one every release so far ships) has this advisory,
-       fixed in 0.21.3; kept as it is until a deliberate Avalonia or D-Bus update -->
   <ItemGroup>
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-xrw6-gwf8-vvr9" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.2.3" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.2.3" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.3" />
-    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.2.3" />
+    <PackageReference Include="Avalonia" Version="12.2.0" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.2.0" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.2.0" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.2.0" />
+    <!-- the DataGrid has had its own release line since 11.3: 12.1.2 is its newest 12.x -->
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
     <PackageReference Include="MeltySynth" Version="2.4.1" />
     <PackageReference Include="ppy.SDL3-CS" Version="2026.1002.1" />
     <!-- installs and updates (docs/RELEASING.md): the install/update hooks at the top of Main,
          and the update check against the GitHub releases (Updates.cs) -->
     <PackageReference Include="Velopack" Version="1.2.161" />
-    <PackageReference Include="Avalonia.Diagnostics" Version="11.2.3">
-      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
-      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
-    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>

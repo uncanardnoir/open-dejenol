@@ -32,6 +32,7 @@ and the first mod.
 | Colours by role: the game's colours are a short list of roles (`ThemeKeys`: the window's, a list's and a field's grounds, a bevel's lines, the text's ink, the form's navy, blue, maroon and green, a warning's, a name's, a selection's), each with one value in the Light theme - the original's Windows 3.1 palette - and one in the Dark, published as application resources under those names. A mod's window takes its colours from them (`Application.Current.FindResource(ThemeKeys.Text)`), and follows a change of theme with nothing of its own; a colour of a mod's own is drawn as it is in either theme. `ModUI.MessageLineInk` colours a Messages line by role (the Quality of Life mod's color-coded lines: the party green, the foes maroon, a chest a warning's, a join magic), and is asked before `MessageLineColour` - API version 15 | built (2026-11-27, with the Light and Dark themes) |
 | The Action `CombatRound` (each tick of an engaged fight, before any character acts: synchronous, not awaited) with a `CombatRoundContext` - a token for the fight (not the engine), the monster list as shown (`MonsterGroupView`: slot, fn0E23's name for the one in command, the count only where the list shows one, the name for one; no hit points), each member's order (`CombatOrderView`, with `OpeningChest`) and aim, `ByHand(c)` (whether the player has given the member an order by hand in this fight - f, d or space, a number key, Cast or Use, or a spell buffer, with them in command - so a mod giving orders by rules leaves them alone until it ends), and the commands a player gives between ticks for a named member: `Order` (f, d, space), `Cast` (a spell made the order, as a spell buffer fires it), `UseItem` (an item at All made the order), `Aim` (a number key 1-4); `ModHost.CombatRound` and `ModHost.CombatRoundHooked` - API version 16. With no mod hooked, a tick makes no list and no context and the round is the original's | built (2026-10-30, for the Auto-combat mod) |
 | The event `Saved` (`SavePoint`, `SavePointKind`: the game's saves are on disk at a save point - the party back in town up the stairs, after the arrival's save; the game ending, Exit to Main Menu or the program closing, after the city's last save; `ModHost.SavePointReached`) and the action `MainMenuOpened` (`MainMenuContext`: the main menu at the program's start, nothing loaded, after its own start-up boxes and before a preloaded character goes in, with the menu shut while hooks run; the saves folder, `Ask` - the game's box over the menu with the mod's buttons, `OriginalBox.Choose` - and `Quit`; `ModHost.MainMenuOpened`, `ModHost.MainMenuHooked`) - API version 17. With no mod listening or hooked, the city and the menu do exactly what they did | built (2026-10-30, for the iCloud Saves mod) |
+| Avalonia 12 (the game moved from Avalonia 11.2.3 to 12.2.0): a mod with a window, a column or a drop target is built against Avalonia 12.2.0 (`ModApi.AvaloniaMajor`, 12), and one whose assembly references Avalonia of another major version is not loaded - the Mods page says "Cannot be loaded: it was built against Avalonia 11, ... it must be rebuilt against the game's mod API" (`LoadedMod.Refused`; the mods log has the same line), where before it would have loaded and failed later at a call Avalonia 12 took out. The drags' `ModDragged` is read through Avalonia 12's `DataTransfer` (see **Drags** below; `e.Data` and `DataObject` are gone). Nothing else in the mod API changed - API version 18 | built (2026-11-27, the Avalonia 12 port) |
 | Events `BlowLanded`, `HitsChanged`, `FightStarted/Ended`; restyling; data and asset mods | not yet |
 
 The Store's alignment choice is back to the original's lock by default; the unlocked choice is in the Quality of Life
@@ -702,6 +703,9 @@ page even while the mod is off.
 
 A .NET 10 class library referencing `Mordor.Modding` (the API) and, as needed, `Mordor.Core` (the game's types:
 `Character`, `Item`, `Party`...). Mark those references `Private="false"`: the game's own copies are used at run time.
+A mod that uses Avalonia (a window, a party column's control, a drop target) references the same Avalonia the game
+runs, 12.2.0 since API version 18, with `ExcludeAssets="runtime"` (the game's copy is used); the loader turns away a
+mod built against another major version of Avalonia (`ModApi.AvaloniaMajor`) with a line saying it must be rebuilt.
 `src/Mods/Mordor.Mod.QoL/Mordor.Mod.QoL.csproj` is a working example.
 
 ```csharp
@@ -1004,12 +1008,14 @@ public sealed class Entry : Mordor.Modding.IMod
   supplies the box through `ModHost.CastOnWhoBox`, set at start-up (`ModStartup`).
 - **Drags** (API version 4): the drags that set the spell buffers - a line of Objects & Spells' Spells list, or of
   its pack, in town and in the dungeon - carry, beside the game's own payload, a `ModDragged(Kind, Owner, Index)`
-  under the data format `ModDragged.Format` (`"mordor/mod-dragged"`): `Kind` `Spell` or `PackItem`, `Owner` the
+  under an in-process data format named `ModDragged.Format` (`"mordor/mod-dragged"`): `Kind` `Spell` or `PackItem`, `Owner` the
   character whose list it is (the one in command), `Index` the spell's place in `ModGame.Spells` (`SpellIn(spells)`)
   or the pack slot (`Slot`: null for the Hands and an empty slot, which are dragged too). A mod's window takes it with
-  Avalonia's drag and drop: `DragDrop.SetAllowDrop(control, true)`, then in `DragDrop.DragOverEvent` set
-  `e.DragEffects = DragDropEffects.Link` when `e.Data.Get(ModDragged.Format) is ModDragged`, and read it again in
-  `DragDrop.DropEvent`. The game's own drop targets (the buffers, the pack, the Store's fields, the party's names)
+  Avalonia's drag and drop: make the format once, `DataFormat.CreateInProcessFormat<ModDragged>(ModDragged.Format)`
+  (it matches the game's by its kind and name), `DragDrop.SetAllowDrop(control, true)`, then in
+  `DragDrop.DragOverEvent` set `e.DragEffects = DragDropEffects.Link` when `e.DataTransfer.TryGetValue(format) is
+  ModDragged`, and read it again in `DragDrop.DropEvent` (the Kaizen window's `KaizenView.Dragged`). Before API
+  version 18 (Avalonia 11) it was `e.Data.Get(ModDragged.Format)`, which Avalonia 12 no longer has. The game's own drop targets (the buffers, the pack, the Store's fields, the party's names)
   read only their own payload and are unchanged. It names the line, nothing more: what the player was shown of it
   is the mod's to respect - an item's `Slot.Known` before anything else about the item (the Kaizen window refuses an
   item below All before looking at it).

@@ -49,6 +49,7 @@ static class ContrastCheck
             for (int i = 0; i < 6; i++) { Dispatcher.UIThread.RunJobs(); AvaloniaHeadlessPlatform.ForceRenderTimerTick(); }
         }
         _checks.Clear();
+        _weights.Clear();
         // the layout checks shown windows made to fail them first: a check that cannot fail proves nothing
         failed += LayoutCheck.SelfTest(Pump);
         Mdata1.LoadFrom(game); RaceData.LoadFrom(game); GuildData.LoadFrom(game);
@@ -119,6 +120,7 @@ static class ContrastCheck
                     if (!ok) failed++;
                     string picture = Picture(what);
                     Record(picture, null, null, null);
+                    _weights[$"{look}: {what}"] = Reach(root);
                     foreach (var l in low) Record(picture, "contrast", l, null);
                     foreach (var (f, k) in layout) Record(picture, f.Kind, $"{f.Control}: {f.Numbers}", k?.Reason);
                     // MORDOR_SNAPSHOT_DIR: the window as drawn, a PNG apiece, for a before-and-after
@@ -127,7 +129,7 @@ static class ContrastCheck
                         && (root as TopLevel ?? TopLevel.GetTopLevel(root)) is { } top)
                     {
                         Directory.CreateDirectory(shots);
-                        top.CaptureRenderedFrame()?.Save(Path.Combine(shots, picture));
+                        top.CaptureRenderedFrame()?.Save(Path.Combine(shots, picture), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
                     }
                 }
                 void Window(string what, Func<Window> make)
@@ -232,6 +234,7 @@ static class ContrastCheck
             try { Directory.Delete(scratch, true); } catch { }
         }
         // the selection test above must have had text boxes to weigh, or it proved nothing
+        failed += WeightReach();
         bool weighed = _selectionsWeighed > 0;
         Console.WriteLine($"  {(weighed ? "ok  " : "FAIL")}  text boxes' selected text weighed: {_selectionsWeighed}");
         if (!weighed) failed++;
@@ -287,6 +290,51 @@ static class ContrastCheck
             return changed;
         }
         for (int i = 0; i < 4 && Set(); i++) pump();
+    }
+
+    /// <summary>What the weight check reached in a window: runs set bold and set plain, the bold captions in buttons among them, and the MDI windows' titles.</summary>
+    record WeightReached(int Bold, int Plain, int BoldButtons, int Titles);
+
+    static readonly Dictionary<string, WeightReached> _weights = new();
+
+    static WeightReached Reach(Visual root)
+    {
+        var (bold, plain, controls) = LayoutCheck.Weighed(root);
+        bool IsBold(Control c) => c.GetValue(TextElement.FontWeightProperty) >= FontWeight.SemiBold;
+        var captions = root.GetVisualDescendants().OfType<MdiChild>()
+            .Select(m => typeof(MdiChild).GetField("_caption", Any)?.GetValue(m)).OfType<Control>().ToHashSet();
+        return new WeightReached(bold, plain,
+            controls.Count(c => IsBold(c) && c.GetVisualAncestors().OfType<Button>().Any()),
+            controls.Count(captions.Contains));
+    }
+
+    /// <summary>
+    /// The weight check (LayoutCheck.WrongWeight) must have weighed the text it is there for, in each
+    /// theme: the main menu's bold buttons, Create a Character's bold labels and plain figures, the
+    /// Character List, the Hall of Records, the Options window's bold headings and plain text, and the
+    /// MDI windows' bold titles in the town. Returns how many did not.
+    /// </summary>
+    static int WeightReach()
+    {
+        int failed = 0;
+        var wanted = new (string Window, string What, Func<WeightReached, bool> Enough)[]
+        {
+            ("the main menu", "the buttons' bold captions", r => r.BoldButtons > 0),
+            ("Create a Character", "bold labels and plain figures", r => r.Bold > 0 && r.Plain > 0),
+            ("the Character List", "its text", r => r.Bold + r.Plain > 0),
+            ("the Hall of Records", "its bold heading and plain rows", r => r.Bold > 0 && r.Plain > 0),
+            ("the Options window", "bold headings and plain text", r => r.Bold > 0 && r.Plain > 0),
+            ("the town, the character window's Stats tab", "the windows' bold titles", r => r.Titles > 0),
+        };
+        foreach (string look in new[] { "Light", "Dark" })
+            foreach (var (window, what, enough) in wanted)
+            {
+                var r = _weights.GetValueOrDefault($"{look}: {window}");
+                bool ok = r != null && enough(r);
+                Console.WriteLine($"  {(ok ? "ok  " : "FAIL")}  {look}: {window}: the weight check reached {what} ({(r == null ? "not scanned" : $"{r.Bold} bold runs, {r.Plain} plain, {r.BoldButtons} bold button captions, {r.Titles} titles")})");
+                if (!ok) failed++;
+            }
+        return failed;
     }
 
     /// <summary>How many text boxes' selections were weighed: none would mean the check saw no text box at all.</summary>

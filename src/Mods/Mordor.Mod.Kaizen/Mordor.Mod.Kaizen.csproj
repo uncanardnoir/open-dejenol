@@ -13,7 +13,7 @@
     <ProjectReference Include="..\..\Mordor.Modding\Mordor.Modding.csproj" Private="false" />
     <ProjectReference Include="..\..\Mordor.Core\Mordor.Core.csproj" Private="false" />
     <!-- the Kaizen window (the buff lists); the game supplies Avalonia at run time, so none is copied -->
-    <PackageReference Include="Avalonia" Version="11.2.3" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Avalonia" Version="12.2.0" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

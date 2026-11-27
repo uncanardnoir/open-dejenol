@@ -45,9 +45,9 @@ class Program
             .UsePlatformDetect()
             .WithInterFont()
             .LogToTrace();
-        // away from Windows, a face the game names that is not installed is drawn in Liberation
-        // Sans, drawn to Arial's widths, not the system's far wider default (PortFonts)
-        if (PortFonts.StandIn) builder = builder.With(new Avalonia.Media.FontManagerOptions { DefaultFamilyName = PortFonts.Sans });
+        // the faces where the system's are missing or Avalonia's fallback would differ (PortFonts.ManagerOptions):
+        // Liberation Sans away from Windows, Segoe UI for a missing geometric shape on Windows
+        if (PortFonts.ManagerOptions() is { } fonts) builder = builder.With(fonts);
         return builder;
     }
 }

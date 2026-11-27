@@ -178,8 +178,16 @@ public static class ModApi
     /// <summary>The original's own version, "Mordor 1.1" (App.Title in MORDOR.MAK).</summary>
     public const string GameVersion = "1.1";
 
-    /// <summary>Raised whenever a hook is added or its meaning changes.</summary>
-    public const int ApiVersion = 17;
+    /// <summary>Raised whenever a hook is added or its meaning changes, or what a mod is built against changes.</summary>
+    public const int ApiVersion = 18;
+
+    /// <summary>
+    /// The major version of Avalonia the game runs on (API version 18: Avalonia 12). A mod whose
+    /// assembly references Avalonia of another major version is not loaded: Avalonia 12 removed what
+    /// Avalonia 11 had marked obsolete (the drag's DataObject among it), so such a mod would fail at
+    /// its first use of one. The Mods page says it must be rebuilt.
+    /// </summary>
+    public const int AvaloniaMajor = 12;
 
     /// <summary>The file that marks a mod's folder.</summary>
     public const string ManifestFile = "mod.json";

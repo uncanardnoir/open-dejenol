@@ -2,9 +2,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using Avalonia.Media;
 using Avalonia.Media.Fonts;
-using Avalonia.Platform;
 
 namespace Mordor.App;
 
@@ -56,14 +56,12 @@ internal sealed class SansStandIn : IFontCollection
 
     private static bool _ok;
 
-    private readonly Dictionary<(bool Bold, bool Italic), IGlyphTypeface?> _faces = new();
+    private readonly Dictionary<(bool Bold, bool Italic), GlyphTypeface?> _faces = new();
     private readonly FontFamily[] _families = { new(Name) };
 
     public Uri Key => CollectionKey;
 
-    public void Initialize(IFontManagerImpl fontManager) { }
-
-    private IGlyphTypeface? Face(bool bold, bool italic)
+    private GlyphTypeface? Face(bool bold, bool italic)
     {
         if (_faces.TryGetValue((bold, italic), out var f)) return f;
         var style = italic ? FontStyle.Italic : FontStyle.Normal;
@@ -85,14 +83,36 @@ internal sealed class SansStandIn : IFontCollection
         return f;
     }
 
-    public bool TryGetGlyphTypeface(string familyName, FontStyle style, FontWeight weight, FontStretch stretch, out IGlyphTypeface glyphTypeface)
+    public bool TryGetGlyphTypeface(string familyName, FontStyle style, FontWeight weight, FontStretch stretch, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out GlyphTypeface? glyphTypeface)
     {
-        glyphTypeface = null!;
+        glyphTypeface = null;
         if (!string.Equals(familyName, Name, StringComparison.OrdinalIgnoreCase)) return false;
         var f = Face(weight >= FontWeight.SemiBold, style != FontStyle.Normal);
         if (f == null) return false;
         glyphTypeface = f;
         return true;
+    }
+
+    /// <summary>The nearest face is the face: the two weights are the only ones there are.</summary>
+    public bool TryGetNearestMatch(string familyName, FontStyle style, FontWeight weight, FontStretch stretch, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out GlyphTypeface? glyphTypeface) =>
+        TryGetGlyphTypeface(familyName, style, weight, stretch, out glyphTypeface);
+
+    /// <summary>The family's faces: regular and bold, each upright and leaning.</summary>
+    public bool TryGetFamilyTypefaces(string familyName, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out IReadOnlyList<Typeface>? familyTypefaces)
+    {
+        familyTypefaces = null;
+        if (!string.Equals(familyName, Name, StringComparison.OrdinalIgnoreCase)) return false;
+        var family = new FontFamily(Family);
+        familyTypefaces = new[] { FontWeight.Normal, FontWeight.Bold }
+            .SelectMany(w => new[] { FontStyle.Normal, FontStyle.Italic }.Select(s => new Typeface(family, s, w))).ToList();
+        return true;
+    }
+
+    /// <summary>None made here: the bold is Tahoma's own, and a face this collection lacks is the system's to make up.</summary>
+    public bool TryCreateSyntheticGlyphTypeface(GlyphTypeface glyphTypeface, FontStyle style, FontWeight weight, FontStretch stretch, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out GlyphTypeface? syntheticGlyphTypeface)
+    {
+        syntheticGlyphTypeface = null;
+        return false;
     }
 
     public bool TryMatchCharacter(int codepoint, FontStyle style, FontWeight weight, FontStretch stretch,

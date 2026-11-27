@@ -11,7 +11,7 @@ using Avalonia.VisualTree;
 using Mordor.App;
 
 /// <summary>
-/// Is the text all there? Three checks the readability pass (<see cref="ContrastCheck"/>) runs on
+/// Is the text all there, and in its weight? Four checks the readability pass (<see cref="ContrastCheck"/>) runs on
 /// every window it opens, Light and Dark, beside the contrast:
 /// <list type="bullet">
 /// <item><b>glyph</b> - a character no font on this machine can draw. The text is weighed as Avalonia
@@ -27,6 +27,10 @@ using Mordor.App;
 /// <item><b>overflow</b> - a visible control that reaches past its window's client area: the top-level
 /// window's, or an MDI child's (the game's windows inside the town's frame). Only the outermost
 /// control of a chain that overflows is named, and what lies inside a scroller is left to the scroller.</item>
+/// <item><b>weight</b> - text set bold drawn in a face that is not bold, or set plain and drawn bold
+/// (<see cref="WrongWeight"/>): the face each shaped run was given, weighed as the platform made it,
+/// against the weight the run asked for. Avalonia 11.3 swapped the two for Microsoft Sans Serif and
+/// Cascadia Mono, and nothing here saw it.</item>
 /// </list>
 /// Each finding names the window, the theme, the control and the numbers. The ones already known when
 /// the checks were written are listed in <see cref="KnownFindings"/>, each with its reason: they print
@@ -76,6 +80,7 @@ static class LayoutCheck
         found.AddRange(MissingGlyphs(root));
         found.AddRange(ClippedText(root));
         found.AddRange(Overflow(root));
+        found.AddRange(WrongWeight(root));
         return found;
     }
 
@@ -146,7 +151,7 @@ static class LayoutCheck
                         // macOS's Last Resort font has a glyph for every code point: the box that says no font
                         // has it. Fallback lands there for anything nothing else draws, so a character it
                         // draws is missing all the same (the first macOS run found the self-test passing it)
-                        if (!face.TryGetGlyph((uint)cp, out ushort glyph) || glyph == 0 || IsLastResort(face.FamilyName))
+                        if (!face.CharacterToGlyphMap.TryGetGlyph(cp, out ushort glyph) || glyph == 0 || IsLastResort(face.FamilyName))
                             missing[cp] = face.FamilyName;
                     }
                 }
@@ -164,6 +169,119 @@ static class LayoutCheck
         width = 1;
         if (char.IsHighSurrogate(s[i]) && i + 1 < s.Length && char.IsLowSurrogate(s[i + 1])) { width = 2; return char.ConvertToUtf32(s[i], s[i + 1]); }
         return s[i];
+    }
+
+    // ---------------------------------------------------------------- weight
+
+    /// <summary>
+    /// Text drawn in the wrong weight: set bold and drawn in a face that is not bold, or set plain
+    /// (anything under SemiBold) and drawn bold. Each shaped run carries the weight it asked for (its
+    /// properties' typeface, the control's own or a Run's) and the face it was given; the face is
+    /// weighed as the platform made it (<see cref="FaceWeight"/>), not by the weight Avalonia files it
+    /// under, since that is where a mix-up hides. Avalonia 11.3 filed the face DirectWrite returns
+    /// for a bold Microsoft Sans Serif (no real bold) or Cascadia Mono (a variable face) under the
+    /// plain weight the first time bold was asked for: after that plain text was drawn bold, and bold
+    /// text in Avalonia's own thickening of a plain (or, for Cascadia, extra-light) face. A bold of
+    /// Avalonia's own making counts as bold for plain text (it must not be there) and not for bold
+    /// text (it is the faint stand-in).
+    /// </summary>
+    internal static IEnumerable<Finding> WrongWeight(Visual root)
+    {
+        foreach (var s in Texts(root))
+        {
+            var wrong = new SortedSet<string>(StringComparer.Ordinal);
+            foreach (var run in WeighedRuns(s))
+            {
+                bool askedBold = run.Asked >= FontWeight.SemiBold;
+                var (family, weight, made) = FaceWeight(run.Face);
+                bool drawnBold = askedBold ? weight >= (int)FontWeight.SemiBold : weight >= (int)FontWeight.SemiBold || made;
+                if (askedBold == drawnBold) continue;
+                wrong.Add($"set {run.Asked}, drawn in {family} {weight}{(made ? " thickened by Avalonia" : "")}");
+            }
+            if (wrong.Count > 0)
+                yield return new Finding("weight", Name(s.Control, s.Text), string.Join("; ", wrong));
+        }
+    }
+
+    /// <summary>A shaped run of text with a letter or a figure in it: the weight it asked for and the face it got.</summary>
+    record WeighedRun(FontWeight Asked, GlyphTypeface Face);
+
+    static IEnumerable<WeighedRun> WeighedRuns(Shown s)
+    {
+        foreach (var line in s.Layout.TextLines)
+            foreach (var run in line.TextRuns)
+            {
+                // a weight shows in letters and figures; a run of spaces or symbols alone is left out
+                if (run is not ShapedTextRun shaped || run.Properties is null) continue;
+                if (!HasLetter(shaped.Text.Span)) continue;
+                yield return new WeighedRun(run.Properties.Typeface.Weight, shaped.ShapedBuffer.GlyphTypeface);
+            }
+    }
+
+    static bool HasLetter(ReadOnlySpan<char> text)
+    {
+        foreach (char c in text) if (char.IsLetterOrDigit(c)) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// How many runs of text under <paramref name="root"/> the weight check weighed, set bold and set
+    /// plain, and the controls they are in: so a pass can say it reached the text it is meant to.
+    /// </summary>
+    public static (int Bold, int Plain, List<Control> Controls) Weighed(Visual root)
+    {
+        int bold = 0, plain = 0;
+        var controls = new List<Control>();
+        foreach (var s in Texts(root))
+        {
+            bool any = false;
+            foreach (var run in WeighedRuns(s))
+            {
+                if (run.Asked >= FontWeight.SemiBold) bold++; else plain++;
+                any = true;
+            }
+            if (any) controls.Add(s.Control);
+        }
+        return (bold, plain, controls);
+    }
+
+    /// <summary>
+    /// A face's weight as drawn: the platform's own face (Skia's typeface, its weight as the system
+    /// font manager gave it, DirectWrite's made-up bold included) where it can be reached, else the
+    /// weight its platform typeface reports; and whether Avalonia thickens it itself. Avalonia 12 counts a
+    /// bold the platform made (DirectWrite's, for a family with none) among the face's FontSimulations
+    /// without applying it again, so a bold simulation is Avalonia's own only over a face that is not bold.
+    /// </summary>
+    internal static (string Family, int Weight, bool Made) FaceWeight(GlyphTypeface face)
+    {
+        var sk = PlatformFace(face.PlatformTypeface);
+        int weight = sk?.FontWeight ?? (int)face.PlatformTypeface.Weight;
+        bool made = (face.FontSimulations & FontSimulations.Bold) != 0 && weight < (int)FontWeight.SemiBold;
+        return (sk?.FamilyName ?? face.FamilyName, weight, made);
+    }
+
+    /// <summary>The Skia typeface behind a platform typeface: a field of it, or of what it holds, a level down.</summary>
+    internal static SkiaSharp.SKTypeface? PlatformFace(object face)
+    {
+        const System.Reflection.BindingFlags Fields = System.Reflection.BindingFlags.Instance
+            | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+        var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        SkiaSharp.SKTypeface? Search(object o, int depth)
+        {
+            if (!seen.Add(o)) return null;
+            var fields = o.GetType().GetFields(Fields);
+            foreach (var f in fields)
+                if (f.GetValue(o) is SkiaSharp.SKTypeface t) return t;
+            if (depth == 0) return null;
+            foreach (var f in fields)
+            {
+                if (f.FieldType.IsValueType || f.FieldType == typeof(string)) continue;
+                if (f.GetValue(o) is { } v && v.GetType().Assembly.GetName().Name?.StartsWith("Avalonia") == true
+                    && Search(v, depth - 1) is { } found) return found;
+            }
+            return null;
+        }
+        return Search(face, 1);
     }
 
     // ---------------------------------------------------------------- clipped
@@ -374,6 +492,7 @@ static class LayoutCheck
         catch (Exception ex) { Say($"could not run: {ex.GetType().Name}: {ex.Message}", false); }
         finally { try { w.Close(); pump(); } catch { } }
         failed += GlyphShapes(pump);
+        failed += WeightSelfTest(pump);
         return failed;
     }
 
@@ -412,5 +531,143 @@ static class LayoutCheck
         catch (Exception ex) { Say($"could not run: {ex.GetType().Name}: {ex.Message}", false); }
         finally { Glyphs.Override = was; try { w?.Close(); pump(); } catch { } }
         return failed;
+    }
+
+    /// <summary>
+    /// The weight check shown text in its right weight and text in the wrong one. Right: bold and
+    /// plain in the faces the game draws in (Microsoft Sans Serif, Cascadia Mono, MS Sans Serif's
+    /// stand-in, Times New Roman), the bold asked for first, as the 11.3 mix-up needed. Wrong: two
+    /// families of a font collection made here (<see cref="ForcedFaces"/>) that hand back one face
+    /// whatever weight is asked, the plain one for "Forced Plain" and a bold one for "Forced Bold":
+    /// bold text in the first and plain text in the second must be found. Returns how many failed.
+    /// </summary>
+    static int WeightSelfTest(Action pump)
+    {
+        int failed = 0;
+        void Say(string what, bool ok) { Console.WriteLine($"  {(ok ? "ok  " : "FAIL")}  weight check: {what}"); if (!ok) failed++; }
+        Window? w = null;
+        try
+        {
+            var forced = ForcedFaces.Add();
+            var plainFace = forced.Plain;
+            var boldFace = forced.Bold;
+            Say($"the forced faces are a plain one and a bold one ({Describe(plainFace)}; {Describe(boldFace)})",
+                plainFace != null && FaceWeight(plainFace).Weight < 600 && !FaceWeight(plainFace).Made
+                && boldFace != null && FaceWeight(boldFace).Weight >= 600);
+            var stack = new StackPanel { Background = Brushes.White };
+            var right = new List<TextBlock>();
+            foreach (string family in new[] { "Microsoft Sans Serif", "Cascadia Mono", StandInFamily(), "Times New Roman" })
+            {
+                // bold first: the 11.3 mix-up filed the first bold it was asked for as the plain face
+                var bold = new TextBlock { Text = "Bold Caption 12", FontFamily = new FontFamily(family), FontWeight = FontWeight.Bold, Name = "RightBold" };
+                var plain = new TextBlock { Text = "Plain caption 34", FontFamily = new FontFamily(family), FontWeight = FontWeight.Normal, Name = "RightPlain" };
+                right.Add(bold); right.Add(plain);
+            }
+            var boldInPlain = new TextBlock { Text = "Bold asked", FontFamily = new FontFamily(ForcedFaces.PlainFamily), FontWeight = FontWeight.Bold, Name = "BoldInPlain" };
+            var plainInBold = new TextBlock { Text = "Plain asked", FontFamily = new FontFamily(ForcedFaces.BoldFamily), FontWeight = FontWeight.Normal, Name = "PlainInBold" };
+            var plainInPlain = new TextBlock { Text = "Plain in plain", FontFamily = new FontFamily(ForcedFaces.PlainFamily), FontWeight = FontWeight.Normal, Name = "PlainInPlain" };
+            // a bold Run inside plain text, and plain text inside a bold block: each run weighed by its own weight
+            var mixed = new TextBlock { FontFamily = new FontFamily(ForcedFaces.PlainFamily), Name = "MixedRuns" };
+            mixed.Inlines!.Add(new Run("plain words "));
+            mixed.Inlines.Add(new Run("bold words") { FontWeight = FontWeight.Bold });
+            foreach (var t in right.Where(t => t.FontWeight == FontWeight.Bold)) stack.Children.Add(t);
+            w = new Window { Width = 300, Height = 400, Content = stack };
+            w.Show(); pump();
+            // the plain ones after the bold ones are drawn, as a window opened later would be
+            foreach (var t in right.Where(t => !stack.Children.Contains(t))) stack.Children.Add(t);
+            stack.Children.AddRange(new Control[] { boldInPlain, plainInBold, plainInPlain, mixed });
+            pump();
+            var found = WrongWeight(w).ToList();
+            bool Has(string name) => found.Any(f => f.Control.Contains($"({name}"));
+            Say("bold drawn in a plain face is found", Has("BoldInPlain"));
+            Say("plain drawn in a bold face is found", Has("PlainInBold"));
+            Say("a bold Run drawn in a plain face is found", found.Any(f => f.Control.Contains("(MixedRuns") && f.Numbers.Contains("set Bold") && !f.Numbers.Contains("set Normal")));
+            Say("plain in a plain face passes", !Has("PlainInPlain"));
+            Say("bold and plain in the game's faces pass, bold asked first", !Has("RightBold") && !Has("RightPlain"));
+            var weighed = Weighed(w);
+            Say($"every caption weighed ({weighed.Bold} bold runs, {weighed.Plain} plain)", weighed.Controls.Count == stack.Children.Count);
+            Say("and nothing else is found", found.Count == 3);
+            if (found.Count != 3 || Has("RightBold") || Has("RightPlain")) foreach (var f in found) Console.WriteLine("          " + f);
+        }
+        catch (Exception ex) { Say($"could not run: {ex.GetType().Name}: {ex.Message}", false); }
+        finally { try { w?.Close(); pump(); } catch { } }
+        return failed;
+    }
+
+    /// <summary>The family the game draws MS Sans Serif in (UiFonts.Family, its regular and bold from two faces).</summary>
+    static string StandInFamily() => typeof(App).Assembly.GetType("Mordor.App.UiFonts")!.GetMethod("Family")!
+        .Invoke(null, new object[] { Mordor.Core.DesignFont.NonProFace })!.ToString()!;
+
+    static string Describe(GlyphTypeface? face) => face == null ? "none" : FaceWeight(face) is var (family, weight, made) ? $"{family} {weight}{(made ? " thickened" : "")}" : "";
+
+    /// <summary>
+    /// A font collection for the weight check's self-test: "Forced Plain" is the system's plain sans
+    /// face and "Forced Bold" a real bold one, whatever weight is asked of either.
+    /// </summary>
+    sealed class ForcedFaces : Avalonia.Media.Fonts.IFontCollection
+    {
+        public const string PlainName = "Forced Plain", BoldName = "Forced Bold";
+        static readonly Uri CollectionKey = new("fonts:WeightSelfTest");
+        public const string PlainFamily = "fonts:WeightSelfTest#" + PlainName, BoldFamily = "fonts:WeightSelfTest#" + BoldName;
+        static ForcedFaces? _added;
+
+        public GlyphTypeface? Plain { get; private set; }
+        public GlyphTypeface? Bold { get; private set; }
+
+        public static ForcedFaces Add()
+        {
+            if (_added != null) return _added;
+            var c = new ForcedFaces();
+            // the plain face: the sans the game draws in; the bold one a real bold (Tahoma's on Windows,
+            // the default family's elsewhere), whichever the system has with a bold of its own
+            c.Plain = Get("Microsoft Sans Serif", FontWeight.Normal) ?? Get(FontFamily.DefaultFontFamilyName, FontWeight.Normal);
+            c.Bold = new[] { "Tahoma", "Arial", FontFamily.DefaultFontFamilyName }.Select(f => Get(f, FontWeight.Bold))
+                .FirstOrDefault(g => g != null && FaceWeight(g).Weight >= 600 && !FaceWeight(g).Made);
+            FontManager.Current.AddFontCollection(c);
+            return _added = c;
+        }
+
+        static GlyphTypeface? Get(string family, FontWeight weight) =>
+            FontManager.Current.TryGetGlyphTypeface(new Typeface(new FontFamily(family), FontStyle.Normal, weight), out var g) ? g : null;
+
+        readonly FontFamily[] _families = { new(PlainName), new(BoldName) };
+        public Uri Key => CollectionKey;
+        public bool TryGetGlyphTypeface(string familyName, FontStyle style, FontWeight weight, FontStretch stretch, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out GlyphTypeface? glyphTypeface)
+        {
+            glyphTypeface = familyName == PlainName ? Plain : familyName == BoldName ? Bold : null;
+            return glyphTypeface != null;
+        }
+
+        public bool TryGetNearestMatch(string familyName, FontStyle style, FontWeight weight, FontStretch stretch,
+                                       [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out GlyphTypeface? glyphTypeface) =>
+            TryGetGlyphTypeface(familyName, style, weight, stretch, out glyphTypeface);
+
+        public bool TryGetFamilyTypefaces(string familyName, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out IReadOnlyList<Typeface>? familyTypefaces)
+        {
+            familyTypefaces = null;
+            return false;
+        }
+
+        /// <summary>None: the one face is the point.</summary>
+        public bool TryCreateSyntheticGlyphTypeface(GlyphTypeface glyphTypeface, FontStyle style, FontWeight weight, FontStretch stretch,
+                                                    [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out GlyphTypeface? syntheticGlyphTypeface)
+        {
+            syntheticGlyphTypeface = null;
+            return false;
+        }
+
+        public bool TryMatchCharacter(int codepoint, FontStyle style, FontWeight weight, FontStretch stretch,
+                                      string? familyName, CultureInfo? culture, out Typeface typeface)
+        {
+            typeface = default;
+            return false;
+        }
+
+        public int Count => _families.Length;
+        public FontFamily this[int index] => _families[index];
+        public IEnumerator<FontFamily> GetEnumerator() => ((IEnumerable<FontFamily>)_families).GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => _families.GetEnumerator();
+        /// <summary>The faces belong to the system collection, which disposes of them.</summary>
+        public void Dispose() { }
     }
 }

@@ -229,7 +229,7 @@ static class ThemeRegressionCheck
                   gap is >= 1 and <= 4, true);
             if (rows.Children.Count == 2)
             {
-                rows.Children[1].RaiseEvent(new TappedEventArgs(Gestures.TappedEvent, null!));
+                rows.Children[1].RaiseEvent(new TappedEventArgs(InputElement.TappedEvent, null!));
                 Pump();
                 Check("... the second member clicked: the game's selection is the second, and stays so", party.SelectedIndex, 1);
             }
@@ -328,7 +328,7 @@ static class ThemeRegressionCheck
             int fired = -1;
             Action<int> onFire = i => fired = i;
             typeof(CharacterPanel).GetEvent("BufferFired")!.AddEventHandler(panel, onFire);
-            buffers.Children[2].RaiseEvent(new TappedEventArgs(Gestures.TappedEvent, null!));
+            buffers.Children[2].RaiseEvent(new TappedEventArgs(InputElement.TappedEvent, null!));
             typeof(CharacterPanel).GetEvent("BufferFired")!.RemoveEventHandler(panel, onFire);
             Check("Buffers: each line at least lblBuffer's 225 twips (15 pixels), with the lists' padding (they sat tight)",
                   buffers.Children.OfType<Border>().All(b => b.Height >= 15 && b.Height > b.Child!.DesiredSize.Height + 1), true);
@@ -345,7 +345,7 @@ static class ThemeRegressionCheck
                       (pos.GetVisualAncestors().OfType<Button>().Any(), pos.Focusable), (false, false));
                 var downPanel = Field<CharacterPanel>(down, "_charPanel");
                 typeof(DungeonWindow).GetMethod("SetInfoTab", Any)!.Invoke(down, new object[] { CharTab.Stats });
-                pos.RaiseEvent(new TappedEventArgs(Gestures.TappedEvent, null!));
+                pos.RaiseEvent(new TappedEventArgs(InputElement.TappedEvent, null!));
                 Pump();
                 Check("... a click on it opens Look, as lblRoom_Click's F2 does (FRMDUNM.BAS:377-379)", downPanel.Selected, CharTab.Look);
                 // picMonGroups only while a group lives (MONSMOD.BAS:4324-4330): an empty yellow box had

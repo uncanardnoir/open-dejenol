@@ -37,6 +37,23 @@ internal static class PortFonts
 
     public static FontFamily Family(string chain) => new(Chain(chain));
 
+    /// <summary>
+    /// The font manager's options, or null for Avalonia's own. Away from Windows, a face the game names that
+    /// is not installed is drawn in Liberation Sans (<see cref="Sans"/>), drawn to Arial's widths, not the
+    /// system's far wider default. On Windows, a geometric shape the face lacks (the spinners' and the
+    /// combo boxes' ▲ and ▼ in MS Sans Serif) is drawn in Segoe UI, as Windows' own fallback gave it
+    /// with Avalonia 11: Avalonia 12 tries the faces it has already loaded before asking the system, so
+    /// the shape came out in whichever face had been used first - Arial in one window, Cascadia Mono in
+    /// the next - and smaller than it was.
+    /// </summary>
+    public static FontManagerOptions? ManagerOptions() =>
+        StandIn ? new FontManagerOptions { DefaultFamilyName = Sans }
+        : OperatingSystem.IsWindows() ? new FontManagerOptions
+        {
+            FontFallbacks = new[] { new FontFallback { FontFamily = new FontFamily("Segoe UI"), UnicodeRange = new UnicodeRange(0x25A0, 0x25FF) } },
+        }
+        : null;
+
     private static string Twin(string face) => face.ToLowerInvariant() switch
     {
         "microsoft sans serif" or "ms sans serif" or "arial" or "tahoma" or "segoe ui" or "helvetica" or "sans-serif" => Sans,

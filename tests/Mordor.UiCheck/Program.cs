@@ -27,6 +27,7 @@ using Mordor.Core;
 //   Mordor.UiCheck <fixture dir> --playthrough   a scripted game on the fixture alone (PlaythroughCheck)
 //   Mordor.UiCheck --compare <baseline dir> <current dir> <out dir>   CI: two runs' pictures (PictureTools)
 //   Mordor.UiCheck --gallery <artifacts root> <out dir>               CI: every machine's pictures in one page
+//   Mordor.UiCheck --selftest-pictures                                 the checks of those two alone
 
 // --make-fixture <dir>: write the port's invented test game there (FixtureGame) and stop, for CI's
 // pictures of the windows where none of Mordor's files may be (.github/workflows/screenshots.yml)
@@ -40,7 +41,8 @@ if (args.Length == 2 && args[0] == "--make-fixture")
 // (PictureTools). They read and write PNGs only, with no game folder and no window
 if (args.Length > 0 && args[0] == "--compare") return PictureTools.CompareMain(args);
 if (args.Length > 0 && args[0] == "--gallery") return PictureTools.GalleryMain(args);
-
+// --selftest-pictures: the checks of those two tools alone (the full run makes them too, at its end)
+if (args.Length == 1 && args[0] == "--selftest-pictures") return PictureTools.SelfTest() == 0 ? 0 : 1;
 string game = args.Length > 0 ? args[0] : Path.Combine("..", "game_files");
 string mdr = Path.Combine(game, "MDATA11.MDR");
 if (!File.Exists(mdr)) { Console.WriteLine($"  FAIL  no dungeon file at {mdr}"); return 1; }
@@ -54,16 +56,19 @@ if (args.Skip(1).Contains("--playthrough") && !GameFiles.IsFixture(game))
 
 // The fonts as the app sets them up (Mordor.App's Program.BuildAvaloniaApp), so the windows here are
 // drawn - and their text weighed by the layout checks (LayoutCheck) - in the faces a player sees:
-// Inter, the Fluent theme's face (only the first-run window draws in it); and away from Windows,
-// Liberation Sans built in (PortFonts) for any face the game names that is not installed. On
-// Windows that second step is skipped, as in the app
+// Inter, the Fluent theme's face (only the first-run window draws in it); and the font manager's
+// options as the app sets them (PortFonts.ManagerOptions): away from Windows, Liberation Sans built in
+// for any face the game names that is not installed; on Windows, Segoe UI for a geometric shape the
+// face lacks
 var builder = AppBuilder.Configure<App>()
     .UseSkia()
+    // Avalonia 12 keeps text shaping apart from the renderer: UseSkia brings none, and the app's
+    // UsePlatformDetect names HarfBuzz, so this does too
+    .UseHarfBuzz()
     .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
     .WithInterFont();
-if (!OperatingSystem.IsWindows()
-    && typeof(App).Assembly.GetType("Mordor.App.PortFonts")?.GetField("Sans")?.GetRawConstantValue() is string portSans)
-    builder = builder.With(new Avalonia.Media.FontManagerOptions { DefaultFamilyName = portSans });
+if (typeof(App).Assembly.GetType("Mordor.App.PortFonts")?.GetMethod("ManagerOptions")?.Invoke(null, null) is Avalonia.Media.FontManagerOptions portFonts)
+    builder = builder.With(portFonts);
 builder.SetupWithoutStarting();
 
 // The game's pictures and help come out of the game folder, as at the app's start (Art): into a
@@ -688,13 +693,13 @@ top.Close();
 // headless platform has no drag source of its own, so a stand-in one records what a drag would
 // carry and nothing more.
 {
-    var source = new RecordingDragSource();
+    var source = RecordingDragSource.New();
     // AvaloniaLocator.CurrentMutable.Bind<IPlatformDragSource>().ToConstant(source), which are internal
     const BindingFlags Any = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance;
     var locator = typeof(AvaloniaLocator).GetProperty("CurrentMutable", Any)!.GetValue(null)!;
     var helper = typeof(AvaloniaLocator).GetMethods(Any).First(m => m.Name == "Bind" && m.IsGenericMethodDefinition && m.GetParameters().Length == 0)
         .MakeGenericMethod(typeof(Avalonia.Input.Platform.IPlatformDragSource)).Invoke(locator, null)!;
-    helper.GetType().GetMethods(Any).First(m => m.Name == "ToConstant").MakeGenericMethod(typeof(RecordingDragSource)).Invoke(helper, new object[] { source });
+    helper.GetType().GetMethods(Any).First(m => m.Name == "ToConstant").MakeGenericMethod(source.GetType()).Invoke(helper, new object[] { source });
 
     var monsters = MdrLoader.LoadMonsters(Path.Combine(game, "MDATA5.MDR"));
     // three creatures off the sheet's first row and column, so a wrong row or column shows
@@ -797,7 +802,7 @@ top.Close();
 
     string Order() => string.Join(",", Enumerable.Range(0, CompanionSlots.Slots).Select(i => slots[i]?.Name ?? "-"));
     Point At(Visual v) => v.TranslatePoint(new Point(v.Bounds.Width / 2, v.Bounds.Height / 2), page)!.Value;
-    void Drop(Point p, Avalonia.Input.IDataObject data)
+    void Drop(Point p, IDataTransfer data)
     {
         page.DragDrop(p, Avalonia.Input.Raw.RawDragEventType.DragEnter, data, DragDropEffects.Move, RawInputModifiers.None);
         page.DragDrop(p, Avalonia.Input.Raw.RawDragEventType.DragOver, data, DragDropEffects.Move, RawInputModifiers.None);
@@ -2887,16 +2892,25 @@ public sealed class MenuWaitMod : Mordor.Modding.IMod
         ctx.Actions.MainMenuOpened = _ => AppContext.GetData(GateKey) is TaskCompletionSource gate ? gate.Task : Task.CompletedTask;
 }
 
-/// <summary>A drag source that only notes what a drag would carry; the headless platform has none.</summary>
-sealed class RecordingDragSource : Avalonia.Input.Platform.IPlatformDragSource
+/// <summary>
+/// A drag source that only notes what a drag would carry; the headless platform has none. Avalonia 12
+/// closes IPlatformDragSource to outside implementations (a member no class can declare), so this is a
+/// DispatchProxy that implements it at run time: make one with <see cref="New"/>, and bind it under its
+/// own run-time type.
+/// </summary>
+public class RecordingDragSource : DispatchProxy
 {
     public DragPayload? Last;
     /// <summary>The one the Companions page bound, for the town checks after it.</summary>
     public static RecordingDragSource? Bound;
     public RecordingDragSource() => Bound = this;
-    public Task<DragDropEffects> DoDragDrop(PointerEventArgs triggerEvent, Avalonia.Input.IDataObject data, DragDropEffects allowedEffects)
+    public static RecordingDragSource New() =>
+        (RecordingDragSource)(object)Create<Avalonia.Input.Platform.IPlatformDragSource, RecordingDragSource>();
+
+    // DoDragDropAsync(PointerPressedEventArgs trigger, IDataTransfer data, DragDropEffects allowed), the one call it has
+    protected override object? Invoke(MethodInfo? method, object?[]? args)
     {
-        Last = data.Get(DragPayload.Format) as DragPayload;
+        Last = args is { Length: 3 } && args[1] is IDataTransfer data ? data.TryGetValue(DragPayload.DragFormat) : null;
         return Task.FromResult(DragDropEffects.None);
     }
 }

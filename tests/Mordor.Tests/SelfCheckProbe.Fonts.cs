@@ -139,6 +139,7 @@ public static partial class SelfCheckProbe
         {
             ["UiFonts.cs"] = "the mechanism itself",
             ["SansStandIn.cs"] = "the mechanism itself: the faces MS Sans Serif is drawn in",
+            ["PortFonts.cs"] = "the mechanism itself: the faces drawn where the system lacks the game's, and the font manager's fallback",
             ["AboutWindow.cs"] = "frmAbout and VbForm, its helpers: the callers on a restyled form (Exchange, Hall) put UiFonts over what they build",
             ["ControlPanelWindow.cs"] = "the port's own Control Panel layout, not frmControlPanel's",
             ["HelpWindow.axaml"] = "the help viewer, WinHelp's and not a form",

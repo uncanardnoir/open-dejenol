@@ -871,18 +871,18 @@ static class PlaythroughCheck
     /// <summary>The headless platform has no drag source: a stand-in that notes what a drag carries (as Program.cs binds it).</summary>
     static void BindDragSource()
     {
-        _drag = RecordingDragSource.Bound ?? new RecordingDragSource();
+        _drag = RecordingDragSource.Bound ?? RecordingDragSource.New();
         var locator = typeof(AvaloniaLocator).GetProperty("CurrentMutable", Any)!.GetValue(null)!;
         var helper = typeof(AvaloniaLocator).GetMethods(Any).First(m => m.Name == "Bind" && m.IsGenericMethodDefinition && m.GetParameters().Length == 0)
             .MakeGenericMethod(typeof(Avalonia.Input.Platform.IPlatformDragSource)).Invoke(locator, null)!;
-        helper.GetType().GetMethods(Any).First(m => m.Name == "ToConstant").MakeGenericMethod(typeof(RecordingDragSource)).Invoke(helper, new object[] { _drag });
+        helper.GetType().GetMethods(Any).First(m => m.Name == "ToConstant").MakeGenericMethod(_drag.GetType()).Invoke(helper, new object[] { _drag });
     }
 
     static void Shot(string name, TopLevel top)
     {
         if (_shots == null) return;
         Pump();
-        top.CaptureRenderedFrame()?.Save(Path.Combine(_shots, name + ".png"));
+        top.CaptureRenderedFrame()?.Save(Path.Combine(_shots, name + ".png"), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
     }
 
     static T Field<T>(object o, string name)

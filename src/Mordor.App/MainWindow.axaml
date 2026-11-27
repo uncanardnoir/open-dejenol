@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:app="clr-namespace:Mordor.App"
+        xmlns:core="clr-namespace:Mordor.Core;assembly=Mordor.Core"
         x:Class="Mordor.App.MainWindow"
         Title="OpenDejenol — Data Browser"
         Width="1100" Height="720"
@@ -22,7 +23,7 @@
 
         <TabControl>
             <TabItem Header="Monsters">
-                <DataGrid x:Name="MonsterGrid" IsReadOnly="True" GridLinesVisibility="All"
+                <DataGrid x:Name="MonsterGrid" x:DataType="core:Monster" IsReadOnly="True" GridLinesVisibility="All"
                           CanUserSortColumns="True" AutoGenerateColumns="False">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60"/>
@@ -39,7 +40,7 @@
             </TabItem>
 
             <TabItem Header="Items">
-                <DataGrid x:Name="ItemGrid" IsReadOnly="True" GridLinesVisibility="All"
+                <DataGrid x:Name="ItemGrid" x:DataType="core:Item" IsReadOnly="True" GridLinesVisibility="All"
                           CanUserSortColumns="True" AutoGenerateColumns="False">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60"/>
@@ -55,7 +56,7 @@
             </TabItem>
 
             <TabItem Header="Spells">
-                <DataGrid x:Name="SpellGrid" IsReadOnly="True" GridLinesVisibility="All"
+                <DataGrid x:Name="SpellGrid" x:DataType="core:Spell" IsReadOnly="True" GridLinesVisibility="All"
                           CanUserSortColumns="True" AutoGenerateColumns="False">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60"/>

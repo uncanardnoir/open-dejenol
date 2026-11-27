@@ -90,7 +90,7 @@ Alongside: hosting set up, telemetry once the Cloudflare account exists, and Dec
 | Area | State | Mobile impact |
 |---|---|---|
 | Rules (`Mordor.Core`) | .NET 10, no UI, one Windows call (`lstrcmpiW` in LibrarySearch, which already has a managed fallback) | Runs as-is on Android/iOS |
-| UI framework | Avalonia 11.2.3 | Avalonia has Android and iOS targets; the same XAML/C# compiles |
+| UI framework | Avalonia 12.2.0 | Avalonia has Android and iOS targets; the same XAML/C# compiles |
 | Window model | Already one top-level window with an MDI frame inside (`MdiFrame`) | Good: mobile apps have one view. But many dialogs are separate `Window`s (OriginalBox, NamePicker, PasswordBox, Options, Help, Exchange, Hall, Mods, a mod's settings window) and must become in-view overlays |
 | Code structure | `CityWindow` / `DungeonWindow` are large code-behind classes mixing layout, input and game flow | The main cost: a phone layout needs the flow separated from the desktop layout |
 | Audio | Done: effects through the port's own 8-channel mixer out via SDL3 (`AudioOut`) everywhere; MIDI through Windows' own player (MCI) on Windows by default, otherwise MeltySynth with the bundled TimGM6mb SoundFont (`MidiPlayer`; Options: Use built-in soundfont) | - |

@@ -21,7 +21,7 @@ public static class KeyboardHome
         w.Activated += (_, _) =>
         {
             if (w.FocusManager?.GetFocusedElement() is Visual v && TopLevel.GetTopLevel(v) != w)
-                w.FocusManager.ClearFocus();
+                w.FocusManager.Focus(null);   // Avalonia 11's ClearFocus, which was this call
         };
     }
 }

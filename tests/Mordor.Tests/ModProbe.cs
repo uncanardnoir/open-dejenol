@@ -345,6 +345,9 @@ public static partial class ModProbe
             // ---- switching mods on and off on the main menu (ModProbe.Switch.cs) ----
             SwitchChecks(scratch, bundled, items, Lookup);
 
+            // ---- a mod built against another Avalonia (ModProbe.Avalonia.cs) ----
+            AvaloniaChecks(scratch);
+
             // ---- mods that throw ----
             Console.WriteLine("mods that throw:");
             string bad = Path.Combine(scratch, "mods");

@@ -12,8 +12,22 @@ namespace Mordor.App;
 /// </summary>
 public sealed record DragPayload(DragKind Kind, int Index)
 {
-    /// <summary>The name the payload travels under in a <see cref="DataObject"/>.</summary>
+    /// <summary>The name the payload travels under in a drag's <see cref="DataTransfer"/>.</summary>
     public const string Format = "mordor/dragged";
+
+    /// <summary>
+    /// The payload as a drag carries it: an in-process format, the object itself handed across within
+    /// the one program (Avalonia 12's DataTransfer, which took the place of its DataObject).
+    /// </summary>
+    public static readonly DataFormat<DragPayload> DragFormat = DataFormat.CreateInProcessFormat<DragPayload>(Format);
+
+    /// <summary>
+    /// The same line as a mod reads it (<see cref="Mordor.Modding.ModDragged"/>, docs/MODDING.md): a mod
+    /// makes the same in-process format under <see cref="Mordor.Modding.ModDragged.Format"/>, and the two
+    /// match by their kind and name.
+    /// </summary>
+    public static readonly DataFormat<Mordor.Modding.ModDragged> ModFormat =
+        DataFormat.CreateInProcessFormat<Mordor.Modding.ModDragged>(Mordor.Modding.ModDragged.Format);
 
     /// <summary>A pack slot, which is what a buffer stores directly.</summary>
     public static DragPayload Item(int packSlot) => new(DragKind.Item, packSlot);
@@ -67,17 +81,20 @@ public sealed record DragPayload(DragKind Kind, int Index)
     /// </summary>
     public Mordor.Core.Character? Owner { get; init; }
 
-    public static DragPayload? From(DragEventArgs e) => e.Data.Get(Format) as DragPayload;
+    public static DragPayload? From(DragEventArgs e) => e.DataTransfer.TryGetValue(DragFormat);
 
-    public DataObject Wrapped()
+    /// <summary>The drag's data: this payload, and for a mod a <see cref="Mordor.Modding.ModDragged"/> beside it.</summary>
+    public DataTransfer Wrapped()
     {
-        var d = new DataObject();
-        d.Set(Format, this);
+        var d = new DataTransferItem();
+        d.Set(DragFormat, this);
         // and for a mod's window, the same line as a ModDragged (docs/MODDING.md, ctx.Game)
         if (Owner != null && Kind is DragKind.Item or DragKind.Spell)
-            d.Set(Mordor.Modding.ModDragged.Format, new Mordor.Modding.ModDragged(
+            d.Set(ModFormat, new Mordor.Modding.ModDragged(
                 Kind == DragKind.Spell ? Mordor.Modding.ModDragKind.Spell : Mordor.Modding.ModDragKind.PackItem, Owner, Index));
-        return d;
+        var data = new DataTransfer();
+        data.Add(d);
+        return data;
     }
 }
 
@@ -156,7 +173,7 @@ public static class Dragging
     /// pixels unless changed), or four when the platform does not say.
     /// </summary>
     private static Avalonia.Size DragDistance(Control from) =>
-        TopLevel.GetTopLevel(from)?.PlatformSettings?.GetTapSize(PointerType.Mouse) is { Width: > 0, Height: > 0 } s
+        Avalonia.VisualTree.VisualExtensions.GetPlatformSettings(from)?.GetTapSize(PointerType.Mouse) is { Width: > 0, Height: > 0 } s
             ? s : new Avalonia.Size(4, 4);
 
     /// <remarks>
@@ -205,6 +222,9 @@ public static class Dragging
     private static void SourceCore(Control from, Func<PointerPressedEventArgs, bool> pressedOn, Func<DragPayload?> what)
     {
         Avalonia.Point? pressedAt = null;   // where the left button went down, in the window's pixels
+        // the press itself: Avalonia 12 starts a drag from the press that began it (DoDragDropAsync takes
+        // a PointerPressedEventArgs), while the original starts it once the pointer has moved
+        PointerPressedEventArgs? press = null;
         bool dragging = false;
         Avalonia.Point Where(PointerEventArgs e) =>
             TopLevel.GetTopLevel(from) is TopLevel top ? e.GetPosition(top) : e.GetPosition(from);
@@ -215,6 +235,7 @@ public static class Dragging
             pressedAt = e.GetCurrentPoint(from).Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed
                         && e.ClickCount < 2 && pressedOn(e)
                         ? Where(e) : null;
+            press = pressedAt != null ? e : null;
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         from.AddHandler(InputElement.PointerReleasedEvent, (_, _) => pressedAt = null,
                         Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -232,10 +253,12 @@ public static class Dragging
             if (Math.Abs(now.X - start.X) < room.Width && Math.Abs(now.Y - start.Y) < room.Height) return;
             if (what() is not DragPayload p) return;
             pressedAt = null;
+            var trigger = press!;
+            press = null;
             dragging = true;
             try
             {
-                await DragDrop.DoDragDrop(e, p.Wrapped(), DragDropEffects.Move | DragDropEffects.Link);
+                await DragDrop.DoDragDropAsync(trigger, p.Wrapped(), DragDropEffects.Move | DragDropEffects.Link);
             }
             catch (Exception ex)
             {

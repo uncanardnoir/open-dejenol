@@ -682,7 +682,7 @@ public static partial class ModProbe
         Check("a switch and a redraw: told each time", told, 3);
         // AskCastOnWho: the game's own box, for a mod's window (API version 4)
         var someSpell = spells.First(s => s.Name.Trim() != "");
-        Check("API version 17 (7: IModLifecycle, mods switched on and off on the main menu; 8: ExperienceGained; 9: MessageLineColour; 10: choice settings; 11: settings windows; 12: PartyGoldTo gone, TownIncomeBank, the arrival Party Pool, ShortfallAnswer.From, option tooltips; 13: the Automap hooks; 14: AutomapView.You and Record, AutomapInfo; 15: MessageLineInk and the colour roles, ThemeKeys; 16: CombatRound, ByHand, CombatRoundHooked; 17: Saved and MainMenuOpened with the menu shut)", ModApi.ApiVersion, 17);
+        Check("API version 18 (7: IModLifecycle, mods switched on and off on the main menu; 8: ExperienceGained; 9: MessageLineColour; 10: choice settings; 11: settings windows; 12: PartyGoldTo gone, TownIncomeBank, the arrival Party Pool, ShortfallAnswer.From, option tooltips; 13: the Automap hooks; 14: AutomapView.You and Record, AutomapInfo; 15: MessageLineInk and the colour roles, ThemeKeys; 16: CombatRound, ByHand, CombatRoundHooked; 17: Saved and MainMenuOpened with the menu shut; 18: Avalonia 12 - mods built against it, the drags read through DataTransfer, a mod built against Avalonia 11 refused)", ModApi.ApiVersion, 18);
         Check("no box (headless): Cancel", game.AskCastOnWho(someSpell).GetAwaiter().GetResult() == null, true);
         string asked = "";
         int answer = 1, startedOn = -1;
@@ -717,7 +717,7 @@ public static partial class ModProbe
               "True True True");
         string payload = PortSource("src/Mordor.App", "DragPayload.cs");
         Check("the game's drags carry it beside their own, for spell and pack lines with an owner",
-              payload.Contains("d.Set(Mordor.Modding.ModDragged.Format, new Mordor.Modding.ModDragged(") && payload.Contains("if (Owner != null && Kind is DragKind.Item or DragKind.Spell)"), true);
+              payload.Contains("d.Set(ModFormat, new Mordor.Modding.ModDragged(") && payload.Contains("DataFormat.CreateInProcessFormat<Mordor.Modding.ModDragged>(Mordor.Modding.ModDragged.Format)") && payload.Contains("if (Owner != null && Kind is DragKind.Item or DragKind.Spell)"), true);
         foreach (var (file, spellLine) in new[] { ("CityWindow.Mdi.cs", "DragPayload.Spell(_known[i].SpellIndex) with { Owner = _ch }"), ("DungeonWindow.Mdi.cs", "DragPayload.Spell(SpellIndexOf(_sheetSpells[i].Spell)) with { Owner = _ch }") })
             Check($"... {file}: the Spells list and the pack name the one in command as their owner",
                   PortSource("src/Mordor.App", file).Contains(spellLine) && PortSource("src/Mordor.App", file).Contains("DragPayload.Item(i) with { Owner = _ch }"), true);
@@ -745,14 +745,14 @@ public static partial class ModProbe
               PortSource("src/Mordor.App", "TitleWindow.axaml.cs").Contains("await new ModsWindow(atMainMenu: true).ShowDialog(this);"), true);
         string view = PortSource("src/Mods", "Mordor.Mod.Kaizen", "KaizenView.cs");
         Check("the Kaizen window: no drop-downs, nothing that takes the keyboard; a drop read as the game's ModDragged, the box asked after the drop",
-              !view.Contains("ComboBox") && !view.Contains("Focus()") && view.Contains("e.Data.Get(ModDragged.Format) is not ModDragged d")
+              !view.Contains("ComboBox") && !view.Contains("Focus()") && view.Contains("e.DataTransfer.TryGetValue(Dragged) is not ModDragged d") && view.Contains("DataFormat.CreateInProcessFormat<ModDragged>(ModDragged.Format)")
               && view.Contains("Dispatcher.UIThread.Post(() => SafeAsync(\"taking a drop\", () => TakeDrop(d, gap)));"), true);
         Check("the Kaizen window: one \"Cast on Who?\" box at a time; a drop off the rows' visible area goes to the end; the game's drag distance",
               view.Contains("if (shown is not { } owner || asking || at >= rows.Count) return;") && view.Contains("if (shown is not { } owner || asking) return;")
               && view.Contains("bool takes = shown != null && !asking &&")
               && view.Contains("if (scrollRef == null || !new Rect(scrollRef.Bounds.Size).Contains(at(scrollRef))) return rowViews.Count;")
               && view.Contains("Save(BuffEdits.Insert(now, BuffEdits.GapAfter(before, now, gap), row));")
-              && view.Contains("PlatformSettings?.GetTapSize(PointerType.Mouse)"), true);
+              && view.Contains("GetPlatformSettings()?.GetTapSize(PointerType.Mouse)"), true);
         Check("the dungeon's held-key replay waits for its dialogs; a mod's window is a child in the frame, not a window it owns",
               PortSource("src/Mordor.App", "DungeonWindow.axaml.cs").Contains("while (!_ended && DialogOwner.OwnedWindows.Any(w => w.IsVisible))")
               && PortSource("src/Mordor.App", "ModWindows.cs").Contains("var child = host.Add(w.Title, body, 0, 0, DefaultWidth, DefaultHeight);"), true);

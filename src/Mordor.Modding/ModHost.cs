@@ -31,6 +31,8 @@ public sealed class LoadedMod
     /// <summary>Disabled for the rest of the session because it threw; see <see cref="FaultReason"/>.</summary>
     public bool Faulted { get; internal set; }
     public string? FaultReason { get; internal set; }
+    /// <summary>Why it was not loaded at all, when it was built against what the game no longer runs on (another Avalonia), or null.</summary>
+    public string? Refused { get; internal set; }
     /// <summary>"Class.Method (prefix)" for each Harmony patch it has in place (made while loading or enabling).</summary>
     public List<string> Patches { get; } = new();
     /// <summary>The mod's entry object, once made.</summary>
@@ -100,6 +102,9 @@ internal sealed class ModLoadContext : AssemblyLoadContext
         return File.Exists(candidate) ? LoadFromAssemblyPath(candidate) : null;
     }
 }
+
+/// <summary>A mod turned away before any of it ran: built against another Avalonia (<see cref="ModHost.AvaloniaRefusal"/>).</summary>
+internal sealed class ModRefusedException(string message) : Exception(message);
 
 /// <summary>
 /// The mod loader and the one place the game asks its hooks. docs/MODDING.md is the design.
@@ -249,9 +254,29 @@ public sealed class ModHost
         if (!File.Exists(dll)) throw new FileNotFoundException("the mod's assembly is not there", dll);
         var alc = new ModLoadContext(d.Id, d.Directory);
         var asm = alc.LoadFromAssemblyPath(System.IO.Path.GetFullPath(dll));
+        // built against another Avalonia: refused before anything of it runs (ModApi.AvaloniaMajor)
+        if (AvaloniaRefusal(asm.GetReferencedAssemblies()) is string refused) throw new ModRefusedException(refused);
         var type = asm.GetType(d.Manifest.EntryType, throwOnError: true)!;
         _entryTypes[d.Id] = type;
         return type;
+    }
+
+    /// <summary>
+    /// Why a mod whose assembly references these cannot be loaded, or null: an Avalonia assembly of
+    /// another major version than the game's (<see cref="ModApi.AvaloniaMajor"/>). Avalonia 12 took
+    /// out what 11 had marked obsolete, so a mod built against 11 would load and then fail at the first
+    /// call that is gone - in a drag, say, long after it was switched on. It is turned away at once instead,
+    /// with a line that says what to do.
+    /// </summary>
+    internal static string? AvaloniaRefusal(IEnumerable<AssemblyName> references)
+    {
+        var other = references
+            .Where(r => r.Name != null && (r.Name == "Avalonia" || r.Name.StartsWith("Avalonia.", StringComparison.Ordinal))
+                        && r.Version is { } v && v.Major != ModApi.AvaloniaMajor)
+            .Select(r => r.Version!.Major).Distinct().Order().ToList();
+        if (other.Count == 0) return null;
+        return $"it was built against Avalonia {string.Join(" and ", other)}, and this version of the game runs on Avalonia {ModApi.AvaloniaMajor}: "
+             + $"it must be rebuilt against the game's mod API (version {ModApi.ApiVersion}, docs/MODDING.md)";
     }
 
     /// <summary>The mod's assembly loaded in a context of its own, and its entry object made.</summary>
@@ -307,6 +332,16 @@ public sealed class ModHost
                 Problem($"mod {d.Id}: built for game version {d.Manifest.GameVersion}, this is {ModApi.GameVersion}; loading anyway");
             mod.Load(ctx);
             _log($"mod {d.Id}: loaded {d.Manifest.Title} from {d.Directory}");
+        }
+        catch (ModRefusedException no)
+        {
+            // not a fault of the mod's code: nothing of it ran, so no stack trace and no patches to take out
+            lm.Faulted = true;
+            lm.Refused = no.Message;
+            lm.FaultReason = no.Message;
+            Problem($"mod {d.Id}: not loaded - {no.Message}");
+            try { Changed?.Invoke(); } catch { }
+            return lm;
         }
         catch (Exception ex)
         {
@@ -405,6 +440,7 @@ public sealed class ModHost
         if (d == null) return "Not found.";
         if (d.Problem != null) return "Cannot be loaded: " + d.Problem;
         var lm = _loaded.FirstOrDefault(l => l.Id == d.Id);
+        if (lm is { Refused: { } refused }) return "Cannot be loaded: " + refused + ".";
         if (lm is { Faulted: true }) return "Switched off for this session because it went wrong (" + lm.FaultReason + "). See crash.log.";
         bool running = lm is { Running: true };
         if (running == enabledNow) return running ? "Running." : "Off.";

@@ -15,7 +15,7 @@
 
         <Border x:Name="TopicPane" DockPanel.Dock="Left" Width="300" Padding="8">
             <DockPanel>
-                <TextBox DockPanel.Dock="Top" x:Name="SearchBox" Watermark="Search" Margin="0,0,0,6"/>
+                <TextBox DockPanel.Dock="Top" x:Name="SearchBox" PlaceholderText="Search" Margin="0,0,0,6"/>
                 <ListBox x:Name="TopicList"/>
             </DockPanel>
         </Border>
