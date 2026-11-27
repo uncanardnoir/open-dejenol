@@ -5243,6 +5243,14 @@ part way through a write keeps the last good file. Still the port's: when fn0D4D
 file holds sub0C79's cleared records, where the port stores the part-made room - the records sub0A91 goes on with
 and the next fn0F88 writes anyway. `selfcheck` "the level's file written".
 
+**A file per level, written only when it changed - 2026-11-27.** The port kept every level's rooms in one
+dungeon.json and wrote all of it, 2.4 MB on a 12-level world, at each fn0F88 point and each autosave: up to three
+times on entering a room, on the UI thread, and the walk stuttered. The original Puts only the record it changed. Each
+level now has a file of its own (dungeon-01.json, ...; docs/GAME_FILES.md, "The dungeon's files"), and a save writes
+only the levels whose rooms or tally changed since their file was written - nothing at all when nothing did. Which
+points save, and what the files hold, did not change: every save point still writes what changed, at once, whole
+or not at all (SafeFile). `selfcheck` "the dungeon's files".
+
 **What that means in play:**
 - A group you walked away from keeps its losses and its front member's wounds.
 - An emptied room shows its unopened chest when you come back.

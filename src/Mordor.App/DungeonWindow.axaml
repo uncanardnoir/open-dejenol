@@ -144,8 +144,11 @@
                         picMonsters: 1665,45 5490x2145. Monsters on this square, whether or not they
                         have engaged. The original never covers the view with a combat box, because
                         combat runs on a timer and a box you had to dismiss would be wrong.
+                        It is up from Form_Load (FRMDUNM.BAS:273), monsters or none, and hidden only on
+                        the dead screen (MAINMOD2.BAS:3056) until a raise (3140): what comes and goes
+                        with the monsters is picMonGroups inside it (MONSMOD.BAS:4325-4334).
                     -->
-                    <Border x:Name="CombatPanel" IsVisible="False" Canvas.Left="111" Canvas.Top="3" Width="366" Height="143"
+                    <Border x:Name="CombatPanel" IsVisible="True" Canvas.Left="111" Canvas.Top="3" Width="366" Height="143"
                             BorderThickness="1">
                         <Canvas x:Name="CombatCanvas" Width="364" Height="141">
                             <!-- sub0B9B draws the engaged picture 45x45 at 3,8 (MONSMOD.BAS:4444-4445) -->

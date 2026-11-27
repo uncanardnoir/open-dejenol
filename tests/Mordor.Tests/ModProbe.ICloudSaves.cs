@@ -216,6 +216,10 @@ public static partial class ModProbe
               string.Join(",", new[] { "dungeon.json", "Anna.json", "party-Anna.json", "MDATA9.MDR", "settings.ini", "mods.log", "icloudsaves.json", "crash.log", ".DS_Store", "dungeon.json.tmp", "x.partial.nosync", "dpsmeter.json.bad-20261030-120000", "Anna.json.good", "MDATA9B.MDR", "stray.zip" }
                   .Select(n => $"{n}={(Synced(n) ? 1 : 0)}")),
               "dungeon.json=1,Anna.json=1,party-Anna.json=1,MDATA9.MDR=1,settings.ini=0,mods.log=0,icloudsaves.json=0,crash.log=0,.DS_Store=0,dungeon.json.tmp=0,x.partial.nosync=0,dpsmeter.json.bad-20261030-120000=0,Anna.json.good=0,MDATA9B.MDR=0,stray.zip=0");
+        Check("the dungeon's levels, each in a file of its own (DungeonState), are synced with it; the old single file kept aside as dungeon.json.old is not",
+              string.Join(",", new[] { "dungeon-01.json", "dungeon-12.json", "dungeon.json", "dungeon.json.old", "dungeon-05.json.tmp" }
+                  .Select(n => $"{n}={(Synced(n) ? 1 : 0)}")),
+              "dungeon-01.json=1,dungeon-12.json=1,dungeon.json=1,dungeon.json.old=0,dungeon-05.json.tmp=0");
         Check("a snapshot's file name: UTC time and the Mac's name, tidied", IcStatic("Snapshot", "FileName", new DateTime(2026, 10, 30, 3, 4, 5, DateTimeKind.Utc), "Dave's Mac_mini", 1),
               "20261030T030405Z_Dave-s-Mac-mini.odsave");
 

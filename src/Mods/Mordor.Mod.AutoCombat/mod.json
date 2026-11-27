@@ -1,7 +1,7 @@
 {
   "id": "AutoCombat",
   "name": "Auto-combat",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "gofastercloud",
   "gameVersion": "1.1",
   "assembly": "Mordor.Mod.AutoCombat.dll",

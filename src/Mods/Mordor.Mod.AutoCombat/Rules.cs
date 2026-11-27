@@ -105,6 +105,16 @@ public sealed class Rule
     /// <summary>One line for the window: "Anyone: if SP ≥ 10 → Cast "Fire Bolt" at Kobold, *most".</summary>
     public string Describe()
     {
+        var (when, then) = DescribeParts();
+        return $"{when} → {then}";
+    }
+
+    /// <summary>
+    /// <see cref="Describe"/>'s two halves, either side of its arrow: who and when, and what is done. The
+    /// window draws the arrow between them as a shape (ModGlyphs, 1.0.1), the same on every system.
+    /// </summary>
+    public (string When, string Then) DescribeParts()
+    {
         var when = new List<string>();
         if (PartyBelow is int a) when.Add($"someone below {a}% hits");
         if (PartyAtLeast is int b) when.Add(b >= 100 ? "nobody hurt" : $"everyone at {b}%+ hits");
@@ -121,7 +131,7 @@ public sealed class Rule
             _ => Do.ToString(),
         };
         string aim = Do is RuleAction.Fight or RuleAction.Cast or RuleAction.Use && Targets.Count > 0 ? " at " + string.Join(", ", Targets) : "";
-        return $"{(Who == "" ? "Anyone" : Who)}: {(when.Count == 0 ? "always" : "if " + string.Join(", ", when))} → {act}{aim}";
+        return ($"{(Who == "" ? "Anyone" : Who)}: {(when.Count == 0 ? "always" : "if " + string.Join(", ", when))}", act + aim);
     }
 }
 

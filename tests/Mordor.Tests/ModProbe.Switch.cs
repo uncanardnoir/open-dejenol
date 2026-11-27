@@ -53,7 +53,7 @@ public static partial class ModProbe
         Check("... no pack-line or Bank-line mark, no Store header sort",
               $"{h.PackRowDecoration(party.Selected, anyItem, new InventorySlot { ItemId = anyItem.Id, Known = IdLevel.Barely }, 1)} {h.BankRowDecoration(party.Selected, anyItem, new InventorySlot { ItemId = anyItem.Id, Known = IdLevel.Barely }, 0)} {h.StoreHeaderSort("Item")}", "  ");
         Check("... the save tag leaves it out", string.Join(",", h.SaveTag() ?? new List<string>()).Contains("QoL"), false);
-        Check("... a save tagged with it misses it", h.MissingFrom(new[] { "QoL@1.13.0" }).Count, 1);
+        Check("... a save tagged with it misses it", h.MissingFrom(new[] { "QoL@1.14.1" }).Count, 1);
         Check("... a second switch off does nothing more", (h.Switch("QoL", false), qol.Active).ToString(), "(Now, False)");
 
         Check("QoL switched on again: done now", h.Switch("QoL", true), ModSwitchResult.Now);
@@ -62,7 +62,7 @@ public static partial class ModProbe
         h.MessageLogged("three");
         Check("... a foe's line coloured again", Coloured(), true);
         Check("... its answers back", $"{h.ToolbarTooltip(tb)} {h.MessagesKept(20)} {h.ObjectsCommands.Count()} {h.BankCommands.Count()} {h.StoreColumns().Count} {h.StoreOptions.Count()}", "AutoMap (F8) 20 1 1 2 1");
-        Check("... the save tag has it again", string.Join(",", h.SaveTag() ?? new List<string>()).Contains("QoL@1.13.0"), true);
+        Check("... the save tag has it again", string.Join(",", h.SaveTag() ?? new List<string>()).Contains("QoL@1.14.1"), true);
         Check("... settings.ini says on", new ModSettingsStore(ini).IsEnabled("QoL"), true);
         Check("... status: Running.", h.StatusOf("QoL", true), "Running.");
 

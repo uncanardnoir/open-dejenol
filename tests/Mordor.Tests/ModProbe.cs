@@ -51,7 +51,7 @@ public static partial class ModProbe
             Check("QoL name", qol?.Manifest.Name, "Quality of Life");
             Check("QoL declares a toggle per feature again (1.11.0; General's two again, 1.12.0), in its settings window's order", string.Join(",", qol?.Manifest.Settings.Select(t => t.Key) ?? Array.Empty<string>()),
                   "UnlockedStoreAlignment,ToolbarTooltips,XpToNextColumn,HpSpBars,XpBar,MarkActiveQuests,MarkUnidentified,StoreSlotColumns,StoreSortable,SayStoreShelved,ColorCodedCombatMessages");
-            Check("QoL version", qol?.Manifest.Version, "1.13.0");
+            Check("QoL version", qol?.Manifest.Version, "1.14.1");
             var qolWin = qol?.Manifest.SettingsWindow;
             Check("QoL has a settings window of its own: its title and five groups, General first, Town gold one choice",
                   $"{qolWin?.Title}: {string.Join(" | ", qolWin?.Groups.Select(g => g.Label + " (" + string.Join(",", g.Keys) + ")") ?? Array.Empty<string>())}",
@@ -143,7 +143,7 @@ public static partial class ModProbe
             Check("Sort command added", sort.Command != null, true);
             Check("Sort shown", sort.Command != null && on.IsShown(sort.Mod, sort.Command), true);
             Check("party columns shown (the XP bar rides in Next)", string.Join(",", on.ShownPartyColumns().Select(c => c.Column.Header)), "HP/SP,Next");
-            Check("save tag", string.Join(",", on.SaveTag() ?? new List<string>()), "QoL@1.13.0");
+            Check("save tag", string.Join(",", on.SaveTag() ?? new List<string>()), "QoL@1.14.1");
             Check("a save's missing mods", string.Join(",", on.MissingFrom(new[] { "QoL@1.0.0", "Other@2" })), "Other@2");
             Check("an untagged save misses none", on.MissingFrom(null).Count, 0);
 

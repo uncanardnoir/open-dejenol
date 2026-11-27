@@ -45,7 +45,8 @@ public static class SaveRecovery
         string name = Path.GetFileName(path);
         return name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
             && !name.StartsWith("party-", StringComparison.OrdinalIgnoreCase)
-            && !WorldFiles.Contains(name);
+            && !WorldFiles.Contains(name)
+            && !DungeonState.IsLevelFile(name);   // dungeon-01.json and the rest: the levels, not characters
     }
 
     /// <summary>A character file that has just read: copied to last-good, unless that copy is recent.</summary>

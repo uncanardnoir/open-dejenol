@@ -187,12 +187,16 @@ internal static class KaizenView
             else if (Buffs.ItemNamed(c, row.Name, game.Item) is { Known: IdLevel.All }) runs.Add(new Run(" (item)"));
             else runs.Add(new Run(" (item, not in the pack now)") { Foreground = Warn });
 
+            // the arrow before the target a shape (ModGlyphs, 1.3.1), the same on every system, with a
+            // space either side as the character had
+            void Arrow() { runs.Add(new Run(" ")); runs.Add(ModGlyphs.Inline(ModSymbol.RightArrow)); runs.Add(new Run(" ")); }
             bool? asks = Buffs.AsksTarget(row, c, game.Spells, game.Item);
             if (asks == false) runs.Add(new Run(" (party)"));
-            else if (asks == true && row.Target.Trim() == "") { runs.Add(new Run(" → ")); runs.Add(new Run("(no target)") { Foreground = Warn }); }
+            else if (asks == true && row.Target.Trim() == "") { Arrow(); runs.Add(new Run("(no target)") { Foreground = Warn }); }
             else if (row.Target.Trim() != "")
             {
-                runs.Add(new Run(" → " + row.Target.Trim()));
+                Arrow();
+                runs.Add(new Run(row.Target.Trim()));
                 if (game.Party == null || Buffs.Member(game.Party.Members, row.Target) == null)
                     runs.Add(new Run(" (not in the party)") { Foreground = Warn });
             }

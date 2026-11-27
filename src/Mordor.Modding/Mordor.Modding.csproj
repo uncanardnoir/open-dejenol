@@ -1,7 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- The mod API (docs/MODDING.md): what a mod references, and the loader the game runs. No
-       Avalonia here, so the loader and every hook can be exercised headless by Mordor.Tests. -->
+  <!-- The mod API (docs/MODDING.md): what a mod references, and the loader the game runs. Avalonia
+       only for the drawing helpers a mod may use (ModGlyphs, API version 18), compiled against and
+       never loaded by the loader or the hooks, so those can be exercised headless by Mordor.Tests,
+       which has no Avalonia: the game supplies it at run time and nothing of it flows on from here. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -16,6 +18,8 @@
   <ItemGroup>
     <!-- 2.4.3, the latest 2.x: its MonoMod patches on the .NET 10 runtime, which 2.3.6 refuses ("CoreCLR version 10 is not supported") -->
     <PackageReference Include="Lib.Harmony" Version="2.4.3" />
+    <!-- ModGlyphs: the same Avalonia the game runs (ModApi.AvaloniaMajor); the game's copy is used -->
+    <PackageReference Include="Avalonia" Version="12.2.0" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

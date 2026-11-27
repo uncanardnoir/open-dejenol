@@ -58,4 +58,24 @@ public static class ThemeKeys
     public const string Selection = "Mordor.Selection.Ground";
     /// <summary>A chosen row's or selected text's ink.</summary>
     public const string SelectionText = "Mordor.Selection.Text";
+
+    // ---- bars (API version 18) ----
+    // The Quality of Life mod's experience bar and the text over it. In Dark the fills are see-through
+    // (alpha 0x80, over the track or the green); in Light every one is solid, its inks dark.
+    /// <summary>The experience bar's fill short of the next level.</summary>
+    public const string XpToNext = "Mordor.Bar.ToNext";
+    /// <summary>The experience bar's fill past the level, toward the pin, drawn over a bar full of <see cref="XpToNext"/>.</summary>
+    public const string XpToPin = "Mordor.Bar.ToPin";
+    /// <summary>The experience bar pinned: the whole bar, over <see cref="XpToNext"/>.</summary>
+    public const string XpPinned = "Mordor.Bar.Pinned";
+    /// <summary>The experience bar's empty track.</summary>
+    public const string XpTrack = "Mordor.Bar.Track";
+    /// <summary>A figure written over a bar.</summary>
+    public const string BarInk = "Mordor.Bar.Ink";
+    /// <summary>A figure written over a bar past the level: what is still needed to the pin, and Pinned.</summary>
+    public const string BarInkPast = "Mordor.Bar.InkPast";
+    /// <summary>A guild quest's mark.</summary>
+    public const string QuestMark = "Mordor.Ink.Quest";
+    /// <summary>A guild quest's mark once the quest is done.</summary>
+    public const string QuestDone = "Mordor.Ink.QuestDone";
 }

@@ -40,6 +40,7 @@ static class ThemeRegressionCheck
     {
         Console.WriteLine("\nthe themes, as they were found wrong in play:");
         _failed = 0;
+        _failed += ThemePairsCheck.Run();   // the declared inks on their grounds, by arithmetic
         Mdata1.LoadFrom(game); RaceData.LoadFrom(game); GuildData.LoadFrom(game);
 
         var theme = typeof(App).Assembly.GetType("Mordor.App.ThemeSelection")!;
@@ -116,7 +117,6 @@ static class ThemeRegressionCheck
                 var mods = new Dictionary<string, int>
                 {
                     ["src/Mods/Mordor.Mod.Cartographer/RouteSettingsWindow.cs"] = 4,
-                    ["src/Mods/Mordor.Mod.QoL/Views.cs"] = 2,
                 };
                 var found = new List<string>();
                 foreach (var path in Directory.GetFiles(Path.Combine(root, "src", "Mordor.App"), "*.*")
@@ -140,6 +140,12 @@ static class ThemeRegressionCheck
                   $"{Ink("Green")} {Ink("Maroon")} {Ink("Text")}", "#ff008000 #ff800000 #ff000000");
             Check("the Messages list in Light the window's grey, as the original's is (it was a lighter grey)",
                   Ink("Well"), Ink("Window"));
+            // the Stats page's state words (lblSpecial): the form's ForeColor &H000000FF&, bright red, on
+            // its &H00C0C0C0& (frmCharStat1, MORDOR.EXE RCDATA 8); they had been QBColor 4's maroon
+            Check("Light: the state words the form's bright red, #FF0000 (they were the maroon #800000)", Ink("StateInk"), "#ffff0000");
+            Theme("Dark");
+            Check("Dark: the state words Dark's indian red, as they were", Ink("StateInk"), "#ffcd5c5c");
+            Theme("Light");
 
             // the About box: the version line cut off at the form's 180 twips, as in the original, and not bold
             var about = (Window)typeof(AboutWindow).GetField("_win", Any)!.GetValue(new AboutWindow(game))!;
@@ -315,7 +321,15 @@ static class ThemeRegressionCheck
 
             static bool LightAboveLeft(BoxShadows s, string colour) =>
                 Enumerable.Range(0, s.Count).Any(i => s[i].IsInset && s[i].OffsetX > 0 && s[i].OffsetY > 0 && s[i].Color == Color.Parse(colour));
+            // a state word on the Stats page (lblSpecial): Protected, set in town, as the gate ends the
+            // spells and cures the ailments (RestInCity)
+            foreach (var m in party.Members) m.Protection = 5;
+            panel.Show(party.Members[party.SelectedIndex]);
             Show(CharTab.Stats);
+            var stateWord = Field<Canvas>(panel, "_stats").Children.OfType<TextBlock>().FirstOrDefault(t => t.Text == "Protected");
+            Check("Light: the Stats page draws its state word in the state ink, #FF0000",
+                  (ReferenceEquals(stateWord?.Foreground, Role("StateInk")), (stateWord?.Foreground as ISolidColorBrush)?.Color),
+                  (true, (Color?)Color.Parse("#FF0000")));
             var statBoxes = Field<Canvas>(panel, "_stats").Children.OfType<Border>().ToList();
             Check("Light: the Stats page's two boxes stand out, light above and left (they were drawn set in)",
                   (statBoxes.Count, statBoxes.All(b => LightAboveLeft(b.BoxShadow, "#FFFFFF"))), (2, true));
@@ -357,6 +371,15 @@ static class ThemeRegressionCheck
                 bool rowsShown = monsterList.IsVisible;
                 monsterList.ItemsSource = null; Pump();
                 Check("the monster list hidden with no living group, shown with one", (emptyShown, rowsShown, monsterList.IsVisible), (false, true, false));
+                // picMonsters itself is up with no monster on the square (FRMDUNM.BAS:273), hidden only on
+                // the dead screen (MAINMOD2.BAS:3056): the port had hidden the whole panel, and the
+                // owner's screenshot of the original showed its empty, set-in box
+                var combat = Field<Border>(down, "CombatPanel");
+                Check("the encounter panel (picMonsters) up with no monster on the square, its monster list not",
+                      (combat.IsVisible, monsterList.IsVisible), (true, false));
+                typeof(DungeonWindow).GetMethod("HideMonsters", Any)!.Invoke(down, null); Pump();
+                Check("... and still up once the monsters are gone (HideMonsters empties it, the dead screen alone hides it)",
+                      combat.IsVisible, true);
                 Check("Light: the chest's box (picTrap) the lists' pale yellow, as the original's (it was the form's grey)",
                       (Field<Border>(down, "ChestPanel").Background as ISolidColorBrush)?.Color, (Color?)Color.Parse("#FFFFE0"));
                 Check("Light: the view and the position set in, shadow above and left",

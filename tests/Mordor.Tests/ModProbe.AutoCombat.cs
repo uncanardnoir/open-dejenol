@@ -77,7 +77,7 @@ public static partial class ModProbe
         var off = Host(Path.Combine(acDir, "off.ini"), log, bundled);
         var ac = off.Discovered.FirstOrDefault(d => d.Id == "AutoCombat");
         Check("AutoCombat manifest found, no problem", ac != null && ac.Problem == null, true);
-        Check("its name and version", $"{ac?.Manifest.Name} {ac?.Manifest.Version}", "Auto-combat 1.0.0");
+        Check("its name and version", $"{ac?.Manifest.Name} {ac?.Manifest.Version}", "Auto-combat 1.0.1");
         Check("its two toggles, both off by default", string.Join(",", ac?.Manifest.Settings.Select(t => $"{t.Key}={t.Default}") ?? Array.Empty<string>()),
               "FightByRules=False,LeaveInCommand=False");
         Check("no table on the Mods page: the rules are in the Auto-combat window", ac?.Manifest.Tables.Count, 0);

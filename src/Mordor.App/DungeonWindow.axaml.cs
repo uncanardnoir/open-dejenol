@@ -412,7 +412,7 @@ public partial class DungeonWindow : Window
                     if (_combat?.Source != _room?.Records) StoreRoom(_combat);
                 });
             }
-            Guarded("saving dungeon.json", () => _dstate.Save(SavesDir));
+            Guarded("saving the dungeon's files", () => _dstate.Save(SavesDir));
             // and every form writes its placement as it unloads (FRMDUNM.BAS:360-361,
             // FRMGROUP.BAS:130-131), whichever way the dungeon is left - a rescue included
             Guarded("saving the window layout", SaveWindowLayout);
@@ -3545,7 +3545,7 @@ public partial class DungeonWindow : Window
         _loadedArea = (_level, fl.AreaIdAt(x, y));
         var group = EncounterGenerator.InRoom(_monsters, fl, _level, x, y, _dstate, DateTime.Now, _rng, out bool written, _ch, _party.Leader, Lookup);
         // fn0D4D Puts the room to the level's file as it makes it (sub0C79 at MONSMOD.BAS:1425,
-        // fn0F88 at 1979), so dungeon.json is written now: the port had kept a new room in memory
+        // fn0F88 at 1979), so the level's file is written now: the port had kept a new room in memory
         // until the next change of area, and a game killed before then lost it, chest and all
         if (written) _dstate.Save(SavesDir);
         _room = group != null ? (_level, fl.AreaIdAt(x, y), group) : null;
@@ -3577,7 +3577,7 @@ public partial class DungeonWindow : Window
             MonsterList.ItemsSource = null; MonsterStrip.Children.Clear(); StateIcon.Source = null;
             CombatTitle.Text = ""; CombatHit.Text = ""; CombatMonsterHit.Text = ""; WaitBtn.IsVisible = false;
             ShowWaitingChest(group);
-            CombatPanel.IsVisible = ChestIcon.Source != null && !_combatClockOff;
+            CombatPanel.IsVisible = !_combatClockOff;   // picMonsters stands, empty: only picMonGroups goes (MONSMOD.BAS:4329-4334)
             return false;
         }
         if (group == null || group.Count == 0) return false;
@@ -3805,7 +3805,7 @@ public partial class DungeonWindow : Window
         _awaitingRescue = false;
         CombatTitle.Text = "";                                   // lblDead.Visible = False (3143)
         WaitBtn.IsVisible = false;                               // cmdWait.Visible = False (3144)
-        CombatPanel.IsVisible = _chest != null || _waiting is { Count: > 0 };   // picMonsters.Visible = True (3138)
+        CombatPanel.IsVisible = true;                            // picMonsters.Visible = True (3140), monsters or none
         Redraw();                                                // mdrmazLookAround, sub0835, mdrmazShowMaze (3145-3147)
         Focus();                                                 // frmDungeonMain.SetFocus (3148)
     }
@@ -4809,14 +4809,14 @@ public partial class DungeonWindow : Window
         CombatTitle.Text = "";
         CombatHit.Text = "";
         CombatMonsterHit.Text = "";
-        if (_chest == null) CombatPanel.IsVisible = false;
+        // picMonsters itself stays up, empty, as the original leaves it: only the dead screen hides it (MAINMOD2.BAS:3056)
     }
 
     private void HideMonsters()
     {
         _chest = null;
         ChestPanel.IsVisible = false;
-        CombatPanel.IsVisible = false;
+        CombatPanel.IsVisible = !_combatClockOff;   // emptied, not hidden: only the dead screen hides picMonsters (3056)
         MonsterList.ItemsSource = null;
         MonsterStrip.Children.Clear();
         StateIcon.Source = null;

@@ -68,7 +68,7 @@ public static partial class ModProbe
         var kz = off.Discovered.FirstOrDefault(d => d.Id == "Kaizen");
         Check("Kaizen manifest found, no problem", kz != null && kz.Problem == null, true);
         Check("its two toggles, both off by default", string.Join(",", kz?.Manifest.Settings.Select(t => $"{t.Key}={t.Default}") ?? Array.Empty<string>()), "BuffOnEntry=False,HealBeforeTown=False");
-        Check("version 1.3.0 (the heal-out uses the guild crests)", kz?.Manifest.Version, "1.3.0");
+        Check("version 1.3.1 (1.3.0: the heal-out uses the guild crests; 1.3.1: the arrow a shape)", kz?.Manifest.Version, "1.3.1");
         Check("no table for the Mods page: the buff lists are in the Kaizen window", kz?.Manifest.Tables.Count, 0);
         Check("QoL has no table", off.Discovered.First(d => d.Id == "QoL").Manifest.Tables.Count, 0);
         Check("not enabled by default", off.IsEnabled("Kaizen"), false);
@@ -682,7 +682,7 @@ public static partial class ModProbe
         Check("a switch and a redraw: told each time", told, 3);
         // AskCastOnWho: the game's own box, for a mod's window (API version 4)
         var someSpell = spells.First(s => s.Name.Trim() != "");
-        Check("API version 18 (7: IModLifecycle, mods switched on and off on the main menu; 8: ExperienceGained; 9: MessageLineColour; 10: choice settings; 11: settings windows; 12: PartyGoldTo gone, TownIncomeBank, the arrival Party Pool, ShortfallAnswer.From, option tooltips; 13: the Automap hooks; 14: AutomapView.You and Record, AutomapInfo; 15: MessageLineInk and the colour roles, ThemeKeys; 16: CombatRound, ByHand, CombatRoundHooked; 17: Saved and MainMenuOpened with the menu shut; 18: Avalonia 12 - mods built against it, the drags read through DataTransfer, a mod built against Avalonia 11 refused)", ModApi.ApiVersion, 18);
+        Check("API version 18 (7: IModLifecycle, mods switched on and off on the main menu; 8: ExperienceGained; 9: MessageLineColour; 10: choice settings; 11: settings windows; 12: PartyGoldTo gone, TownIncomeBank, the arrival Party Pool, ShortfallAnswer.From, option tooltips; 13: the Automap hooks; 14: AutomapView.You and Record, AutomapInfo; 15: MessageLineInk and the colour roles, ThemeKeys; 16: CombatRound, ByHand, CombatRoundHooked; 17: Saved and MainMenuOpened with the menu shut; 18: Avalonia 12 - mods built against it, the drags read through DataTransfer, a mod built against Avalonia 11 refused; the bar roles, ThemeKeys.XpToNext, XpToPin, XpPinned, XpTrack, BarInk, BarInkPast, QuestMark, QuestDone; ModGlyphs, ModGlyph and ModSymbol, a tick and an arrow drawn as shapes)", ModApi.ApiVersion, 18);
         Check("no box (headless): Cancel", game.AskCastOnWho(someSpell).GetAwaiter().GetResult() == null, true);
         string asked = "";
         int answer = 1, startedOn = -1;

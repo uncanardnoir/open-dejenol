@@ -1,4 +1,7 @@
+using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace Mordor.Core;
 
@@ -9,16 +12,22 @@ namespace Mordor.Core;
 /// monsters that are in a room and go back, it's empty. That's because they're dead! However, after a
 /// period of time, the dungeon will repopulate with new monsters."
 ///
-/// Shared by every character, like the automap, and stored beside the saves as dungeon.json.
+/// Shared by every character, like the automap, and stored beside the saves: each level's rooms in
+/// a file of its own, dungeon-01.json, dungeon-02.json, ..., as the original keeps them in the level's
+/// part of MDATA10, and the dungeon-wide facts in dungeon.json (<see cref="Save"/>).
 /// </summary>
 public sealed class DungeonState
 {
+    private Dictionary<string, RoomRecord> _rooms = new();
+
     /// <summary>
     /// Every room's records, keyed "level:areaId": what the original keeps in the level's own file,
     /// four Foes() records and a Fight record per area (fn0F88, MONSMOD.BAS:3921-3924). A room
     /// missing here reads as the file's zeroed records - nothing standing, a stamp of 0.
+    /// A room is changed through <see cref="StoreRoom"/>, which is what marks its level to be written;
+    /// a whole new set put here is written whole.
     /// </summary>
-    public Dictionary<string, RoomRecord> Rooms { get; set; } = new();
+    public Dictionary<string, RoomRecord> Rooms { get => _rooms; set { _rooms = value; _whole = true; } }
 
     /// <summary>
     /// Saves from before the rooms were stored: when each room was emptied, as seconds since
@@ -98,7 +107,10 @@ public sealed class DungeonState
     public void StoreRoom(int level, int areaId, RoomRecord r)
     {
         if (areaId <= 0) return;   // "If p05BA <= False Then ... Exit Function" (3912)
-        Rooms[Key(level, areaId)] = r.Copy();
+        string key = Key(level, areaId);
+        // the level's file is written at the next save only if this changed what it holds
+        if (!Same(r, _rooms.TryGetValue(key, out var was) ? was : Zero)) _dirty.Add(level);
+        _rooms[key] = r.Copy();
     }
 
     /// <summary>
@@ -163,22 +175,210 @@ public sealed class DungeonState
         Tally[level] = TallyOf(level, headerAreas) - 1;
     }
 
+    // ------------------------------------------------------------------ the files
+
+    /// <summary>
+    /// The layout written: 2 is a file per level beside a small dungeon.json. The single dungeon.json
+    /// of 0.1.8 and before has no number (read as 0) and holds the rooms itself.
+    /// </summary>
+    private const int Layout = 2;
+
     private static string PathFor(string savesDir) => Path.Combine(savesDir, "dungeon.json");
 
+    /// <summary>A level's own file: dungeon-01.json for level 1, and so on.</summary>
+    public static string LevelPath(string savesDir, int level) =>
+        Path.Combine(savesDir, "dungeon-" + level.ToString("D2", CultureInfo.InvariantCulture) + ".json");
+
+    private static readonly Regex LevelName = new(@"^dungeon-(-?\d+)\.json$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>Whether a file is one of the levels' own files (dungeon-NN.json), not a character.</summary>
+    public static bool IsLevelFile(string path) => LevelOfFile(Path.GetFileName(path)) != null;
+
+    private static int? LevelOfFile(string name)
+    {
+        var m = LevelName.Match(name);
+        return m.Success && int.TryParse(m.Groups[1].Value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int level)
+            ? level : null;
+    }
+
+    private static bool Split(string key, out int level, out int area)
+    {
+        level = area = 0;
+        int colon = key.IndexOf(':');
+        return colon > 0
+            && int.TryParse(key.AsSpan(0, colon), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out level)
+            && int.TryParse(key.AsSpan(colon + 1), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out area);
+    }
+
+    // What the files on disk hold, so that a save writes only what changed since (Save).
+
+    /// <summary>Levels whose rooms changed since their file was written.</summary>
+    private readonly HashSet<int> _dirty = new();
+    /// <summary>Each level's tally as its file holds it.</summary>
+    private readonly Dictionary<int, int> _writtenTally = new();
+    private int _writtenDeepest;
+    /// <summary>dungeon.json is missing, unreadable or in the old layout, and is to be written.</summary>
+    private bool _topDirty = true;
+    /// <summary>
+    /// Not read from the files - a new state, or one given a whole new set of rooms: the next save
+    /// writes every level, and empties the file of a level it has nothing for, as the single file
+    /// was once written whole.
+    /// </summary>
+    private bool _whole = true;
+    /// <summary>The dungeon.json on disk is the old single file, not yet kept as dungeon.json.old.</summary>
+    private bool _legacyPending;
+
+    private static readonly RoomRecord Zero = new();
+    private static readonly FoeSlot ZeroFoe = new();
+
+    /// <summary>For the tests: called with each dungeon file's path just before it is written; a throw stands for the game dying there.</summary>
+    public static Action<string>? BeforeWrite { get; set; }
+
+    /// <summary>No indentation, and a field at its default (zero, or no value) left out.</summary>
+    private static readonly JsonSerializerOptions Compact = new() { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
+
+    /// <summary>dungeon.json: the dungeon-wide facts, and in the old layout everything.</summary>
+    private sealed class TopFile
+    {
+        public int Format { get; set; }
+        public int DeepestReached { get; set; }
+        // the old single file's (0.1.8 and before): read, never written
+        public Dictionary<string, RoomRecord>? Rooms { get; set; }
+        public Dictionary<int, int>? Tally { get; set; }
+        public Dictionary<string, double>? Cleared { get; set; }
+        public Dictionary<string, double>? Spawned { get; set; }
+    }
+
+    /// <summary>A level's file: its tally when it has one, and its rooms by area id.</summary>
+    private sealed class LevelFile
+    {
+        /// <summary>Null when the level has none yet (it has its seed value); 0 is a tally like any other.</summary>
+        public int? Tally { get; set; }
+        public SortedDictionary<int, RoomFile>? Rooms { get; set; }
+    }
+
+    /// <summary>A room as written: its zero fields left out, and its Foes() records only up to the last that is not all zero.</summary>
+    private sealed class RoomFile
+    {
+        public FoeSlot[]? Foes { get; set; }
+        public int TreasureClass { get; set; }
+        public int Lead { get; set; }
+        public decimal Gold { get; set; }
+        public int ChestTrap { get; set; }
+        public int ChestLock { get; set; }
+
+        public static RoomFile From(RoomRecord r)
+        {
+            int n = r.Foes.Length;
+            while (n > 0 && Same(r.Foes[n - 1], ZeroFoe)) n--;
+            return new RoomFile
+            {
+                Foes = n == 0 ? null : r.Foes[..n],
+                TreasureClass = r.TreasureClass, Lead = r.Lead, Gold = r.Gold, ChestTrap = r.ChestTrap, ChestLock = r.ChestLock,
+            };
+        }
+
+        /// <summary>Back to the four records: what is not there reads as zero, as the level's zeroed records do.</summary>
+        public RoomRecord ToRecord()
+        {
+            var r = new RoomRecord { TreasureClass = TreasureClass, Lead = Lead, Gold = Gold, ChestTrap = ChestTrap, ChestLock = ChestLock };
+            if (Foes != null)
+            {
+                if (Foes.Length > r.Foes.Length) r.Foes = Foes.Select(_ => new FoeSlot()).ToArray();
+                for (int i = 0; i < Foes.Length; i++) if (Foes[i] != null) r.Foes[i] = Foes[i].Copy();
+            }
+            return r;
+        }
+    }
+
+    /// <summary>Whether two Foes() records hold the same, field for field.</summary>
+    public static bool Same(FoeSlot a, FoeSlot b) =>
+        a.Ref == b.Ref && a.KnownAs == b.KnownAs && a.GroupCount == b.GroupCount && a.Att == b.Att && a.Def == b.Def
+        && a.Hits == b.Hits && a.MaxHits == b.MaxHits && a.Alignment == b.Alignment && a.IdLevel == b.IdLevel
+        && a.Engaged == b.Engaged && a.JoinOffer == b.JoinOffer && a.Stamp.Equals(b.Stamp);
+
+    /// <summary>Whether two rooms' records hold the same, field for field; a Foes() record not there is a zeroed one.</summary>
+    public static bool Same(RoomRecord a, RoomRecord b)
+    {
+        if (a.TreasureClass != b.TreasureClass || a.Lead != b.Lead || a.Gold != b.Gold || a.ChestTrap != b.ChestTrap || a.ChestLock != b.ChestLock)
+            return false;
+        for (int i = 0; i < Math.Max(a.Foes.Length, b.Foes.Length); i++)
+            if (!Same(i < a.Foes.Length ? a.Foes[i] : ZeroFoe, i < b.Foes.Length ? b.Foes[i] : ZeroFoe)) return false;
+        return true;
+    }
+
+    /// <summary>
+    /// The dungeon as the files hold it: dungeon.json and every level's file. A missing file, room or
+    /// field reads as zero, as the level's zeroed records do; a file that will not read is said in
+    /// crash.log and read as empty, as the single file was.
+    ///
+    /// An old single dungeon.json holding rooms (0.1.8 and before) is split here, once: its levels are
+    /// written to their own files, it is kept as dungeon.json.old, and only then is dungeon.json
+    /// written anew (<see cref="Save"/> does it in that order). A start that finds both - a split cut
+    /// short - takes the old file's rooms only for the levels that have no file of their own yet,
+    /// keeps the level files that are there (written from it), and finishes the split.
+    /// </summary>
     public static DungeonState Load(string savesDir)
     {
+        var state = new DungeonState { _whole = false };
+        TopFile? top = null;
+        string p = PathFor(savesDir);
         try
         {
-            string p = PathFor(savesDir);
-            if (File.Exists(p))
-            {
-                var state = JsonSerializer.Deserialize<DungeonState>(File.ReadAllText(p)) ?? new DungeonState();
-                state.TakeLegacyStamps();
-                return state;
-            }
+            if (File.Exists(p)) top = JsonSerializer.Deserialize<TopFile>(File.ReadAllText(p));
+        }
+        catch (Exception e) { SafeFile.Log?.Invoke($"{p} could not be read: {e.GetType().Name}: {e.Message}"); }
+        if (top != null)
+        {
+            state.DeepestReached = state._writtenDeepest = top.DeepestReached;
+            state._topDirty = top.Format < Layout;
+        }
+
+        var onDisk = new HashSet<int>();
+        try
+        {
+            if (Directory.Exists(savesDir))
+                foreach (string f in Directory.GetFiles(savesDir, "dungeon-*.json"))
+                {
+                    if (LevelOfFile(Path.GetFileName(f)) is not int level) continue;
+                    try
+                    {
+                        var file = JsonSerializer.Deserialize<LevelFile>(File.ReadAllText(f));
+                        if (file == null) continue;
+                        if (file.Tally is int t) state.Tally[level] = state._writtenTally[level] = t;
+                        if (file.Rooms != null)
+                            foreach (var (area, room) in file.Rooms)
+                                if (room != null) state._rooms[Key(level, area)] = room.ToRecord();
+                        onDisk.Add(level);
+                    }
+                    catch (Exception e) { SafeFile.Log?.Invoke($"{f} could not be read: {e.GetType().Name}: {e.Message}"); }
+                }
         }
         catch { }
-        return new DungeonState();
+
+        if (top != null && top.Format < Layout
+            && (top.Rooms is { Count: > 0 } || top.Tally is { Count: > 0 } || top.Cleared is { Count: > 0 }))
+        {
+            // the old single file, read as it always was
+            var old = new DungeonState { Rooms = top.Rooms ?? new(), Tally = top.Tally ?? new(), Cleared = top.Cleared, Spawned = top.Spawned };
+            old.TakeLegacyStamps();
+            foreach (var (key, room) in old.Rooms)
+            {
+                if (!Split(key, out int level, out _) || onDisk.Contains(level)) continue;
+                state._rooms[key] = room;
+                state._dirty.Add(level);
+            }
+            foreach (var (level, t) in old.Tally)
+            {
+                if (onDisk.Contains(level)) continue;
+                state.Tally[level] = t;
+                state._dirty.Add(level);
+            }
+            state._legacyPending = true;
+            using (SaveJournal.Because("dungeon.json split into a file per level"))
+                state.Save(savesDir);
+        }
+        return state;
     }
 
     /// <summary>
@@ -203,17 +403,88 @@ public sealed class DungeonState
     }
 
     /// <summary>
-    /// Every fn0F88 is a Put to the level's file, so this is called at each of them. Written beside
-    /// the file and moved over it (SafeFile), so a game killed half way through keeps the last good file.
+    /// Every fn0F88 is a Put to the level's file, so this is called at each of them. What changed since
+    /// the last save is written, and nothing else - as the original Puts only the record it changed:
+    /// each level whose rooms or tally changed, to its own file, and dungeon.json when the deepest
+    /// level did. A save with nothing new writes nothing. Each file is written beside itself and moved
+    /// over (SafeFile), so a game killed half way through keeps the last good file; a level that could
+    /// not be written stays marked, and is written at the next save.
     /// </summary>
     public void Save(string savesDir)
     {
         try
         {
+            var levels = new SortedSet<int>(_dirty);
+            foreach (var (level, t) in Tally)
+                if (!_writtenTally.TryGetValue(level, out int w) || w != t) levels.Add(level);
+            foreach (int level in _writtenTally.Keys)
+                if (!Tally.ContainsKey(level)) levels.Add(level);
+            if (_whole)
+            {
+                foreach (string key in _rooms.Keys) if (Split(key, out int level, out _)) levels.Add(level);
+                foreach (int level in Tally.Keys) levels.Add(level);
+                if (Directory.Exists(savesDir))
+                    foreach (string f in Directory.GetFiles(savesDir, "dungeon-*.json"))
+                        if (LevelOfFile(Path.GetFileName(f)) is int level) levels.Add(level);
+            }
+            bool topDue = _topDirty || _whole || _legacyPending || DeepestReached != _writtenDeepest;
+            if (levels.Count == 0 && !topDue) return;
             Directory.CreateDirectory(savesDir);
-            string p = PathFor(savesDir);
-            SafeFile.WriteAllText(p, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+
+            if (levels.Count > 0)
+            {
+                var rooms = levels.ToDictionary(l => l, _ => new SortedDictionary<int, RoomFile>());
+                foreach (var (key, room) in _rooms)
+                    if (Split(key, out int level, out int area) && rooms.TryGetValue(level, out var into)) into[area] = RoomFile.From(room);
+                foreach (int level in levels)
+                {
+                    var file = new LevelFile
+                    {
+                        Tally = Tally.TryGetValue(level, out int t) ? t : null,
+                        Rooms = rooms[level].Count > 0 ? rooms[level] : null,
+                    };
+                    Write(LevelPath(savesDir, level), JsonSerializer.SerializeToUtf8Bytes(file, Compact));
+                    _dirty.Remove(level);
+                    if (file.Tally is int written) _writtenTally[level] = written; else _writtenTally.Remove(level);
+                }
+            }
+
+            // the old single file is kept only once every level is in a file of its own, and replaced last
+            if (_legacyPending) KeepLegacy(savesDir);
+            if (topDue)
+            {
+                Write(PathFor(savesDir), JsonSerializer.SerializeToUtf8Bytes(new TopFile { Format = Layout, DeepestReached = DeepestReached }, Compact));
+                _writtenDeepest = DeepestReached;
+                _topDirty = false;
+            }
+            _legacyPending = false;
+            _whole = false;
         }
         catch { }
+    }
+
+    private static void Write(string path, byte[] bytes)
+    {
+        BeforeWrite?.Invoke(path);
+        SafeFile.WriteAllBytes(path, bytes);
+    }
+
+    /// <summary>
+    /// The old single dungeon.json kept, whole, as dungeon.json.old before a new one takes its name -
+    /// never deleted. A dungeon.json.old already there with other contents (from an earlier split) is
+    /// left as it is, and this one becomes dungeon.json.old2, and so on.
+    /// </summary>
+    private static void KeepLegacy(string savesDir)
+    {
+        string top = PathFor(savesDir);
+        if (!File.Exists(top)) return;
+        byte[] old = File.ReadAllBytes(top);
+        string keep = top + ".old";
+        for (int n = 2; File.Exists(keep); n++)
+        {
+            if (File.ReadAllBytes(keep).AsSpan().SequenceEqual(old)) return;   // kept already, by a split cut short
+            keep = top + ".old" + n;
+        }
+        Write(keep, old);
     }
 }

@@ -5220,6 +5220,7 @@ public static partial class SelfCheckProbe
         Section(() => LegacyInstallerChecks(dir));
         Section(() => ImportChecks(dir));
         Section(() => SafeSaveChecks(dir));
+        Section(() => DungeonFilesChecks(dir));
         Section(() => SaveJournalChecks(dir));
         Section(() => FixtureChecks(dir));
 

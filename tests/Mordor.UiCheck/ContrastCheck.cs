@@ -87,6 +87,8 @@ static class ContrastCheck
                 hero.Pack[slot++] = new InventorySlot { ItemId = it.Id, Known = IdLevel.All };
             hero.Save(Path.Combine(scratch, Character.SafeFileName(hero.Name) + ".json"));
             TitleWindow.GameDir = game;
+            ModHost? qolHost = null;   // the Quality of Life mod switched on, for the Party window's pass
+            ModHost? windowsHost = null;   // Kaizen and Auto-combat switched on, for their windows' pass
 
             foreach (string look in new[] { "Light", "Dark" })
             {
@@ -104,7 +106,10 @@ static class ContrastCheck
                     Pump();
                     // what changes from run to run and is not the window's to show: the clock (Steady)
                     Steady(root, Pump);
-                    var low = LowContrast(root).GroupBy(l => l).Select(g => g.Count() > 1 ? $"{g.Key} x{g.Count()}" : g.Key).ToList();
+                    var lines = LowContrast(root).GroupBy(l => l).Select(g => g.Count() > 1 ? $"{g.Key} x{g.Count()}" : g.Key)
+                        .Select(l => (Line: l, Known: LayoutCheck.KnownContrast(what, look, l))).ToList();
+                    // text under 3:1 that is the original's own colours, kept (LayoutCheck.KnownFindings), is known and does not fail
+                    var low = lines.Where(l => l.Known == null).Select(l => l.Line).ToList();
                     var layout = LayoutCheck.Find(root).Distinct().Select(f => (Finding: f, Known: LayoutCheck.KnownFor(what, f))).ToList();
                     var fresh = layout.Where(l => l.Known == null).ToList();
                     bool ok = low.Count == 0 && fresh.Count == 0;
@@ -116,12 +121,13 @@ static class ContrastCheck
                     if (low.Count > 12) Console.WriteLine($"          ... and {low.Count - 12} more");
                     foreach (var (f, _) in fresh.Take(12)) Console.WriteLine("          " + f);
                     if (fresh.Count > 12) Console.WriteLine($"          ... and {fresh.Count - 12} more");
+                    foreach (var (l, k) in lines.Where(l => l.Known != null)) Console.WriteLine($"          known  contrast: {l} - {k!.Reason}");
                     foreach (var (f, k) in layout.Where(l => l.Known != null)) Console.WriteLine($"          known  {f} - {k!.Reason}");
                     if (!ok) failed++;
                     string picture = Picture(what);
                     Record(picture, null, null, null);
                     _weights[$"{look}: {what}"] = Reach(root);
-                    foreach (var l in low) Record(picture, "contrast", l, null);
+                    foreach (var (l, k) in lines) Record(picture, "contrast", l, k?.Reason);
                     foreach (var (f, k) in layout) Record(picture, f.Kind, $"{f.Control}: {f.Numbers}", k?.Reason);
                     // MORDOR_SNAPSHOT_DIR: the window as drawn, a PNG apiece, for a before-and-after
                     // comparison of a change that should alter nothing (tools/snapshot-diff, Mordor.UiCheck --compare)
@@ -131,6 +137,19 @@ static class ContrastCheck
                         Directory.CreateDirectory(shots);
                         top.CaptureRenderedFrame()?.Save(Path.Combine(shots, picture), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
                     }
+                }
+                // the mods' symbols drawn as shapes (ModGlyphs): at least `least` of the symbol shown
+                // under the root, and no U+2713 or U+2192 in its text
+                void Symbols(string what, Visual root, ModSymbol symbol, int least)
+                {
+                    int shapes = root.GetVisualDescendants().OfType<ModGlyph>().Count(g => g.Symbol == symbol && g.IsEffectivelyVisible);
+                    var chars = LayoutCheck.VisibleText(root).Where(s => s.Contains('✓') || s.Contains('→')).ToList();
+                    bool ok = shapes >= least && chars.Count == 0;
+                    Console.WriteLine($"  {(ok ? "ok  " : "FAIL")}  {look}: {what}: {shapes} {symbol} shapes (at least {least}), "
+                                      + (chars.Count == 0 ? "and no U+2713 or U+2192 character in its text" : $"and the characters in {chars.Count} texts: {string.Join("; ", chars.Take(3))}"));
+                    if (ok) return;
+                    failed++;
+                    Record(Picture(what), "error", $"{shapes} {symbol} shapes, {chars.Count} texts with the character", null);
                 }
                 void Window(string what, Func<Window> make)
                 {
@@ -183,6 +202,9 @@ static class ContrastCheck
                 {
                     town = new CityWindow(new Party(hero), game) { Width = 1400, Height = 1000 };
                     town.Show();
+                    // a state word on the Stats page (lblSpecial), so its red is weighed in each theme: set
+                    // once in town, as the gate ends the spells and cures the ailments (RestInCity)
+                    hero.Protection = 5;
                     void Tab(Type owner, object w, CharTab t) => owner.GetMethod("SetInfoTab", Any)!.Invoke(w, new object[] { t });
                     foreach (CharTab t in Enum.GetValues<CharTab>())
                     {
@@ -221,7 +243,122 @@ static class ContrastCheck
                 }
                 catch (Exception ex) { Error("the town", $"could not be driven: {(ex.InnerException ?? ex).GetType().Name}: {(ex.InnerException ?? ex).Message}"); }
                 finally { try { town?.Close(); Pump(); } catch { } }
+
+                // the Party window with the Quality of Life mod's columns on (the pass above runs with
+                // the mods off, and its HP/SP and Next columns had never been read): four members, one
+                // in each state of the experience bar - short of the level a little way and nearly
+                // there, the level earned and on the way to the pin, pinned - with quest marks, so the
+                // figure and the mark are weighed over the bar's fill and over its empty part
+                const string qolPass = "the town, the Party window with the Quality of Life columns";
+                CityWindow? qolTown = null;
+                var plainHost = ModHost.Active;
+                try
+                {
+                    ModHost.Active = qolHost ??= QolHost(scratch);
+                    var monster = MdrLoader.LoadMonsters(Path.Combine(game, "MDATA5.MDR")).First(m => m.Id > 0).Id;
+                    Character Member(string name, double along, bool stage2, bool pinned, int hits, int spells, int quest, bool done)
+                    {
+                        var c = new Character
+                        {
+                            Name = name, Race = RaceData.All[0].Name, CurHits = hits, MaxHits = 100, CurSpellPoints = spells, MaxSpellPoints = spells > 0 ? 100 : 0,
+                            Guilds = { new GuildMembership { Guild = GuildData.All[0].Name, Level = 20, QuestType = (short)quest, QuestTarget = quest == 1 ? monster : (short)0, QuestDone = done } },
+                        };
+                        long from = c.ExpForThisLevel(), next = c.ExpForNextLevel(), cap = c.ExperienceCap();
+                        c.Guild.Experience = pinned ? cap : stage2 ? next + (long)((cap - next) * along) : from + (long)((next - from) * along);
+                        return c;
+                    }
+                    var party = new Party(
+                        Member("Nearly", 0.9, false, false, 100, 100, 1, false),
+                        Member("Early", 0.1, false, false, 40, 0, 1, false),
+                        Member("Ready", 0.5, true, false, 10, 30, 1, true),
+                        Member("Topped", 0, true, true, 70, 80, 1, false));
+                    qolTown = new CityWindow(party, game) { Width = 1400, Height = 1000 };
+                    qolTown.Show(); Pump();
+                    var header = qolTown.FindControl<Grid>("PartyHeader")!;
+                    string columns = string.Join(",", header.Children.OfType<TextBlock>().Where(t => Equals(t.Tag, "mod-party-column")).Select(t => t.Text));
+                    if (columns != "HP/SP,Next") Error(qolPass, $"the mod's columns are not up: [{columns}]");
+                    else
+                    {
+                        Scan(qolPass, qolTown);
+                        // the done mark a shape, not the character (ModGlyphs): one member's quest is done
+                        Symbols(qolPass, qolTown, ModSymbol.Check, 1);
+                    }
+                    // a change of theme with the window up recolours the bar and its figures: they hold
+                    // the game's bar roles, which the theme recolours in place (nothing redraws them);
+                    // the tick too, its colour as drawn
+                    if (look == "Light")
+                    {
+                        var rows = qolTown.FindControl<StackPanel>("PartyRows")!;
+                        var tick = rows.GetVisualDescendants().OfType<ModGlyph>().FirstOrDefault(g => g.Symbol == ModSymbol.Check);
+                        string Inks() => string.Join(" ", new[] { "Pinned", "!" }.Select(t =>
+                            rows.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(b => b.Text == t)?.Foreground is ISolidColorBrush s ? Hex(s.Color) : "none")
+                            .Append(tick?.Foreground is ISolidColorBrush k ? Hex(k.Color) : "none"));
+                        string Fills() => string.Join(" ", rows.GetVisualDescendants().OfType<Border>()
+                            .Select(b => (b.Background as ISolidColorBrush)?.Color).OfType<Color>()
+                            .Where(c => c == Palette.ColourOf(ThemeKeys.XpPinned, "Light") || c == Palette.ColourOf(ThemeKeys.XpPinned, "Dark"))
+                            .Select(c => $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}").Distinct());
+                        // the tick's strongest pixel of the theme's colour: how far the nearest is from it
+                        int TickInk(string theme)
+                        {
+                            if (tick == null) return 999;
+                            var want = Palette.ColourOf(ThemeKeys.QuestDone, theme) ?? Colors.Magenta;
+                            return LayoutCheck.PixelsOver(LayoutCheck.Frame(qolTown), qolTown, tick)
+                                .Select(c => Math.Max(Math.Abs(c.R - want.R), Math.Max(Math.Abs(c.G - want.G), Math.Abs(c.B - want.B)))).DefaultIfEmpty(999).Min();
+                        }
+                        string before = $"{Inks()} {Fills()}";
+                        int lightTick = TickInk("Light");
+                        Theme("Dark");
+                        string after = $"{Inks()} {Fills()}";
+                        int darkTick = TickInk("Dark");
+                        Theme("Light");
+                        bool followed = before == "#5A005A #5C4400 #155020 #FFE178D2" && after == "#DC8CD7 #F0BE32 #5AD264 #80CD46B9";
+                        Console.WriteLine($"  {(followed ? "ok  " : "FAIL")}  a switch from Light to Dark with the Party window up recolours the QoL's Pinned, its mark, its tick and its bar ({before} -> {after})");
+                        if (!followed) failed++;
+                        bool drawn = lightTick <= TickTolerance && darkTick <= TickTolerance;
+                        Console.WriteLine($"  {(drawn ? "ok  " : "FAIL")}  ... and the tick is drawn in each theme's colour (its nearest pixel {lightTick} from Light's, {darkTick} from Dark's)");
+                        if (!drawn) failed++;
+                    }
+                }
+                catch (Exception ex) { Error(qolPass, $"could not be driven: {(ex.InnerException ?? ex).GetType().Name}: {(ex.InnerException ?? ex).Message}"); }
+                finally { try { qolTown?.Close(); Pump(); } catch { } ModHost.Active = plainHost; }
+
+                // the Kaizen and Auto-combat windows, each opened from the town's toolbar as the player
+                // opens it, a child of the town's frame: Kaizen with a buff list (a row with a target, one
+                // whose target is not in the party, one asking nobody), Auto-combat with two rules
+                CityWindow? modTown = null;
+                try
+                {
+                    ModHost.Active = windowsHost ??= WindowsHost(scratch, game, hero.Name);
+                    modTown = new CityWindow(new Party(hero), game) { Width = 1400, Height = 1000 };
+                    modTown.Show(); Pump();
+                    var icons = (Panel)typeof(Toolbar).GetField("_icons", Any)!.GetValue(modTown.FindControl<Toolbar>("Tools"))!;
+                    Avalonia.Controls.Primitives.ToggleButton Tool(string title) =>
+                        icons.Children.OfType<Avalonia.Controls.Primitives.ToggleButton>().Single(b => Equals(b.Content, title));
+                    void Press(string title) { Tool(title).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump(); }
+                    var frameArea = modTown.FindControl<MdiHost>("Host")!;
+                    foreach (var (title, what) in new[] { ("Kaizen", KaizenPass), ("Auto-combat", AutoCombatPass) })
+                    {
+                        try
+                        {
+                            // one an earlier check left open (the game keeps a mod's window open from
+                            // frame to frame, and brings it into this one) is closed first, so the window
+                            // pictured is built from this pass's mods
+                            if (Tool(title).IsChecked == true || frameArea.Windows.Any(c => c.Title == title && c.IsVisible)) Press(title);
+                            Press(title);
+                            if (frameArea.Windows.FirstOrDefault(c => c.Title == title && c.IsVisible) is null) { Error(what, "did not open"); continue; }
+                            Scan(what, modTown);
+                            Symbols(what, modTown, ModSymbol.RightArrow, 2);
+                        }
+                        catch (Exception ex) { Error(what, $"could not be driven: {(ex.InnerException ?? ex).GetType().Name}: {(ex.InnerException ?? ex).Message}"); }
+                        finally { try { if (frameArea.Windows.Any(c => c.Title == title && c.IsVisible)) Press(title); } catch { } }
+                    }
+                }
+                catch (Exception ex) { Error(KaizenPass, $"could not be driven: {(ex.InnerException ?? ex).GetType().Name}: {(ex.InnerException ?? ex).Message}"); }
+                finally { try { modTown?.Close(); Pump(); } catch { } ModHost.Active = plainHost; }
             }
+            qolHost?.Switch("QoL", false);
+            windowsHost?.Switch("Kaizen", false);
+            windowsHost?.Switch("AutoCombat", false);
         }
         finally
         {
@@ -245,6 +382,74 @@ static class ContrastCheck
             File.WriteAllText(Path.Combine(dir, PictureTools.ChecksFile), PictureTools.ChecksJson(_checks));
         }
         return failed;
+    }
+
+    /// <summary>
+    /// A mod host with the Quality of Life mod switched on, as the build ships it beside the game
+    /// (src/Mods/ShipMods.targets), its settings in the pass's scratch folder: every feature at its
+    /// default, which has the HP/SP bars, the Next column, its bar and the quest marks on.
+    /// </summary>
+    static ModHost QolHost(string scratch)
+    {
+        var host = new ModHost(new ModSettingsStore(Path.Combine(scratch, "qol-settings.ini")), _ => { });
+        host.Discover(new[] { ModsFolder() });
+        host.LoadEnabled();   // none is enabled
+        host.Switch("QoL", true);
+        if (!host.Live.Any(m => m.Id == "QoL")) throw new InvalidOperationException("the Quality of Life mod did not start");
+        return host;
+    }
+
+    /// <summary>How far, in any channel, the QoL's tick may be from its colour where it is drawn most strongly: anti-aliasing at a slant.</summary>
+    const int TickTolerance = 24;
+
+    /// <summary>The bundled mods beside the build of the game (src/Mods/ShipMods.targets).</summary>
+    static string ModsFolder()
+    {
+        string? root = AppContext.BaseDirectory;
+        while (root != null && !File.Exists(Path.Combine(root, "Mordor.sln"))) root = Path.GetDirectoryName(root.TrimEnd(Path.DirectorySeparatorChar));
+        string? mods = root == null ? null : new[] { "Release", "Debug" }
+            .Select(c => Path.Combine(root, "src", "Mordor.App", "bin", c, "net10.0", "mods"))
+            .FirstOrDefault(d => Directory.Exists(Path.Combine(d, "QoL")));
+        return mods ?? throw new DirectoryNotFoundException("no build of Mordor.App with its mods folder");
+    }
+
+    /// <summary>The Kaizen window's pass, and the Auto-combat window's.</summary>
+    const string KaizenPass = "the town, the Kaizen window", AutoCombatPass = "the town, the Auto-combat window";
+
+    /// <summary>
+    /// A mod host with Kaizen and Auto-combat switched on, its settings and Kaizen's buff lists in a
+    /// folder of their own under the pass's scratch folder, and something in each window to read:
+    /// <paramref name="who"/>'s buff list - a spell that asks "Cast on Who?" aimed at
+    /// <paramref name="who"/> (the arrow and the name), the same aimed at someone not in the party (the
+    /// warning after it), and one that asks nobody ("(party)") - and two rules, one with conditions, a
+    /// spell and a target, one with none. The spells are the game's own (MDATA2.MDR).
+    /// </summary>
+    static ModHost WindowsHost(string scratch, string game, string who)
+    {
+        string dir = Path.Combine(scratch, "mod-windows");
+        Directory.CreateDirectory(dir);
+        var spells = MdrLoader.LoadSpells(Path.Combine(game, "MDATA2.MDR")).Where(s => s.Name.Trim() != "").ToList();
+        string aimed = spells.First(s => SpellThrown.WhoToAsk(s) != SpellThrown.Ask.None).Name.Trim();
+        string party = spells.First(s => SpellThrown.WhoToAsk(s) == SpellThrown.Ask.None).Name.Trim();
+        string Row(string name, string target) => $"{{ \"Kind\": \"Spell\", \"Name\": {System.Text.Json.JsonSerializer.Serialize(name)}, \"Target\": {System.Text.Json.JsonSerializer.Serialize(target)} }}";
+        File.WriteAllText(Path.Combine(dir, "kaizen.json"),
+            $"{{ \"Version\": 1, \"Characters\": {{ {System.Text.Json.JsonSerializer.Serialize(who)}: [ {Row(aimed, who)}, {Row(aimed, "Elsewhere")}, {Row(party, "")} ] }} }}");
+        var store = new ModSettingsStore(Path.Combine(dir, "settings.ini"));
+        // Who, PartyBelow, PartyAtLeast, SelfBelow, SpAtLeast, GroupsAtLeast, GroupsAtMost, Shown, Do, What, Targets
+        store.Write("AutoCombat", "Rules", ModSettings.EncodeRows(new[]
+        {
+            new[] { "", "50", "", "", "10", "", "", "", "Cast", aimed, "Kobold" },
+            new[] { who, "", "", "", "", "", "", "", "Fight", "", "" },
+        }));
+        var host = new ModHost(store, _ => { });
+        host.Discover(new[] { ModsFolder() });
+        host.LoadEnabled();   // none is enabled
+        foreach (var id in new[] { "Kaizen", "AutoCombat" })
+        {
+            host.Switch(id, true);
+            if (!host.Live.Any(m => m.Id == id)) throw new InvalidOperationException($"the {id} mod did not start");
+        }
+        return host;
     }
 
     /// <summary>Each picture taken, in the order taken, with its failures (contrast, layout, an error): checks.json.</summary>
@@ -358,7 +563,14 @@ static class ContrastCheck
             if (string.IsNullOrWhiteSpace(text) && v is not TextPresenter) continue;
             if (!c0.IsEffectivelyVisible || !c0.IsEffectivelyEnabled || c0.Bounds.Width <= 0 || c0.Bounds.Height <= 0) continue;
             if (c0.GetValue(TextElement.ForegroundProperty) is not ISolidColorBrush ink) continue;
-            if (Ground(v) is not Color ground) continue;
+            // the ground at the text's left end, its middle and its right end: a bar drawn under part
+            // of it (the QoL's experience bar) is behind some of the letters and not the rest, and
+            // the text must read over both; the worst of them is the text's ground
+            var grounds = new[] { 0.05, 0.5, 0.95 }
+                .Select(x => Ground(v, new Point(c0.Bounds.Width * x, c0.Bounds.Height / 2)))
+                .OfType<Color>().Distinct().ToList();
+            if (grounds.Count == 0) continue;
+            var ground = grounds.OrderBy(g => Contrast(Over(Fade(ink.Color, ink.Opacity), g), g)).First();
             var fg = Over(Fade(ink.Color, ink.Opacity), ground);
             string label = string.IsNullOrWhiteSpace(text) ? "(a text box)" : $"\"{Short(text)}\"";
             double ratio = Contrast(fg, ground);
@@ -382,14 +594,14 @@ static class ContrastCheck
     }
 
     /// <summary>
-    /// What is drawn behind <paramref name="v"/>: the grounds of it and its ancestors, from the
-    /// nearest out to the first solid one, see-through ones mixed over it. Null where a picture or
-    /// a gradient is the ground, or nothing solid is found.
+    /// What is drawn behind <paramref name="v"/> at <paramref name="centre"/> (in its own
+    /// coordinates): the grounds of it and its ancestors, from the nearest out to the first solid
+    /// one, see-through ones mixed over it, and what a panel draws under it there before it (a bar).
+    /// Null where a picture or a gradient is the ground, or nothing solid is found.
     /// </summary>
-    static Color? Ground(Visual v)
+    static Color? Ground(Visual v, Point centre)
     {
         var layers = new List<Color>();
-        var centre = new Point(v.Bounds.Width / 2, v.Bounds.Height / 2);
         static IBrush? Paint(Visual p) => p switch
         {
             TextBlock t => t.Background,
@@ -423,23 +635,35 @@ static class ContrastCheck
                 {
                     var under = panel.Children[i];
                     if (!under.IsEffectivelyVisible || !under.Bounds.Contains(here)) continue;
-                    // the topmost thing drawn there, the sibling itself or what it holds
+                    // what is drawn there, the sibling itself and what it holds, from the topmost
+                    // down to the first solid one: a see-through fill is mixed over the bar's track
+                    // under it, not over the row (the experience bar's half-strength fill)
                     // anything with no opacity on the way down is not drawn (the DataGrid keeps its red
-                    // invalid-cell mark under every cell at Opacity 0)
-                    static bool Drawn(Visual d, Visual top)
+                    // invalid-cell mark under every cell at Opacity 0); a part opacity fades what it draws
+                    static double Shown(Visual d, Visual top)
                     {
+                        double o = 1;
                         for (Visual? x = d; x != null; x = x == top ? null : x.GetVisualParent())
-                            if (x.Opacity < 0.05 || !x.IsVisible) return false;
-                        return true;
+                        {
+                            if (x.Opacity < 0.05 || !x.IsVisible) return 0;
+                            o *= x.Opacity;
+                        }
+                        return o;
                     }
-                    var hit = under.GetSelfAndVisualDescendants().OfType<Visual>().Reverse()
-                        .FirstOrDefault(d => Drawn(d, under) && Paint(d) is IBrush b && !(b is ISolidColorBrush s && s.Color.A == 0)
-                                             && d.TranslatePoint(new Point(0, 0), panel) is Point o
-                                             && new Rect(o, d.Bounds.Size).Contains(here));
-                    if (hit == null) continue;
-                    var r = Add(Paint(hit)!);
-                    if (r == null) return null;
-                    covered = r == true;
+                    var hits = under.GetSelfAndVisualDescendants().OfType<Visual>().Reverse()
+                        .Where(d => Shown(d, under) > 0 && Paint(d) is IBrush b && !(b is ISolidColorBrush s && s.Color.A == 0)
+                                    && d.TranslatePoint(new Point(0, 0), panel) is Point o
+                                    && new Rect(o, d.Bounds.Size).Contains(here));
+                    foreach (var hit in hits)
+                    {
+                        var paint = Paint(hit)!;
+                        double faded = Shown(hit, under);
+                        var r = Add(faded < 1 && paint is ISolidColorBrush sc
+                            ? new Avalonia.Media.Immutable.ImmutableSolidColorBrush(sc.Color, sc.Opacity * faded) : paint);
+                        if (r == null) return null;
+                        covered = r == true;
+                        if (covered) break;
+                    }
                 }
                 if (covered) break;
             }

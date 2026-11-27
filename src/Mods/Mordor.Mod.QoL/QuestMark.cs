@@ -16,7 +16,11 @@ public static class QuestMark
 {
     /// <summary>A quest set and not done: a small gold "!".</summary>
     public const string ActiveMark = "!";
-    /// <summary>A monster quest done (the creature slain), not yet cleared by the next Make Level: a green tick.</summary>
+    /// <summary>
+    /// A monster quest done (the creature slain), not yet cleared by the next Make Level: a green tick.
+    /// The character names the mark (and stands for it in <see cref="Text"/>); the Party window draws
+    /// it as a shape, ModGlyphs' Check, the same on every system.
+    /// </summary>
     public const string DoneMark = "✓";
 
     public static readonly (byte R, byte G, byte B) ActiveColour = (240, 190, 50);
@@ -46,7 +50,7 @@ public static class QuestMark
         return new Mark(ActiveMark, ActiveColour, tip);
     }
 
-    /// <summary>The Next column's text with the mark before it, as drawn: "!4.3K", "✓Pinned"; the figure alone with none.</summary>
+    /// <summary>The Next column's text with the mark before it, the tick as its character: "!4.3K", "✓Pinned"; the figure alone with none.</summary>
     public static string Text(Character c, Func<short, Monster?> monster, Func<short, Item?> item) =>
         (Of(c, monster, item)?.Glyph ?? "") + XpColumn.Cell(c);
 }

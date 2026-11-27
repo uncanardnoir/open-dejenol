@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.VisualTree;
 using Mordor.App;
+using Mordor.Modding;
 
 /// <summary>
 /// Is the text all there, and in its weight? Four checks the readability pass (<see cref="ContrastCheck"/>) runs on
@@ -48,13 +49,16 @@ static class LayoutCheck
     /// A finding seen when the checks were written, kept visible rather than fixed (no game window is
     /// changed to make a check pass). <see cref="Window"/> and <see cref="Control"/> are regular
     /// expressions over the window's name in the pass (without the theme) and the control as a finding
-    /// names it; <see cref="Os"/>, when set, limits the entry to one system ("Windows", "Linux", "macOS").
+    /// names it; <see cref="Os"/>, when set, limits the entry to one system ("Windows", "Linux", "macOS"),
+    /// and <see cref="Theme"/> to one theme ("Light", "Dark"). A "contrast" entry is ContrastCheck's:
+    /// its <see cref="Control"/> is matched against the whole line the contrast check prints (the text,
+    /// its colours, the ratio and where it is), so it can hold one ink on one ground and no other.
     /// </summary>
-    public sealed record Known(string Kind, string Window, string Control, string Reason, string? Os = null)
+    public sealed record Known(string Kind, string Window, string Control, string Reason, string? Os = null, string? Theme = null)
     {
-        public bool Matches(string kind, string window, Finding f) =>
+        public bool Matches(string kind, string window, Finding f, string? theme = null) =>
             Kind == kind && Regex.IsMatch(window, Window) && Regex.IsMatch(f.Control, Control)
-            && (Os == null || Os == OsName);
+            && (Os == null || Os == OsName) && (Theme == null || Theme == theme);
     }
 
     public static string OsName => OperatingSystem.IsWindows() ? "Windows" : OperatingSystem.IsMacOS() ? "macOS" : "Linux";
@@ -68,6 +72,16 @@ static class LayoutCheck
     {
         new("clipped", "^the town", @"^TextBlock ""Automap \(Level \d+\)"" \(in ""Automap \(Level \d+\)""\)$",
             "the Automap waits in town rolled up to an icon's narrow bar, its caption cut short as a Windows 3.1 icon's title is"),
+        // the Stats page's state words (lblSpecial) in Light: the form's own bright red on its grey,
+        // 2.2:1; only those words, only in that red on that grey, so any other red text still fails
+        new("contrast", "^the (town|dungeon), the character window's Stats tab$",
+            @"^""(Poisoned|Diseased|Paralyzed|Levitating|Invisible|See Invisible|Protected)"" #FF0000 on #C0C0C0, ",
+            "the original's own ForeColor (&H000000FF& on &H00C0C0C0&, frmCharStat1), kept for fidelity", Theme: "Light"),
+        // the Quality of Life mod's experience bar in Dark, drawn as Dark always drew it: the pink figure
+        // past the level on the half-strength purple, 2.7:1 (ThemePairsCheck holds the same pair)
+        new("contrast", "^the town, the Party window with the Quality of Life columns$",
+            @"^""[^""]*"" #DC8CD7 on #765179, ",
+            "Dark's experience bar kept as Dark has always drawn it (the owner's call, 2026-11-27): the pink figure past the level on the purple", Theme: "Dark"),
     };
 
     /// <summary>How far, in device-independent pixels, text or a control may run over before it counts: rounding, not layout.</summary>
@@ -86,6 +100,10 @@ static class LayoutCheck
 
     /// <summary>The known entry a finding matches in <paramref name="window"/>, or null for a new one.</summary>
     public static Known? KnownFor(string window, Finding f) => KnownFindings.FirstOrDefault(k => k.Matches(f.Kind, window, f));
+
+    /// <summary>The known entry a line of the contrast check matches in <paramref name="window"/> in <paramref name="theme"/>, or null for a new one.</summary>
+    public static Known? KnownContrast(string window, string theme, string line) =>
+        KnownFindings.FirstOrDefault(k => k.Matches("contrast", window, new Finding("contrast", line, ""), theme));
 
     // ---------------------------------------------------------------- the text controls
 
@@ -118,6 +136,9 @@ static class LayoutCheck
             }
         }
     }
+
+    /// <summary>The text shown under <paramref name="root"/>, each text control's as the layout checks read it.</summary>
+    internal static IEnumerable<string> VisibleText(Visual root) => Texts(root).Select(s => s.Text);
 
     static Typeface TypefaceOf(Control c) => new(c.GetValue(TextElement.FontFamilyProperty), c.GetValue(TextElement.FontStyleProperty),
                                                  c.GetValue(TextElement.FontWeightProperty), c.GetValue(TextElement.FontStretchProperty));
@@ -516,7 +537,153 @@ static class LayoutCheck
         catch (Exception ex) { Say($"could not run: {ex.GetType().Name}: {ex.Message}", false); }
         finally { try { w.Close(); pump(); } catch { } }
         failed += GlyphShapes(pump);
+        failed += ModGlyphShapes(pump);
         failed += WeightSelfTest(pump);
+        return failed;
+    }
+
+    /// <summary>A window as drawn: a colour per pixel, row by row, <see cref="Width"/> to a row.</summary>
+    internal sealed record Picture(Color[] Pixels, int Width);
+
+    /// <summary>The window as last drawn.</summary>
+    internal static Picture Frame(TopLevel top)
+    {
+        var frame = Avalonia.Headless.HeadlessWindowExtensions.CaptureRenderedFrame(top) ?? throw new InvalidOperationException("no frame was drawn");
+        int n = frame.PixelSize.Width * frame.PixelSize.Height;
+        var buf = System.Runtime.InteropServices.Marshal.AllocHGlobal(n * 4);
+        try
+        {
+            frame.CopyPixels(new PixelRect(frame.PixelSize), buf, n * 4, frame.PixelSize.Width * 4);
+            var raw = new int[n];
+            System.Runtime.InteropServices.Marshal.Copy(buf, raw, 0, n);
+            // RGBA or BGRA in memory, as the frame says
+            bool rgba = frame.Format == Avalonia.Platform.PixelFormat.Rgba8888;
+            var px = new Color[n];
+            for (int i = 0; i < n; i++)
+            {
+                uint p = (uint)raw[i];
+                byte a = (byte)p, b = (byte)(p >> 8), c = (byte)(p >> 16);
+                px[i] = rgba ? Color.FromRgb(a, b, c) : Color.FromRgb(c, b, a);
+            }
+            return new Picture(px, frame.PixelSize.Width);
+        }
+        finally { System.Runtime.InteropServices.Marshal.FreeHGlobal(buf); }
+    }
+
+    /// <summary>The pixels of <paramref name="frame"/> (<see cref="Frame"/> of <paramref name="top"/>) under <paramref name="v"/>, a pixel round it included.</summary>
+    internal static IEnumerable<Color> PixelsOver(Picture frame, TopLevel top, Visual v)
+    {
+        int width = frame.Width;
+        double scale = top.RenderScaling;
+        if (v.TranslatePoint(default, top) is not { } at || width <= 0) yield break;
+        for (int y = (int)Math.Floor(at.Y * scale) - 1; y <= (int)Math.Ceiling((at.Y + v.Bounds.Height) * scale); y++)
+            for (int x = (int)Math.Floor(at.X * scale) - 1; x <= (int)Math.Ceiling((at.X + v.Bounds.Width) * scale); x++)
+                if (x >= 0 && y >= 0 && x < width && y * width + x < frame.Pixels.Length) yield return frame.Pixels[y * width + x];
+    }
+
+    /// <summary>Whether two colours are within <paramref name="by"/> of each other in every channel.</summary>
+    internal static bool Near(Color a, Color b, int by) => Math.Abs(a.R - b.R) <= by && Math.Abs(a.G - b.G) <= by && Math.Abs(a.B - b.B) <= by;
+
+    /// <summary>
+    /// The mods' symbols drawn as shapes on every system (Mordor.Modding's <see cref="ModGlyphs"/>,
+    /// API version 18): the tick and the arrow, in a line of text, in bold, on their own and in a
+    /// given brush. Each is drawn - the picture inside it is not empty, and its strongest pixel is its
+    /// colour - in the text's colour or the brush given, and follows the text's; its foot is on the
+    /// line's baseline; it grows with the font size and not with the face (the same size in three
+    /// faces, one of them a name no machine has); and there is no character in it for a face to miss.
+    /// Returns how many failed.
+    /// </summary>
+    static int ModGlyphShapes(Action pump)
+    {
+        int failed = 0;
+        void Say(string what, bool ok) { Console.WriteLine($"  {(ok ? "ok  " : "FAIL")}  the mods' symbols: {what}"); if (!ok) failed++; }
+        Window? w = null;
+        try
+        {
+            Say("each names its character (for a tooltip or a copy)",
+                ModGlyphs.CharacterOf(ModSymbol.Check) == "✓" && ModGlyphs.CharacterOf(ModSymbol.RightArrow) == "→");
+            var navy = Color.FromRgb(0x00, 0x00, 0x80);
+            var green = Color.FromRgb(0x15, 0x50, 0x20);
+            var red = Color.FromRgb(0xC0, 0x00, 0x00);
+            TextBlock Line(string name, string family, double size, FontWeight weight, Color ink, params Inline[] inlines)
+            {
+                var t = new TextBlock { Name = name, FontFamily = new FontFamily(family), FontSize = size, FontWeight = weight, Foreground = new SolidColorBrush(ink) };
+                t.Inlines!.AddRange(inlines);
+                return t;
+            }
+            var arrow = Line("ArrowLine", "Microsoft Sans Serif", 13, FontWeight.Normal, navy, new Run("Fire Shield "), ModGlyphs.Inline(ModSymbol.RightArrow), new Run(" Oto"));
+            var tick = Line("TickLine", "Microsoft Sans Serif", 13, FontWeight.Bold, green, ModGlyphs.Inline(ModSymbol.Check), new Run("1.9K"));
+            var big = Line("BigLine", "Microsoft Sans Serif", 26, FontWeight.Normal, navy, new Run("Big "), ModGlyphs.Inline(ModSymbol.RightArrow), ModGlyphs.Inline(ModSymbol.Check));
+            var mono = Line("MonoLine", "Courier New", 13, FontWeight.Normal, navy, new Run("Mono "), ModGlyphs.Inline(ModSymbol.RightArrow), ModGlyphs.Inline(ModSymbol.Check));
+            var none = Line("NoFaceLine", "No Such Face Anywhere", 13, FontWeight.Normal, navy, new Run("None "), ModGlyphs.Inline(ModSymbol.RightArrow), ModGlyphs.Inline(ModSymbol.Check));
+            var block = ModGlyphs.Block(ModSymbol.Check, new SolidColorBrush(red));
+            block.Name = "TickBlock";
+            block.FontSize = 13;
+            var beside = new StackPanel { Orientation = Orientation.Horizontal, Children = { block, new TextBlock { Text = "4.3K", FontSize = 13 } } };
+            var stack = new StackPanel { Background = Brushes.White, Spacing = 6, Margin = new Thickness(4), Children = { arrow, tick, big, mono, none, beside } };
+            w = new Window { Width = 300, Height = 260, Content = stack, Background = Brushes.White };
+            w.Show(); pump();
+
+            ModGlyph[] In(TextBlock t) => t.GetVisualDescendants().OfType<ModGlyph>().ToArray();
+            var all = stack.GetVisualDescendants().OfType<ModGlyph>().ToList();
+            Say($"each is a shape, shown ({all.Count})", all.Count == 9 && all.All(g => g.IsEffectivelyVisible && g.Bounds.Width > 0 && g.Bounds.Height > 0));
+
+            // the pictures: the strongest pixel inside each shape is its colour, and the shape is not empty
+            Picture Shot() => Frame(w);
+            // inked: pixels not the white ground; strongest: the one furthest from white
+            (int Inked, Color Strongest) Ink(Picture frame, ModGlyph g)
+            {
+                int inked = 0, most = -1;
+                Color strongest = Colors.White;
+                foreach (var c in PixelsOver(frame, w, g))
+                {
+                    int away = 3 * 255 - c.R - c.G - c.B;
+                    if (away > 30) inked++;
+                    if (away > most) { most = away; strongest = c; }
+                }
+                return (inked, strongest);
+            }
+            string Hex(Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            var shot = Shot();
+            foreach (var (what, g, ink) in new[] { ("the arrow in the text's navy", In(arrow)[0], navy), ("the tick in bold, in the text's green", In(tick)[0], green),
+                                                   ("the tick on its own, in the brush given (red)", In(block)[0], red) })
+            {
+                var (inked, strongest) = Ink(shot, g);
+                Say($"{what}: drawn ({inked} px), its strongest pixel {Hex(strongest)}", inked >= 5 && Near(strongest, ink, 40));
+            }
+            // the text's colour changed: the shape follows it
+            arrow.Foreground = new SolidColorBrush(red); pump();
+            var (_, now) = Ink(Shot(), In(arrow)[0]);
+            Say($"the arrow follows its text's colour ({Hex(now)})", Near(now, red, 40));
+
+            // the foot on the line's baseline, in a line of text and on its own
+            double Foot(TextBlock t, ModGlyph g) => g.TranslatePoint(new Point(0, g.Bounds.Height), t)!.Value.Y;
+            double Baseline(TextBlock t) => t.TextLayout.TextLines[0].Baseline;
+            Say($"the arrow stands on the line's baseline ({Foot(arrow, In(arrow)[0]):0.#} for {Baseline(arrow):0.#})", Math.Abs(Foot(arrow, In(arrow)[0]) - Baseline(arrow)) <= 1);
+            Say($"the bold tick too ({Foot(tick, In(tick)[0]):0.#} for {Baseline(tick):0.#})", Math.Abs(Foot(tick, In(tick)[0]) - Baseline(tick)) <= 1);
+            Say("on its own, as tall as a line of the same face beside it", Math.Abs(block.Bounds.Height - ((TextBlock)beside.Children[1]).Bounds.Height) <= 1);
+            // under a capital's height: the line is no taller for the shape
+            var plain = new TextBlock { FontFamily = arrow.FontFamily, FontSize = 13, Text = "Fire Shield Oto" };
+            stack.Children.Add(plain); pump();
+            Say($"the line is no taller for it ({arrow.Bounds.Height:0.#} for {plain.Bounds.Height:0.#})", Math.Abs(arrow.Bounds.Height - plain.Bounds.Height) <= 0.5);
+
+            // sized by the font size, not by the face
+            string Dims(ModGlyph g) => $"{g.Bounds.Width:0.#}x{g.Bounds.Height:0.#}";
+            var (a13, t13) = (In(mono)[0], In(mono)[1]);
+            var (a26, t26) = (In(big)[0], In(big)[1]);
+            Say($"twice the size at twice the font size ({Dims(a13)} {Dims(t13)}; {Dims(a26)} {Dims(t26)})",
+                Math.Abs(a26.Bounds.Width - 2 * a13.Bounds.Width) <= 1 && Math.Abs(t26.Bounds.Height - 2 * t13.Bounds.Height) <= 1);
+            Say($"the same size in any face, one that is nowhere included ({Dims(In(arrow)[0])}, {Dims(a13)}, {Dims(In(none)[0])})",
+                Dims(In(arrow)[0]) == Dims(a13) && Dims(a13) == Dims(In(none)[0]) && Dims(t13) == Dims(In(none)[1]));
+            var faces = Ink(shot, In(none)[0]);
+            Say($"and drawn there too ({faces.Inked} px)", faces.Inked >= 5);
+
+            // nothing in them for a face to miss, and no character of theirs in the text
+            Say("no character in them for a face to miss", !Find(w).Any(f => f.Kind == "glyph"));
+            Say("no U+2713 or U+2192 in the text shown", !VisibleText(w).Any(s => s.Contains('✓') || s.Contains('→')));
+        }
+        catch (Exception ex) { Say($"could not run: {ex.GetType().Name}: {ex.Message}", false); }
+        finally { try { w?.Close(); pump(); } catch { } }
         return failed;
     }
 

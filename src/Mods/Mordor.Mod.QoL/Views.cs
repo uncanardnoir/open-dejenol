@@ -21,10 +21,22 @@ public static class Views
     // the game's navy role (ThemeKeys): the one brush the theme recolours; the Dark blue when no game publishes it
     private static IBrush Text => Application.Current?.FindResource(ThemeKeys.Navy) as IBrush ?? Brushes.CornflowerBlue;
 
+    // The experience bar and the text over it take the game's bar roles (ThemeKeys, API version 18):
+    // the brushes the theme recolours in place, so a change of theme recolours the bar and its figure
+    // with nothing of the mod's own. Each falls back to Dark's colour where no game publishes the
+    // roles (the probes): the fills at half strength (UnderTextAlpha), the figure white or pink.
+    private static IBrush Role(string key, IBrush otherwise) => Application.Current?.FindResource(key) as IBrush ?? otherwise;
+    private static IBrush ToNextFill => Role(ThemeKeys.XpToNext, new SolidColorBrush(Rgb(Bars.ToNextColour, BarColours.UnderTextAlpha)));
+    private static IBrush ToPinFill => Role(ThemeKeys.XpToPin, new SolidColorBrush(Rgb(Bars.ToPinColour, BarColours.UnderTextAlpha)));
+    private static IBrush PinnedFill => Role(ThemeKeys.XpPinned, new SolidColorBrush(Rgb(Bars.ToPinColour, BarColours.UnderTextAlpha)));
+    private static IBrush XpTrack => Role(ThemeKeys.XpTrack, Track);
+    private static IBrush FigureInk => Role(ThemeKeys.BarInk, new SolidColorBrush(Rgb(BarColours.TextOver)));
+    private static IBrush PastInk => Role(ThemeKeys.BarInkPast, new SolidColorBrush(Color.FromRgb(220, 140, 215)));
+
     private static Color Rgb((byte R, byte G, byte B) c, byte alpha = 255) => Color.FromArgb(alpha, c.R, c.G, c.B);
 
     /// <summary>A bar: a track (dark unless <paramref name="track"/> is given) with <paramref name="fraction"/> of it filled from the left.</summary>
-    private static Control Bar(double? fraction, Color fill, double height, IBrush? track = null)
+    private static Control Bar(double? fraction, IBrush fill, double height, IBrush? track = null)
     {
         double f = fraction ?? 0;
         var inside = new Grid
@@ -35,7 +47,7 @@ public static class Views
                 new ColumnDefinition(1 - f, GridUnitType.Star),
             },
         };
-        if (f > 0) inside.Children.Add(new Border { Background = new SolidColorBrush(fill), CornerRadius = new CornerRadius(1) });
+        if (f > 0) inside.Children.Add(new Border { Background = fill, CornerRadius = new CornerRadius(1) });
         return new Border
         {
             Height = height,
@@ -62,8 +74,8 @@ public static class Views
             Margin = new Thickness(8, 0, 1, 0),
             Children =
             {
-                Bar(hp, Rgb(Bars.Colour(hp ?? 0)), 4),
-                Bar(sp, Rgb(Bars.SpColour(sp ?? 0)), 4),
+                Bar(hp, new SolidColorBrush(Rgb(Bars.Colour(hp ?? 0))), 4),
+                Bar(sp, new SolidColorBrush(Rgb(Bars.SpColour(sp ?? 0))), 4),
             },
         };
         string Say(string what, long cur, long max, double? f) =>
@@ -75,29 +87,38 @@ public static class Views
 
     /// <summary>
     /// The experience bar (Bars.Experience): short of the next level, green from this level's
-    /// threshold toward the next's; once the level is earned the bar stays full green and purple
-    /// fills over it from the left, from the next level's threshold toward the pin; pinned, the
-    /// whole bar purple.
+    /// threshold toward the next's over the track; once the level is earned the bar stays full green
+    /// and purple fills over it from the left, from the next level's threshold toward the pin;
+    /// pinned, the whole bar purple. In the game's bar roles (ThemeKeys.XpToNext, XpToPin, XpPinned,
+    /// XpTrack): half strength in Dark, solid in Light.
     /// </summary>
-    private static Control ExperienceBar(Character c, byte alpha, double height)
+    private static Control ExperienceBar(Character c, double height)
     {
-        var (toNext, toPin, stage2, _, _) = Bars.Experience(c);
-        if (!stage2) return Bar(toNext, Rgb(Bars.ToNextColour, alpha), height);
-        return Bar(toPin, Rgb(Bars.ToPinColour, alpha), height, new SolidColorBrush(Rgb(Bars.ToNextColour, alpha)));
+        var (toNext, toPin, stage2, pinned, _) = Bars.Experience(c);
+        if (!stage2) return Bar(toNext, ToNextFill, height, XpTrack);
+        return Bar(toPin, pinned ? PinnedFill : ToPinFill, height, ToNextFill);
     }
 
     private static string ExperienceTip(Character c, Mark? mark) =>
         mark == null ? XpColumn.Tip(c) : XpColumn.Tip(c) + "\n" + mark.Value.Tip;
 
-    /// <summary>The quest mark as drawn: bold, in its colour, in the row's own face and size so the row keeps its 13 pixels.</summary>
-    private static TextBlock MarkBlock(Mark m) => new()
+    /// <summary>
+    /// The quest mark as drawn: bold, in the row's own face and size so the row keeps its 13 pixels,
+    /// in the game's quest roles (ThemeKeys.QuestMark, QuestDone: the gold and the green in Dark,
+    /// darker in Light, to read over the solid bar), its own colour where no game publishes them.
+    /// The tick is a shape (ModGlyphs, 1.14.1), not the character, so it is the same on every system:
+    /// the faces the game bundles away from Windows have no U+2713. The ! stays a character.
+    /// </summary>
+    private static TextBlock MarkBlock(Mark m)
     {
-        Text = m.Glyph,
-        Foreground = new SolidColorBrush(Rgb(m.Colour)),
-        FontWeight = FontWeight.Bold,
-        VerticalAlignment = VerticalAlignment.Center,
-        Margin = new Thickness(0, 0, 1, 0),
-    };
+        bool done = m.Glyph == QuestMark.DoneMark;
+        var block = done ? ModGlyphs.Block(ModSymbol.Check) : new TextBlock { Text = m.Glyph };
+        block.Foreground = Role(done ? ThemeKeys.QuestDone : ThemeKeys.QuestMark, new SolidColorBrush(Rgb(m.Colour)));
+        block.FontWeight = FontWeight.Bold;
+        block.VerticalAlignment = VerticalAlignment.Center;
+        block.Margin = new Thickness(0, 0, 1, 0);
+        return block;
+    }
 
     /// <summary>The figure with the quest mark before it, set right as the column's text is.</summary>
     private static Control MarkedFigure(TextBlock figure, Mark? mark)
@@ -128,7 +149,7 @@ public static class Views
         // the XP bar behind the figure, unless switched off on its own (1.11.0)
         if (showBar)
         {
-            var bar = ExperienceBar(c, 0x80, double.NaN);
+            var bar = ExperienceBar(c, double.NaN);
             bar.VerticalAlignment = VerticalAlignment.Stretch;
             grid.Children.Add(bar);
         }
@@ -142,7 +163,7 @@ public static class Views
         grid.Children.Add(MarkedFigure(new TextBlock
         {
             Text = text,
-            Foreground = stage2 ? new SolidColorBrush(Color.FromRgb(220, 140, 215)) : Brushes.WhiteSmoke,
+            Foreground = stage2 ? PastInk : FigureInk,
             FontWeight = pinned ? FontWeight.Bold : FontWeight.Normal,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,

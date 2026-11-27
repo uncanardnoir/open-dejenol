@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -199,11 +200,15 @@ internal static class AutoCombatView
                 for (int i = 0; i < rules.Count; i++)
                 {
                     int at = i;
-                    var t = new TextBlock
-                    {
-                        Text = $"{i + 1}. {rules[i].Describe()}", TextWrapping = TextWrapping.Wrap,
-                        Foreground = i == picked ? Picked : null, FontWeight = i == picked ? FontWeight.Bold : FontWeight.Normal,
-                    };
+                    // "1. Anyone: always → Fight", the arrow a shape (ModGlyphs, 1.0.1) the same on every
+                    // system; the picked rule in bold green, the rest in the window's own ink (a null
+                    // Foreground set here had drawn them in no colour at all, so they did not show)
+                    var (when, then) = rules[i].DescribeParts();
+                    var t = new TextBlock { TextWrapping = TextWrapping.Wrap, FontWeight = i == picked ? FontWeight.Bold : FontWeight.Normal };
+                    if (i == picked) t.Foreground = Picked;
+                    t.Inlines!.Add(new Run($"{i + 1}. {when} "));
+                    t.Inlines.Add(ModGlyphs.Inline(ModSymbol.RightArrow));
+                    t.Inlines.Add(new Run(" " + then));
                     var row = new Border { Background = Brushes.Transparent, Child = t, Padding = new Thickness(0, 1) };
                     row.PointerPressed += (_, e) => Safe("picking a rule", () => { picked = at; Draw(); e.Handled = true; });
                     rowsPanel.Children.Add(row);

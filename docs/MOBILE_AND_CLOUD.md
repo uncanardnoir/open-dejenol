@@ -144,7 +144,7 @@ The saves folder is a whole **world**, shared by every character in it, as in th
 
 | File | Size today | Kind |
 |---|---|---|
-| `dungeon.json` | ~650 KB | world: every level's rooms, bodies, chests |
+| `dungeon-01.json` ... `dungeon-15.json`, `dungeon.json` | up to ~45 KB a level (a 12-level world ~350 KB); `dungeon.json` tiny | world: each level's rooms and chests in its own file, the deepest level in dungeon.json (docs/GAME_FILES.md, "The dungeon's files") |
 | `automap.json` | ~70 KB | world: the shared map |
 | `library.json`, `store.json`, `records.json`, `confinement.json`, `guildmasters.json`, `MDATA9.MDR`, `roster.json` | small | world |
 | `<name>.json` | ~10-15 KB each | one per character |

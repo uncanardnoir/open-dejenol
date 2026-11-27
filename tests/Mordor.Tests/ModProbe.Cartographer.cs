@@ -56,7 +56,7 @@ public static partial class ModProbe
         var cm = off.Discovered.FirstOrDefault(d => d.Id == "Cartographer");
         Check("Cartographer manifest found, no problem", cm != null && cm.Problem == null, true);
         Check("its name, version and one-line description", $"{cm?.Manifest.Name} {cm?.Manifest.Version}: {cm?.Manifest.Description}",
-              "Cartographer 1.1.0: Mark squares on the automap with colours and waypoints, and find the shortest route between squares");
+              "Cartographer 1.2.0: Mark squares on the automap with colours and waypoints, and find the shortest route between squares");
         Check("nothing on the Mods page but the switch: the route settings are on the Automap's menu",
               $"{cm?.Manifest.Settings.Count} {cm?.Manifest.Choices.Count} {cm?.Manifest.SettingsWindow == null}", "0 0 True");
         Check("not enabled by default (off until ticked, as the others)", off.IsEnabled("Cartographer"), false);
@@ -253,7 +253,7 @@ public static partial class ModProbe
               $"{Menu(far).Contains("Route to here #59A14F (greyed)")} | {Info()}", "True | (the original's line)");
         fake.You = new AutomapPosition(corner, Facing.North);
         Choose(far, "Route to here");
-        Check("facing north: up and along, 8 actions - a turn is an action", Info(), "Route to 5,4,4: 8 actions (7 steps, 1 turn).");
+        Check("facing north: up and along, 8 actions - a turn is an action", Info(), "Route to 5,4,4: 8 actions");
         fake.You = null;
         Check("the party lost (the map's arrow gone): the route says why there is none", Info(), "Route to 5,4,4: where you are is not known.");
         fake.You = new AutomapPosition(corner, Facing.North);
@@ -269,47 +269,47 @@ public static partial class ModProbe
               "Arrow(0,0->4,0)#59A14F Arrow(4,0->4,3)#59A14F Frame(0,0)#59A14F Frame(4,3)#59A14F!");
         fake.You = new AutomapPosition(corner, Facing.South);
         Choose(new AutomapSquare(4, 0, 3), "Route to here");
-        Check("facing south, three squares north: about face is one action", Info(), "Route to 1,4,4: 4 actions (3 steps, 1 turn).");
+        Check("facing south, three squares north: about face is one action", Info(), "Route to 1,4,4: 4 actions");
         fake.You = new AutomapPosition(corner, Facing.North);
         Choose(far, "Route to here");
 
         var pit = new AutomapSquare(4, 0, 2);
         fake.Set(pit, Floor.PIT);
-        Check("a pit on the way, counting nothing extra (None): the same 8", Info(), "Route to 5,4,4: 8 actions (7 steps, 1 turn).");
+        Check("a pit on the way, counting nothing extra (None): the same 8", Info(), "Route to 5,4,4: 8 actions");
         Extra("Pit", "2");
-        Check("pits +2: the other way, 9, is now the shorter", Info(), "Route to 5,4,4: 9 actions (7 steps, 2 turns).");
+        Check("pits +2: the other way, 9, is now the shorter", Info(), "Route to 5,4,4: 9 actions");
         Extra("Pit", "1");
         fake.Set(new AutomapSquare(4, 1, 0), Floor.WALL_EAST);
-        Check("pits +1 and the other way walled: through the pit, its extra counted", Info(), "Route to 5,4,4: 9 actions (7 steps, 1 turn, +1 for hazards).");
+        Check("pits +1 and the other way walled: through the pit, its extra counted", Info(), "Route to 5,4,4: 9 actions");
         Extra("Pit", "Avoid");
         Check("pits Avoid, and the other way walled: no known route", Info(), "No known route to 5,4,4.");
         fake.Set(new AutomapSquare(4, 1, 0), Floor.WALL_EAST, on: false);
-        Check("the wall gone: around the pit", Info(), "Route to 5,4,4: 9 actions (7 steps, 2 turns).");
+        Check("the wall gone: around the pit", Info(), "Route to 5,4,4: 9 actions");
         Choose(pit, "Route to here");
-        Check("... but a pit kept off may still be where the route goes, and counts nothing", Info(), "Route to 1,3,4: 2 actions (2 steps, 0 turns).");
+        Check("... but a pit kept off may still be where the route goes, and counts nothing", Info(), "Route to 1,3,4: 2 actions");
         Extra("Pit", "0");
         fake.Set(pit, Floor.PIT, on: false);
         Choose(far, "Route to here");
 
         var turnSquare = new AutomapSquare(4, 0, 3);
         fake.Set(turnSquare, Floor.FACE_EAST);
-        Check("a facing square the map shows turns the party, as the game does: no turn counted", Info(), "Route to 5,4,4: 7 actions (7 steps, 0 turns).");
+        Check("a facing square the map shows turns the party, as the game does: no turn counted", Info(), "Route to 5,4,4: 7 actions");
         fake.Set(turnSquare, Floor.FACE_EAST, on: false);
         fake.Set(turnSquare, Floor.ROTATOR);
-        Check("a rotator leaves the party facing any way: counted at its worst, one turn after it", Info(), "Route to 5,4,4: 8 actions (7 steps, 1 turn).");
+        Check("a rotator leaves the party facing any way: counted at its worst, one turn after it", Info(), "Route to 5,4,4: 8 actions");
         fake.Set(turnSquare, Floor.ROTATOR, on: false);
         fake.Set(pit, Floor.TELEPORTER);
-        Check("a teleporter the map shows is never stepped onto (where it leads, the map does not say)", Info(), "Route to 5,4,4: 9 actions (7 steps, 2 turns).");
+        Check("a teleporter the map shows is never stepped onto (where it leads, the map does not say)", Info(), "Route to 5,4,4: 9 actions");
         fake.Set(pit, Floor.TELEPORTER, on: false);
         fake.Set(pit, Floor.CHUTE);
-        Check("... nor a chute", Info(), "Route to 5,4,4: 9 actions (7 steps, 2 turns).");
+        Check("... nor a chute", Info(), "Route to 5,4,4: 9 actions");
         fake.Set(pit, Floor.CHUTE, on: false);
         fake.Set(new AutomapSquare(4, 0, 1), Floor.FOG);
         fake.Set(pit, Floor.FOG);
         Check("between two squares stood on only in fog the map has no walls: said so", Info(),
-              "Route to 5,4,4: 8 actions (7 steps, 1 turn). Walls in fog are not on the map.");
+              "Route to 5,4,4: 8 actions");
         Extra("Fog", "+3");
-        Check("fog +3: around it", Info(), "Route to 5,4,4: 9 actions (7 steps, 2 turns).");
+        Check("fog +3: around it", Info(), "Route to 5,4,4: 9 actions");
         Extra("Fog", "None");
         fake.Set(new AutomapSquare(4, 0, 1), Floor.FOG, on: false);
         fake.Set(pit, Floor.FOG, on: false);
@@ -319,11 +319,11 @@ public static partial class ModProbe
         var gate = new AutomapSquare(4, 1, 0);
         Choose(gate, "Add waypoint...");
         fake.Answer(far);
-        Check("a waypoint from the next square to the end: one step", Info(), "Route to 5,4,4: 1 action (1 step, 0 turns, 1 waypoint).");
+        Check("a waypoint from the next square to the end: one step", Info(), "Route to 5,4,4: 1 action");
         Check("... drawn: the step's arrow, both ends of the jump framed (beside the waypoint's own yellow)", Marks(),
               "Tint(1,0)#EDC948 Frame(1,0)#EDC948 Arrow(0,0->1,0)#59A14F Frame(0,0)#59A14F Frame(1,0)#59A14F Frame(4,3)#59A14F!");
         on.Settings.WriteFlag("Cartographer", "RouteWaypoints", false);
-        Check("waypoints switched off: walked across like any square", Info(), "Route to 5,4,4: 8 actions (7 steps, 1 turn).");
+        Check("waypoints switched off: walked across like any square", Info(), "Route to 5,4,4: 8 actions");
         on.Settings.WriteFlag("Cartographer", "RouteWaypoints", true);
 
         // Route settings...: the mod's own window (a probe has no Avalonia: the opener is swapped for a count)
@@ -333,9 +333,9 @@ public static partial class ModProbe
         Choose(far, "Route settings...");
         Check("Route settings... opens the route settings window", opened, 1);
         carto.SetUseWaypoints(false);
-        Check("... its Take waypoints box, written at once: the route walks", Info(), "Route to 5,4,4: 8 actions (7 steps, 1 turn).");
+        Check("... its Take waypoints box, written at once: the route walks", Info(), "Route to 5,4,4: 8 actions");
         carto.SetUseWaypoints(true);
-        Check("... ticked again: the waypoint taken", Info(), "Route to 5,4,4: 1 action (1 step, 0 turns, 1 waypoint).");
+        Check("... ticked again: the waypoint taken", Info(), "Route to 5,4,4: 1 action");
         var parse = ((object)carto).GetType().GetMethod("ParseExtra")!;
         string Parsed(string? s) => parse.Invoke(null, new object?[] { s }) is int n ? n.ToString() : "avoid";
         Check("a hazard's box read back: whole numbers, Avoid, 1.1.0's first +2 and None, nothing or rubbish 0, held to 999",
@@ -358,22 +358,22 @@ public static partial class ModProbe
         var wall = new AutomapSquare(4, 1, 0);
         fake.Set(wall, Floor.WALL_EAST);
         Choose(new AutomapSquare(4, 3, 0), "Route to here");
-        Check("a wall across the bottom row, no portal (the default): the long way round", Info(), "Route to 4,1,4: 15 actions (11 steps, 4 turns).");
+        Check("a wall across the bottom row, no portal (the default): the long way round", Info(), "Route to 4,1,4: 15 actions");
         carto.SetPortalCost(3);
-        Check("Ethereal Portal at 3: a step, the portal through the wall, a step", Info(), "Route to 4,1,4: 5 actions (2 steps, 0 turns, 1 Ethereal Portal at 3).");
+        Check("Ethereal Portal at 3: a step, the portal through the wall, a step", Info(), "Route to 4,1,4: 5 actions");
         Check("... settings.ini has the number", on.Settings.Read("Cartographer", "PortalCost"), "3");
         Check("... drawn: the steps' arrows, the portal's own arrow through the wall, both its ends framed", RouteMarks(),
               "Arrow(0,0->1,0)#59A14F Arrow(2,0->3,0)#59A14F Arrow(1,0->2,0)#59A14F Frame(0,0)#59A14F Frame(1,0)#59A14F Frame(2,0)#59A14F Frame(3,0)#59A14F!");
         carto.SetPortalCost(20);
-        Check("at 20: the long way is cheaper", Info(), "Route to 4,1,4: 15 actions (11 steps, 4 turns).");
+        Check("at 20: the long way is cheaper", Info(), "Route to 4,1,4: 15 actions");
         carto.SetPortalCost(3);
         fake.Set(wall, Floor.ANTIMAGIC);
-        Check("anti-magic on the map where it would be cast: refused there, the long way", Info(), "Route to 4,1,4: 15 actions (11 steps, 4 turns).");
+        Check("anti-magic on the map where it would be cast: refused there, the long way", Info(), "Route to 4,1,4: 15 actions");
         fake.Set(wall, Floor.ANTIMAGIC, on: false);
         fake.Walked.Remove(new AutomapSquare(4, 2, 0));
         Choose(new AutomapSquare(4, 2, 0), "Route to here");
         Check("never onto a square not stood on (it may be rock), destination or not: walked round to it instead", Info(),
-              "Route to 3,1,4: 16 actions (12 steps, 4 turns). It ends on a square not yet explored.");
+              "Route to 3,1,4: 16 actions");
         fake.Walked.Add(new AutomapSquare(4, 2, 0));
         carto.SetPortalCost(null);
         Check("Don't use: Off in settings.ini", on.Settings.Read("Cartographer", "PortalCost"), "Off");
@@ -385,7 +385,7 @@ public static partial class ModProbe
         fake.Walked.Add(new AutomapSquare(5, 4, 4));
         var below = new AutomapSquare(5, 4, 4);
         Choose(below, "Route to here");
-        Check("down the stairs, facing east: 8 to them arriving north, t, and a step on north", Info(), "Route to 5,5,5: 10 actions (8 steps, 1 turn, 1 stairs).");
+        Check("down the stairs, facing east: 8 to them arriving north, t, and a step on north", Info(), "Route to 5,5,5: 10 actions");
         Check("... level 4 drawn to the stairs, framed where it leaves", RouteMarks(),
               "Arrow(0,0->4,0)#59A14F Arrow(4,0->4,3)#59A14F Frame(0,0)#59A14F Frame(4,3)#59A14F");
         fake.Shown = 5;
@@ -397,22 +397,35 @@ public static partial class ModProbe
         fake.You = new AutomapPosition(corner, Facing.East);
         Choose(new AutomapSquare(4, 5, 0), "Route to here");
         Check("to a square never walked: allowed as the last step, and said", Info(),
-              "Route to 6,1,4: 5 actions (5 steps, 0 turns). It ends on a square not yet explored.");
+              "Route to 6,1,4: 5 actions");
         Choose(new AutomapSquare(4, 6, 0), "Route to here");
         Check("... but never through one", Info(), "No known route to 7,1,4.");
 
         Choose(new AutomapSquare(4, 4, 0), "Route from here...");
         Check("Route from here...: a pick for where it goes", fake.Pick?.Prompt, "Click where the route goes (any level). Esc cancels.");
         fake.Answer(new AutomapSquare(4, 0, 3));
-        Check("... from that square, facing whichever way is best", Info(), "Route 5,1,4 to 1,4,4: 8 actions (7 steps, 1 turn).");
+        Check("... from that square, facing whichever way is best", Info(), "Route 5,1,4 to 1,4,4: 8 actions");
         fake.You = new AutomapPosition(new AutomapSquare(4, 2, 0), Facing.West);
-        Check("... and it stays put as the party moves", Info(), "Route 5,1,4 to 1,4,4: 8 actions (7 steps, 1 turn).");
+        Check("... and it stays put as the party moves", Info(), "Route 5,1,4 to 1,4,4: 8 actions");
         Choose(corner, "Route from here...");
         fake.Answer(null);
-        Check("... a pick given up keeps the route there was", Info(), "Route 5,1,4 to 1,4,4: 8 actions (7 steps, 1 turn).");
+        Check("... a pick given up keeps the route there was", Info(), "Route 5,1,4 to 1,4,4: 8 actions");
         Choose(corner, "Clear route");
         Check("Clear route: the original's line, no route marks, no Clear in the menu",
               $"{Info()} [{RouteMarks()}] {Menu(corner).Contains("Clear route")}", "(the original's line) [] False");
+        // the owner, 2026-11-27: Route to here pages the map back to the party's level, and a route to
+        // here clears itself once the party stands on its square; a route from here... is a plan and stays
+        fake.Shown = 2;
+        Choose(far, "Route to here");
+        Check("Route to here: the map back on the party's own level, the route asked", $"{fake.Shown} {Info().StartsWith("Route to 5,4,4: ")}", "4 True");
+        fake.You = new AutomapPosition(far, Facing.North);
+        Check("... the party on its square: the route cleared, no route marks, no Clear in the menu",
+              $"{Info()} [{RouteMarks()}] {Menu(corner).Contains("Clear route")}", "(the original's line) [] False");
+        Choose(corner, "Route from here...");
+        fake.Answer(far);
+        Check("Route from here... to where the party stands: a plan, not cleared", Info(), "Route 1,1,4 to 5,4,4: 8 actions");
+        Choose(corner, "Clear route");
+        fake.You = new AutomapPosition(new AutomapSquare(4, 2, 0), Facing.West);
         Choose(far, "Route to here");
         on.Switch("Cartographer", false);
         on.Switch("Cartographer", true);

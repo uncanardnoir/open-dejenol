@@ -2456,7 +2456,7 @@ public static class EncounterGenerator
     /// The same, saying whether the level's file was written. <paramref name="written"/> is true when fn0D4D
     /// ran: it Puts the room to the file as it makes it - sub0C79's cleared records first
     /// (MONSMOD.BAS:1425, 794-803) and the new ones at the end (fn0F88, 1979) - so the caller
-    /// writes dungeon.json then, not at the next change of area. A room read back as it stands
+    /// writes the level's file then, not at the next change of area. A room read back as it stands
     /// writes nothing (sub0A91 only reads it, 687).
     /// </summary>
     public static Encounter? InRoom(IReadOnlyList<Monster> all, Floor floor, int level, int x, int y, DungeonState state, DateTime now,

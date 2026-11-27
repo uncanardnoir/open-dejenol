@@ -1,7 +1,7 @@
 {
   "id": "QoL",
   "name": "Quality of Life",
-  "version": "1.13.0",
+  "version": "1.14.1",
   "author": "OpenDejenol",
   "gameVersion": "1.1",
   "assembly": "Mordor.Mod.QoL.dll",

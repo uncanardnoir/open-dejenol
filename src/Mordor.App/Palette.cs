@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Mordor.Modding;
@@ -18,17 +19,20 @@ namespace Mordor.App;
 ///
 /// A colour that is not a role - a picture's, a bar's own fill, a mod's own choice - is drawn as it
 /// is. The UI checks hold the window code to this (ContrastCheck for what can be read,
-/// ThemeRegressionCheck for the roles the original has).
+/// ThemeRegressionCheck for the roles the original has, ThemePairsCheck for the inks declared on
+/// their grounds in <see cref="Pairs"/>).
 /// </summary>
 public static class Palette
 {
-    private sealed record Role(string Key, SolidColorBrush Brush, Color Light, Color Dark);
+    /// <summary>A role: its name, its one brush, and its colour in each theme by the theme's name.</summary>
+    private sealed record Role(string Key, SolidColorBrush Brush, IReadOnlyDictionary<string, Color> Values, bool Published);
 
     private static readonly List<Role> Roles = new();
 
-    private static SolidColorBrush Add(string key, string light, string dark)
+    private static SolidColorBrush Add(string key, string light, string dark, bool publish = true)
     {
-        var role = new Role(key, new SolidColorBrush(Color.Parse(dark)), Color.Parse(light), Color.Parse(dark));
+        var role = new Role(key, new SolidColorBrush(Color.Parse(dark)),
+            new Dictionary<string, Color> { ["Light"] = Color.Parse(light), ["Dark"] = Color.Parse(dark) }, publish);
         Roles.Add(role);
         return role.Brush;
     }
@@ -76,6 +80,15 @@ public static class Palette
     public static SolidColorBrush Name { get; } = Add(ThemeKeys.Name, "#800000", "#F0E68C");
     /// <summary>Something out of the ordinary: a join.</summary>
     public static SolidColorBrush Magic { get; } = Add(ThemeKeys.Magic, "#800080", "#dda0dd");
+    /// <summary>
+    /// The state words of the character window's Stats page (lblSpecial: Levitating, Protected,
+    /// Diseased, ...). Light is the form's own ForeColor, &amp;H000000FF& (frmCharStat1, MORDOR.EXE
+    /// RCDATA 8), pure bright red on its &amp;H00C0C0C0& grey, 2.2:1, kept for fidelity; Dark the
+    /// indian red it has always been. The game's alone, not published to the mods (no ThemeKeys name).
+    /// </summary>
+    public static SolidColorBrush StateInk { get; } = Add(StateKey, "#FF0000", "#cd5c5c", publish: false);
+    /// <summary>The state ink's name among the roles (<see cref="ByKey"/>, <see cref="Pairs"/>): not a ThemeKeys name, as it is not published.</summary>
+    public const string StateKey = "Mordor.Ink.State";
 
     // ---- selection ----
     /// <summary>A chosen row's ground: Windows 3.1's navy in Light.</summary>
@@ -83,22 +96,95 @@ public static class Palette
     /// <summary>A chosen row's ink.</summary>
     public static SolidColorBrush SelectionText { get; } = Add(ThemeKeys.SelectionText, "#FFFFFF", "#FFFFFF");
 
-    /// <summary>A role's colour in the Light theme, for what is drawn in Light alone (ClassicLook's relief).</summary>
-    public static Color LightOf(SolidColorBrush role) => Roles.Find(r => r.Brush == role)!.Light;
+    // ---- the bars (the port's own: the original drew none) ----
+    // Dark's are what Dark always drew - the experience bar's fills at half strength (alpha 0x80)
+    // over the dark track, the figure in the Party window's white or the purple's own pink - so its
+    // pictures do not change. Light's are solid, with dark inks over them: the half-strength fills
+    // washed out to pastels on the list's pale yellow and the white figure was lost on them.
+    /// <summary>The experience bar's fill short of the next level (the green).</summary>
+    public static SolidColorBrush XpToNext { get; } = Add(ThemeKeys.XpToNext, "#5AC878", "#8032AF5F");
+    /// <summary>The experience bar's fill past the level, toward the pin (the purple), over a bar left full of <see cref="XpToNext"/>.</summary>
+    public static SolidColorBrush XpToPin { get; } = Add(ThemeKeys.XpToPin, "#E178D2", "#80CD46B9");
+    /// <summary>The experience bar pinned: the whole bar, over <see cref="XpToNext"/>.</summary>
+    public static SolidColorBrush XpPinned { get; } = Add(ThemeKeys.XpPinned, "#E178D2", "#80CD46B9");
+    /// <summary>The experience bar's empty track, short of the level.</summary>
+    public static SolidColorBrush XpTrack { get; } = Add(ThemeKeys.XpTrack, "#FFFFFF", "#2A2A38");
+    /// <summary>The figure written over a bar: the experience still needed for the level.</summary>
+    public static SolidColorBrush BarInk { get; } = Add(ThemeKeys.BarInk, "#000000", "#F5F5F5");
+    /// <summary>The figure written over a bar past the level: what is still needed to the pin, and Pinned.</summary>
+    public static SolidColorBrush BarInkPast { get; } = Add(ThemeKeys.BarInkPast, "#5A005A", "#DC8CD7");
+    /// <summary>A guild quest's mark (the Quality of Life mod's "!" before the Next figure).</summary>
+    public static SolidColorBrush QuestMark { get; } = Add(ThemeKeys.QuestMark, "#5C4400", "#F0BE32");
+    /// <summary>A guild quest done (the tick in its place).</summary>
+    public static SolidColorBrush QuestDone { get; } = Add(ThemeKeys.QuestDone, "#155020", "#5AD264");
 
-    /// <summary>The brush of a role by its ThemeKeys name, or null.</summary>
+    /// <summary>
+    /// An ink drawn on a ground, declared so its contrast is checked in every theme without a
+    /// picture (ThemePairsCheck, at least 3:1). <see cref="Ground"/> is what lies under the ink,
+    /// topmost first, each a role's name: a see-through role is mixed over the next, and the last
+    /// must be solid.
+    /// </summary>
+    public sealed record Pair(string Ink, string[] Ground, string What);
+
+    /// <summary>The inks the game and its mods draw on the role grounds, declared to be read.</summary>
+    public static IReadOnlyList<Pair> Pairs { get; } = DeclarePairs();
+
+    private static Pair[] DeclarePairs()
+    {
+        var pairs = new List<Pair>
+        {
+            new(StateKey, new[] { ThemeKeys.Window }, "the Stats page's state words on the form's ground"),
+        };
+        // the experience bar (the Quality of Life mod's Next column): each ink on every part of the
+        // bar it is written over - the figure short of the level over the fill and the track, the
+        // figure past the level over the purple and the green beyond it, the quest marks over any -
+        // and on the list's ground, where the column is drawn with its bar off
+        var track = ("the track short of the level", new[] { ThemeKeys.XpTrack, ThemeKeys.List });
+        var toNext = ("the fill short of the level", new[] { ThemeKeys.XpToNext, ThemeKeys.XpTrack, ThemeKeys.List });
+        var beyond = ("the bar past the level, beyond the purple", new[] { ThemeKeys.XpToNext, ThemeKeys.List });
+        var toPin = ("the fill past the level", new[] { ThemeKeys.XpToPin, ThemeKeys.XpToNext, ThemeKeys.List });
+        var pinned = ("the bar pinned", new[] { ThemeKeys.XpPinned, ThemeKeys.XpToNext, ThemeKeys.List });
+        var list = ("the list's ground", new[] { ThemeKeys.List });
+        var drawn = new (string Ink, (string What, string[] Stack)[] Over)[]
+        {
+            (ThemeKeys.BarInk, new[] { track, toNext, list }),
+            (ThemeKeys.BarInkPast, new[] { beyond, toPin, pinned, list }),
+            (ThemeKeys.QuestMark, new[] { track, toNext, beyond, toPin, pinned, list }),
+            (ThemeKeys.QuestDone, new[] { track, toNext, beyond, toPin, pinned, list }),
+        };
+        foreach (var (ink, over) in drawn)
+            foreach (var (what, stack) in over)
+                pairs.Add(new Pair(ink, stack, what));
+        return pairs.ToArray();
+    }
+
+    /// <summary>Every theme a role has a colour for, in the order first met.</summary>
+    public static IReadOnlyList<string> Themes => Roles.SelectMany(r => r.Values.Keys).Distinct().ToList();
+
+    /// <summary>Every role's name.</summary>
+    public static IReadOnlyList<string> Keys => Roles.Select(r => r.Key).ToList();
+
+    /// <summary>A role's colour in a theme, or null when the role or its colour there is not defined.</summary>
+    public static Color? ColourOf(string key, string theme) =>
+        Roles.Find(r => r.Key == key) is { } r && r.Values.TryGetValue(theme, out var c) ? c : null;
+
+    /// <summary>A role's colour in the Light theme, for what is drawn in Light alone (ClassicLook's relief).</summary>
+    public static Color LightOf(SolidColorBrush role) => Roles.Find(r => r.Brush == role)!.Values["Light"];
+
+    /// <summary>The brush of a role by its name (a ThemeKeys name, or <see cref="StateKey"/>), or null.</summary>
     public static SolidColorBrush? ByKey(string key) => Roles.Find(r => r.Key == key)?.Brush;
 
     /// <summary>Every role's brush in the Light or the Dark theme's colour.</summary>
     public static void Paint(bool light)
     {
-        foreach (var r in Roles) r.Brush.Color = light ? r.Light : r.Dark;
+        foreach (var r in Roles) r.Brush.Color = r.Values[light ? "Light" : "Dark"];
     }
 
-    /// <summary>Every role in the application's resources under its ThemeKeys name, for the mods.</summary>
+    /// <summary>Every published role in the application's resources under its ThemeKeys name, for the mods.</summary>
     public static void Publish(IResourceDictionary resources)
     {
-        foreach (var r in Roles) resources[r.Key] = r.Brush;
+        foreach (var r in Roles)
+            if (r.Published) resources[r.Key] = r.Brush;
     }
 }
 

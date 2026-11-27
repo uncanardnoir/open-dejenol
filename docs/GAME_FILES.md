@@ -334,6 +334,54 @@ itself (for the verdicts), and a journal that cannot be written - read-only, a f
 place - loses its lines and nothing else. Checked in `selfcheck` (the save journal section) and at
 the end of the playthrough (`Mordor.UiCheck --playthrough`).
 
+### The dungeon's files (`DungeonState`)
+
+The rooms - each area's four Foes() records and its Fight record, what the original keeps in the
+level's part of MDATA10 (fn0F88, MONSMOD.BAS:3921-3924) - and each level's respawn tally are kept
+**a file per level**, at the top of the saves folder beside the other saves:
+
+| file | holds |
+|---|---|
+| `dungeon.json` | the dungeon-wide facts: `{"Format":2,"DeepestReached":11}` - the layout's number and the deepest level anyone has reached |
+| `dungeon-01.json`, `dungeon-02.json`, ... | one level each: `{"Tally":18,"Rooms":{"157":{...},"158":{...}}}` - the level's tally (fn0DDC) when it has one, and its rooms by area id |
+| `dungeon.json.old` | the single dungeon.json of 0.1.8 and before, kept as it was when it was split (below); never read again, never deleted |
+
+A level that has never been visited has no file. The files are written compact (no indentation),
+and a field at zero is left out, as is a room's Foes() record after the last one that is not all
+zero: an emptied room is `"8":{"Foes":[{"Ref":-1,"Stamp":41000.25}]}`. Reading puts back exactly
+what was left out: a missing field, record, room or level file reads as the zeroed records, as the
+original's file does. A tally of 0 is written (`"Tally":0`); no `Tally` at all is the level's seed
+value, the header's area count.
+
+**What is written when.** Nothing about when the game saves changed: every fn0F88 point still saves,
+at once, through `SafeFile`. What changed is what a save writes. Each level remembers whether its
+rooms or tally changed since its file was written, and a save writes only those levels' files, and
+dungeon.json only when the deepest level changed - the original Puts only the record it changed.
+A room stored as it already was (leaving a room you only walked through) changes nothing and writes
+nothing; a save point with nothing new writes nothing at all. A file that could not be written
+stays marked and is written at the next save. On a world of 12 levels and 1,664 rooms a
+changed room writes its level's file, 1-45 KB, in about 3 ms; the single file was 2.4 MB, written
+whole at every save point.
+
+**The old single file, split.** The first time a saves folder with the old dungeon.json (no
+`Format`, rooms inside) is read, its levels are written to their own files; only when all are on
+disk is the old file copied to `dungeon.json.old` and dungeon.json written anew. A game killed part
+way through leaves the old dungeon.json in place, and the next start finishes the split: when both
+forms are there, a level that already has its own file keeps it, and the old file's rooms are taken
+only for the levels that have none yet. A `dungeon.json.old` already there with other contents is
+left alone and the copy is `dungeon.json.old2`. The save journal's lines for the split say
+"dungeon.json split into a file per level".
+
+**Going back to an older version.** 0.1.8 and earlier (and a browser build made before this change)
+read only dungeon.json, so a saves folder opened by them afterwards finds no rooms: every room
+repopulates as if never visited, and the tallies start from their seed values. The characters, the
+map and everything else are untouched. `dungeon.json.old` still holds the dungeon as it was split.
+
+Backup and Restore (`Backups`) take every file at the top of the saves folder, so they carry the
+level files; the iCloud Saves mod syncs them as it syncs every `*.json` (not `dungeon.json.old`).
+A level file is never taken for a damaged character (`SaveRecovery.MayBeCharacter`). Checked in
+`selfcheck` (the dungeon's files section).
+
 ## The installers (`InstallerUnpack`)
 
 ### Legacy ZIP package
@@ -567,7 +615,7 @@ selfcheck against every `Open ... For Random ... Len =`:
 | MDATA7 | 128 | version, then per guild a T564C: a variable-length name and a level | `guildmasters.json` |
 | MDATA8 | 10 | version, the deepest level anyone reached, then per level 900 Longs, one flag word per square, `(L-1)*900 + x + 30*(y-1) + 2` (fn0A34) | `automap.json`; the deepest level into `dungeon.json` |
 | MDATA9 | Binary | Integer count, then entries: Integer guild, Long day, Integer length, text (sub0578, HALL.BAS:25-50) | `MDATA9.MDR` in the port's own layout |
-| MDATA10 | 28 | record 1 = 15 levels, records 2-16 each level's respawn tally (fn0DDC), then per level 200 areas of four T4E8B Foes and a T4F0B Fight (fn0E38) | `dungeon.json` (`Rooms`, `Tally`) |
+| MDATA10 | 28 | record 1 = 15 levels, records 2-16 each level's respawn tally (fn0DDC), then per level 200 areas of four T4E8B Foes and a T4F0B Fight (fn0E38) | `dungeon-01.json` ... `dungeon-15.json`, a file per level (its `Tally` and `Rooms`; above, "The dungeon's files") |
 | MDATA12 | 35 | an Integer count, then four variable-length names a party, the leader's first (fn179B) | `party-<leader>.json` |
 | MDATA13 | 100 | version, monster count, item count, monsters found, items found, then a T5BF1 per monster table index and per item table index (sub0F9A) | `library.json` (`"mr:index"`, `"i:itemId"`) |
 | MDATA14 | 45 | a T73E9 per record, record k+1 for record k (fn1C07); sub0595 writes record 1 over the version stamp | `records.json` |

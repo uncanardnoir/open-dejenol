@@ -195,7 +195,9 @@ public sealed class CartographerMod : IMod, IModLifecycle
         }
         items.Add(AutomapMenuItem.Separator);
         // from where the party stands: only while the map knows that (not lost, not in town)
-        items.Add(new AutomapMenuItem(RouteHere, () => { RouteFrom = null; RouteTo = square; }, Palette.Route,
+        // back to the party's own level once it is asked (the owner, 2026-11-27): the target may have been
+        // picked on another level, and the route starts where the party stands
+        items.Add(new AutomapMenuItem(RouteHere, () => { RouteFrom = null; RouteTo = square; if (view.You is { } here) view.ShowLevel(here.Square.Level); }, Palette.Route,
                                       IsEnabled: view.You is { } you && you.Square != square));
         items.Add(new AutomapMenuItem(RouteFromHere,
             () => view.PickSquare(RoutePickPrompt, to => { if (to != null) { RouteFrom = square; RouteTo = to; } }), Palette.Route));
@@ -243,14 +245,10 @@ public sealed class CartographerMod : IMod, IModLifecycle
             else if (route.Actions == 0) line = RouteFrom == null ? $"{head}: you are there." : $"{head}: 0 actions.";
             else
             {
-                var parts = new List<string> { Count(route.Steps, "step", "steps"), Count(route.Turns, "turn", "turns") };
-                if (route.Stairs > 0) parts.Add(Count(route.Stairs, "stairs", "stairs"));
-                if (route.Portals > 0) parts.Add(Count(route.Portals, "Ethereal Portal", "Ethereal Portals") + $" at {rules.PortalCost ?? 0}");
-                if (route.Waypoints > 0) parts.Add(Count(route.Waypoints, "waypoint", "waypoints"));
-                if (route.Extra > 0) parts.Add($"+{route.Extra} for hazards");
-                line = $"{head}: {Count(route.Actions, "action", "actions")} ({string.Join(", ", parts)}).";
-                if (route.ThroughFog) line += " Walls in fog are not on the map.";
-                if (route.EndsUnexplored) line += " It ends on a square not yet explored.";
+                // the owner (2026-11-27): just "Route to x,y,z: w actions" - the breakdown (steps, turns,
+                // stairs, portals, waypoints, hazards) and the caveats about fog and unexplored squares were
+                // more than the status line wants; the route itself is still drawn on the map
+                line = $"{head}: {Count(route.Actions, "action", "actions")}";
             }
         }
         _last = (key, route, line);
@@ -258,7 +256,16 @@ public sealed class CartographerMod : IMod, IModLifecycle
     }
 
     /// <summary>The Automap's status line while a route is shown (<see cref="ModUI.AutomapInfo"/>).</summary>
-    public string? Info(AutomapView view) => Work(view, fresh: false).Line;
+    public string? Info(AutomapView view) { Arrived(view); return Work(view, fresh: false).Line; }
+
+    /// <summary>
+    /// A route to here is done once the party stands on its square: it clears itself (the owner,
+    /// 2026-11-27). A route from one chosen square to another is a plan, not a walk, and stays.
+    /// </summary>
+    private void Arrived(AutomapView view)
+    {
+        if (RouteFrom == null && RouteTo is { } to && view.You is { } you && you.Square == to) { RouteTo = null; _last = null; }
+    }
 
     /// <summary>
     /// A route's marks on the level shown: an arrow along each straight run of steps, the start framed, the
@@ -299,6 +306,7 @@ public sealed class CartographerMod : IMod, IModLifecycle
     /// <summary>What is drawn on the level shown.</summary>
     public IReadOnlyList<AutomapMark> Marks(AutomapView view)
     {
+        Arrived(view);
         int level = view.ShownLevel;
         var marks = new List<AutomapMark>();
         foreach (var (s, c) in Notes.ColoursOn(level)) marks.Add(AutomapMark.Tint(s.X, s.Y, Palette.Of(c)));

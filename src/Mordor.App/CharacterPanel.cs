@@ -411,8 +411,8 @@ public sealed class CharacterPanel : UserControl
         _stats.Height = Math.Ceiling(bottom);
     }
 
-    /// <summary>lblSpecial's red ForeColor, adapted for each theme.</summary>
-    private static IBrush StateRed => Palette.Maroon;
+    /// <summary>lblSpecial's ForeColor: the form's bright red in Light (&amp;H000000FF&amp;), Dark's own (Palette.StateInk).</summary>
+    private static IBrush StateRed => Palette.StateInk;
 
     /// <summary>
     /// The Char page, painted as the original paints it: each piece of <see cref="CharStatFile.Paint"/>
