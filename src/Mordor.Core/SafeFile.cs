@@ -45,6 +45,7 @@ public static class SafeFile
                 try
                 {
                     File.Move(temp, path, overwrite: true);
+                    SaveJournal.Wrote(path, bytes);   // the port's save journal: never throws
                     return;
                 }
                 catch (Exception e) when ((e is IOException or UnauthorizedAccessException) && attempt < 5)
@@ -56,6 +57,7 @@ public static class SafeFile
         catch (Exception e)
         {
             Log?.Invoke($"{path} could not be saved: {e.GetType().Name}: {e.Message}");
+            SaveJournal.WriteFailed(path, e);
             throw;
         }
     }

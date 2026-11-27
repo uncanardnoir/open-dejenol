@@ -143,6 +143,7 @@ public static class Roster
                 return path;
             }
             File.Move(path, target);
+            SaveJournal.Renamed(path, target);
             string good = SaveRecovery.GoodPathFor(path);
             if (File.Exists(good)) File.Move(good, SaveRecovery.GoodPathFor(target), overwrite: true);
             SaveRecovery.Log?.Invoke($"{have} renamed {want}, the name it is saved under on every system");

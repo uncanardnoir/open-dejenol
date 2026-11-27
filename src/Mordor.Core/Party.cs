@@ -804,7 +804,7 @@ public sealed class Party
             string p = RosterPath(savesDir, Leader.Name);
             if (!remember)
             {
-                if (File.Exists(p)) File.Delete(p);
+                if (File.Exists(p)) { File.Delete(p); SaveJournal.Deleted(p); }
                 return true;
             }
             Directory.CreateDirectory(savesDir);
@@ -887,6 +887,7 @@ public sealed class Party
 
                 if (party.Add(them))
                 {
+                    SaveJournal.Loaded(them, $"with the party of \"{leader.Name.TrimEnd()}\"", f);
                     Said($"{q} is now a member of your party.");
                     // then sub154A (MULTIMOD.BAS:266), whose mdrcharGetCarry (MULTIMOD.BAS:380) settles
                     // the newcomer's fallen companions; its own lines carry no AUTOLOAD prefix

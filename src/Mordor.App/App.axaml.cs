@@ -26,6 +26,9 @@ public partial class App : Application
             loop.Tick += (_, _) => Audio.TickMusic();
             loop.Start();
             desktop.Exit += (_, _) => Audio.StopMusic();
+            // the save journal's closing line, when the way out has not said it already (Exit at the
+            // menu, a session end): the last window closed, or a Shutdown the game called
+            desktop.Exit += (_, x) => Mordor.Core.SaveJournal.Closed($"the program shut down, exit code {x.ApplicationExitCode}");
             string test = Environment.GetEnvironmentVariable("MORDOR_TEST") ?? "";
             if (test == "mdi") { desktop.MainWindow = new MdiDemoWindow(); base.OnFrameworkInitializationCompleted(); return; }
             // The smoke hooks plant characters, log lines, records and even a whole automap. They
@@ -44,6 +47,8 @@ public partial class App : Application
             bool hook = test is "create" or "help" or "options" or "city" or "dungeon";
             TitleWindow.GameDir = found.IsPlayable || hook ? found.Found?.Dir ?? "" : "";
             if (hook) Mordor.Core.LimitedVersion.Apply(found.Found);
+            // the save journal (Mordor.Core.SaveJournal), before the mods start, as they may save
+            if (hook) OpenJournal(TitleWindow.GameDir);
             // the enabled mods, if any (docs/MODDING.md) - after the saves redirect, since
             // settings.ini in the saves directory is what says which are enabled
             if (hook) ModStartup.Start(TitleWindow.GameDir);
@@ -338,6 +343,7 @@ public partial class App : Application
                     // window with the reason.
                     if (Art.Prepare(dir) is string artError) return ArtFailed(dir, artError);
                     TitleWindow.GameDir = dir;
+                    OpenJournal(dir);
                     ModStartup.Start(dir);
                     Avalonia.Controls.Window w = test == "browser" ? new MainWindow() : new TitleWindow();
                     w.Closed += (_, _) => HelpWindow.CloseAll();
@@ -389,6 +395,18 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// The save journal opened on the saves folder of <paramref name="gameDir"/> (Mordor.Core.SaveJournal,
+    /// docs/GAME_FILES.md): this version, the system, which kind of saves folder it is. Once the game
+    /// folder is known, before anything is loaded or saved; the playthrough check opens it the same way.
+    /// </summary>
+    public static void OpenJournal(string gameDir)
+    {
+        if (string.IsNullOrEmpty(gameDir)) return;
+        try { Mordor.Core.SaveJournal.Open(Mordor.Core.Saves.DirFor(gameDir), Mordor.Core.Saves.KindFor(gameDir), Updates.Version); }
+        catch { }
     }
 
     /// <summary>

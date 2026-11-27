@@ -1632,7 +1632,9 @@ public sealed class Character : System.Text.Json.Serialization.IJsonOnDeserializ
         Mods = Saves.ModTag?.Invoke();
         // a per-user saves folder (Saves.DirFor) is only named until something is first written there
         if (Path.GetDirectoryName(path) is { Length: > 0 } dir) Directory.CreateDirectory(dir);
-        SafeFile.WriteAllText(path, JsonSerializer.Serialize(this, JsonOpts));
+        // the save journal's WRITE line carries what was saved (SaveJournal.Snapshot)
+        using (SaveJournal.Describing(this))
+            SafeFile.WriteAllText(path, JsonSerializer.Serialize(this, JsonOpts));
     }
 
     /// <summary>

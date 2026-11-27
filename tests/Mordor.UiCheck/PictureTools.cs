@@ -12,7 +12,8 @@ using SkiaSharp;
 ///
 ///   Mordor.UiCheck --compare &lt;baseline dir&gt; &lt;current dir&gt; &lt;out dir&gt;
 ///       the same-named pictures of two runs on one machine, pixel by pixel, each found unchanged,
-///       minor (a few scattered pixels: the noise of <see cref="Measure"/>) or changed. Into &lt;out dir&gt;:
+///       minor (a few scattered pixels: the noise of <see cref="Measure"/>; or text moved by a pixel or
+///       two, <see cref="FindShifts"/>) or changed. Into &lt;out dir&gt;:
 ///       for each changed picture, before.png, after.png and an enlarged crop of each changed area
 ///       (zoom-1-before.png, zoom-1-after.png, ...) under changed/&lt;name&gt;/, the same for each minor one
 ///       under minor/&lt;name&gt;/; compare.json, every picture's counts; and summary.md, a short table for
@@ -112,11 +113,33 @@ static class PictureTools
     /// <summary>
     /// One picture against its baseline. Pixels: every pixel that differs at all; Faint: those whose
     /// colour moved no more than <see cref="Tolerance"/>; AntiAliased: those that are anti-aliasing;
-    /// Counted: the rest, in Clumps, the biggest LargestClump pixels. The box (X..) is round the
-    /// counted pixels of a changed picture, round every differing pixel of a minor one.
+    /// Shifted: those in places found moved a pixel or two (<see cref="FindShifts"/>), each way they
+    /// moved one of Moves; Counted: the rest, in Clumps, the biggest LargestClump pixels. The box
+    /// (X..) is round the counted pixels of a changed picture, round every differing pixel of a minor one.
     /// </summary>
     public sealed record Change(string Name, Verdict Verdict, int Pixels, int Faint, int AntiAliased, int Counted, int Clumps, int LargestClump,
-                                int X, int Y, int Width, int Height, string SizeBefore, string SizeAfter, string Folder, List<Area> Areas);
+                                int X, int Y, int Width, int Height, string SizeBefore, string SizeAfter, string Folder, List<Area> Areas,
+                                int Shifted, List<Move> Moves);
+
+    /// <summary>One way places moved: Dx right and Dy down (negative: left, up), in how many places, how many counted pixels.</summary>
+    public sealed record Move(int Dx, int Dy, int Places, int Pixels);
+
+    /// <summary>The most a picture's places moved, in pixels either way.</summary>
+    static int MostMoved(IEnumerable<Move> moves) => moves.Select(v => Math.Max(Math.Abs(v.Dx), Math.Abs(v.Dy))).DefaultIfEmpty(0).Max();
+
+    /// <summary>Moves in words: "text moved 1 px left in 3 places, 2 px right and 1 px up in 1 place".</summary>
+    static string MovedWords(IEnumerable<Move> moves)
+    {
+        string Way(int dx, int dy)
+        {
+            var parts = new List<string>();
+            if (dx != 0) parts.Add($"{Math.Abs(dx)} px {(dx < 0 ? "left" : "right")}");
+            if (dy != 0) parts.Add($"{Math.Abs(dy)} px {(dy < 0 ? "up" : "down")}");
+            return string.Join(" and ", parts);
+        }
+        var list = moves.Select(v => $"{Way(v.Dx, v.Dy)} in {v.Places} place{(v.Places == 1 ? "" : "s")}").ToList();
+        return list.Count == 0 ? "" : "text moved " + string.Join(", ", list);
+    }
 
     public sealed record CompareResult(bool FirstRun, List<Change> Changed, List<Change> Minor, List<string> Added, List<string> Removed, int Unchanged);
 
@@ -131,13 +154,23 @@ static class PictureTools
         return names;
     }
 
-    /// <summary>A PNG as 32-bit pixels, BGRA, row by row.</summary>
+    /// <summary>
+    /// A PNG as 32-bit pixels, BGRA, row by row; or such a picture moved <see cref="Dx"/>, <see cref="Dy"/>
+    /// (<see cref="Moved"/>), its pixel (x, y) at (x + Dx, y + Dy), what it covers from Left to Right and Top to Bottom.
+    /// </summary>
     sealed class Pixels
     {
-        public int Width, Height;
+        public int Width, Height, Dx, Dy;
         public uint[] Data = Array.Empty<uint>();
-        public bool Has(int x, int y) => x >= 0 && y >= 0 && x < Width && y < Height;
-        public uint At(int x, int y) => Has(x, y) ? Data[y * Width + x] : 0;
+        public int Left => Dx;
+        public int Top => Dy;
+        public int Right => Dx + Width - 1;
+        public int Bottom => Dy + Height - 1;
+        public bool Has(int x, int y) => x >= Left && y >= Top && x <= Right && y <= Bottom;
+        public uint At(int x, int y) => Has(x, y) ? Data[(y - Dy) * Width + x - Dx] : 0;
+
+        /// <summary>The same pixels moved <paramref name="dx"/> right and <paramref name="dy"/> down (not copied).</summary>
+        public Pixels Moved(int dx, int dy) => new() { Width = Width, Height = Height, Data = Data, Dx = Dx + dx, Dy = Dy + dy };
 
         public static Pixels Load(string path)
         {
@@ -200,7 +233,7 @@ static class PictureTools
     /// </summary>
     static bool AntiAliased(Pixels img, int x1, int y1, Pixels other)
     {
-        int x0 = Math.Max(x1 - 1, 0), y0 = Math.Max(y1 - 1, 0), x2 = Math.Min(x1 + 1, img.Width - 1), y2 = Math.Min(y1 + 1, img.Height - 1);
+        int x0 = Math.Max(x1 - 1, img.Left), y0 = Math.Max(y1 - 1, img.Top), x2 = Math.Min(x1 + 1, img.Right), y2 = Math.Min(y1 + 1, img.Bottom);
         uint c = img.At(x1, y1);
         int zeroes = x1 == x0 || x1 == x2 || y1 == y0 || y1 == y2 ? 1 : 0;
         double min = 0, max = 0;
@@ -223,7 +256,7 @@ static class PictureTools
     static bool ManySiblings(Pixels img, int x1, int y1)
     {
         if (!img.Has(x1, y1)) return false;
-        int x0 = Math.Max(x1 - 1, 0), y0 = Math.Max(y1 - 1, 0), x2 = Math.Min(x1 + 1, img.Width - 1), y2 = Math.Min(y1 + 1, img.Height - 1);
+        int x0 = Math.Max(x1 - 1, img.Left), y0 = Math.Max(y1 - 1, img.Top), x2 = Math.Min(x1 + 1, img.Right), y2 = Math.Min(y1 + 1, img.Bottom);
         uint c = img.At(x1, y1);
         int zeroes = x1 == x0 || x1 == x2 || y1 == y0 || y1 == y2 ? 1 : 0;
         for (int x = x0; x <= x2; x++)
@@ -237,8 +270,13 @@ static class PictureTools
 
     /// <summary>The groups of set pixels, each pixel within <paramref name="reach"/> of another of its group (1: touching at a side or a corner): each one's box and size, the biggest first.</summary>
     static List<(int X0, int Y0, int X1, int Y1, int Pixels)> Groups(bool[] mask, int w, int h, int reach)
+        => Groups(mask, w, h, reach, null);
+
+    /// <summary><see cref="Groups(bool[], int, int, int)"/>, and into <paramref name="members"/> (when given) each group's pixels by their index, in the same order.</summary>
+    static List<(int X0, int Y0, int X1, int Y1, int Pixels)> Groups(bool[] mask, int w, int h, int reach, List<List<int>>? members)
     {
         var list = new List<(int, int, int, int, int)>();
+        var pixels = new List<List<int>>();
         var seen = new bool[mask.Length];
         var stack = new Stack<int>();
         for (int start = 0; start < mask.Length; start++)
@@ -247,10 +285,12 @@ static class PictureTools
             seen[start] = true;
             stack.Push(start);
             int x0 = int.MaxValue, y0 = int.MaxValue, x1 = -1, y1 = -1, n = 0;
+            var own = members != null ? new List<int>() : null;
             while (stack.Count > 0)
             {
                 int i = stack.Pop(), x = i % w, y = i / w;
                 n++;
+                own?.Add(i);
                 x0 = Math.Min(x0, x); y0 = Math.Min(y0, y); x1 = Math.Max(x1, x); y1 = Math.Max(y1, y);
                 for (int yy = Math.Max(0, y - reach); yy <= Math.Min(h - 1, y + reach); yy++)
                     for (int xx = Math.Max(0, x - reach); xx <= Math.Min(w - 1, x + reach); xx++)
@@ -260,8 +300,11 @@ static class PictureTools
                     }
             }
             list.Add((x0, y0, x1, y1, n));
+            if (own != null) pixels.Add(own);
         }
-        return list.OrderByDescending(g => g.Item5).ThenBy(g => g.Item2).ThenBy(g => g.Item1).ToList();
+        var order = Enumerable.Range(0, list.Count).OrderByDescending(k => list[k].Item5).ThenBy(k => list[k].Item2).ThenBy(k => list[k].Item1).ToList();
+        if (members != null) members.AddRange(order.Select(k => pixels[k]));
+        return order.Select(k => list[k]).ToList();
     }
 
     /// <summary>What two pictures' pixels say, before anything is written.</summary>
@@ -271,6 +314,9 @@ static class PictureTools
         public bool SizeChanged;
         public int Differing, Faint, AntiAliased, Counted, Clumps, LargestClump;
         public bool[] Differs = Array.Empty<bool>(), Counts = Array.Empty<bool>();
+        /// <summary>The counted pixels found moved (<see cref="FindShifts"/>), no longer counted; and each moved place's offset and pixels.</summary>
+        public int Shifted;
+        public List<(int Dx, int Dy, int Pixels)> Moves = new();
         public Verdict Verdict;
     }
 
@@ -278,9 +324,11 @@ static class PictureTools
     /// The noise threshold, on two pictures. Every pixel that differs at all is kept count of; of
     /// those, one whose colour moved no more than <see cref="Tolerance"/> is faint, and one that is
     /// anti-aliasing in either picture (<see cref="AntiAliased"/>) is not counted either. Where the
-    /// sizes differ, every pixel outside the smaller counts. The verdict: unchanged when no pixel
-    /// differs; changed when the size changed, more than <see cref="MinorMostPixels"/> pixels count,
-    /// or any clump of them is bigger than <see cref="MinorLargestClump"/>; else minor.
+    /// sizes differ, every pixel outside the smaller counts. Where they do not, the counted pixels
+    /// found moved a pixel or two (<see cref="FindShifts"/>) are taken out of the count. The verdict:
+    /// unchanged when no pixel differs; changed when the size changed, more than
+    /// <see cref="MinorMostPixels"/> pixels count, or any clump of them is bigger than
+    /// <see cref="MinorLargestClump"/>; else minor.
     /// </summary>
     static Measured Measure(Pixels a, Pixels b)
     {
@@ -305,6 +353,7 @@ static class PictureTools
                 else { m.Differs[i] = true; m.Differing++; }
                 m.Counts[i] = true; m.Counted++;
             }
+        if (!m.SizeChanged && m.Counted > 0) FindShifts(a, b, m);
         var clumps = m.Counted == 0 ? new() : Groups(m.Counts, w, h, 1);
         m.Clumps = clumps.Count;
         m.LargestClump = clumps.Count == 0 ? 0 : clumps[0].Pixels;
@@ -312,6 +361,112 @@ static class PictureTools
             : m.SizeChanged || m.Counted > MinorMostPixels || m.LargestClump > MinorLargestClump ? Verdict.Changed
             : Verdict.Minor;
         return m;
+    }
+
+    // The shift test. A font's metrics changed, or a control was laid out a pixel narrower, and text
+    // that moved by a pixel or two counted at every edge of every glyph: the Avalonia 12 trial
+    // (2026-11-27) had 14 pictures changed by that, little else in them. So the
+    // counted pixels, in places (those within ShiftReach of each other), are each tried against the
+    // baseline moved by up to ShiftMost pixels each way: a place whose box, and a pixel round it,
+    // matches the baseline so moved, within the same Tolerance and anti-aliasing allowance, has
+    // moved. And what moved left its old place: a stroke grown thicker, or a box's edge where the
+    // rest of the box did not follow, matches a move too, but only goes darker (or lighter); the
+    // moved places, weighed with the others moved the same way near them along the move, must have
+    // gone as much lighter as darker. What a move cannot explain - a glyph of another shape, a colour
+    // changed, an edge moved by itself - stays counted.
+
+    /// <summary>How far, in pixels each way, a place may have moved and be found shifted.</summary>
+    public const int ShiftMost = 2;
+
+    /// <summary>Counted pixels this close to each other (in pixels, in any direction) are one place, tried for a move as one.</summary>
+    const int ShiftReach = 2;
+
+    /// <summary>How far round a place's counted pixels the moved baseline must match as well.</summary>
+    const int ShiftMargin = 1;
+
+    /// <summary>
+    /// How lopsided the moved places weighed together may be: how much of their change in
+    /// brightness may be one way, darker or lighter, beyond what goes the other (0 to 1). On the
+    /// Avalonia 12 trial text moved weighed 0.16 at most; a lone edge or a thickened stroke weighs 1.
+    /// </summary>
+    const double ShiftMostLopsided = 0.5;
+
+    /// <summary>How far apart along a move, in pixels, the places moved the same way are weighed together (the leading and trailing edges of a thick stroke, a title's serifs).</summary>
+    const int ShiftPair = 32;
+
+    /// <summary>The offsets tried, the nearest first: every dx, dy from -<see cref="ShiftMost"/> to <see cref="ShiftMost"/> but 0, 0.</summary>
+    static readonly (int Dx, int Dy)[] Offsets =
+        (from dy in Enumerable.Range(-ShiftMost, 2 * ShiftMost + 1)
+         from dx in Enumerable.Range(-ShiftMost, 2 * ShiftMost + 1)
+         where dx != 0 || dy != 0
+         orderby Math.Max(Math.Abs(dx), Math.Abs(dy)), Math.Abs(dx) + Math.Abs(dy), dy, dx
+         select (dx, dy)).ToArray();
+
+    /// <summary>
+    /// The shift test on <paramref name="m"/>'s counted pixels (two pictures of one size): each place
+    /// found moved is taken out of Counts and Counted, into Shifted and Moves.
+    /// </summary>
+    static void FindShifts(Pixels a, Pixels b, Measured m)
+    {
+        int w = m.Width, h = m.Height;
+        double most = LargestDelta * Tolerance * Tolerance;
+        var members = new List<List<int>>();
+        var places = Groups(m.Counts, w, h, ShiftReach, members);
+        var moved = Offsets.Select(o => a.Moved(o.Dx, o.Dy)).ToArray();
+        // each place that a move explains: its offset, and how much brighter it went and how much it changed at all
+        var found = new List<(int Place, int Offset, double Brighter, double Change)>();
+        for (int k = 0; k < places.Count; k++)
+        {
+            var p = places[k];
+            int x0 = Math.Max(0, p.X0 - ShiftMargin), y0 = Math.Max(0, p.Y0 - ShiftMargin), x1 = Math.Min(w - 1, p.X1 + ShiftMargin), y1 = Math.Min(h - 1, p.Y1 + ShiftMargin);
+            int o = Array.FindIndex(moved, s => Matches(s, b, x0, y0, x1, y1, most));
+            if (o < 0) continue;
+            double brighter = 0, change = 0;
+            foreach (int i in members[k]) { double d = Delta(b.Data[i], a.Data[i], true); brighter += d; change += Math.Abs(d); }
+            found.Add((k, o, brighter, change));
+        }
+        // the places moved the same way, ahead of each other or behind along the move within ShiftPair
+        // (and no further than ShiftMost across it), weighed together
+        var set = Enumerable.Range(0, found.Count).ToArray();
+        int Root(int i) { while (set[i] != i) i = set[i] = set[set[i]]; return i; }
+        for (int i = 0; i < found.Count; i++)
+            for (int j = i + 1; j < found.Count; j++)
+            {
+                if (found[i].Offset != found[j].Offset) continue;
+                var (dx, dy) = Offsets[found[i].Offset];
+                int ex = dx != 0 ? ShiftPair : ShiftMost, ey = dy != 0 ? ShiftPair : ShiftMost;
+                var p = places[found[i].Place];
+                var q = places[found[j].Place];
+                if (p.X0 - ex <= q.X1 && q.X0 <= p.X1 + ex && p.Y0 - ey <= q.Y1 && q.Y0 <= p.Y1 + ey) set[Root(i)] = Root(j);
+            }
+        foreach (var together in Enumerable.Range(0, found.Count).GroupBy(Root))
+        {
+            double brighter = together.Sum(i => found[i].Brighter), change = together.Sum(i => found[i].Change);
+            if (change > 0 && Math.Abs(brighter) / change > ShiftMostLopsided) continue;
+            foreach (int i in together)
+            {
+                var (k, o, _, _) = found[i];
+                foreach (int px in members[k]) m.Counts[px] = false;
+                m.Counted -= places[k].Pixels;
+                m.Shifted += places[k].Pixels;
+                m.Moves.Add((Offsets[o].Dx, Offsets[o].Dy, places[k].Pixels));
+            }
+        }
+    }
+
+    /// <summary>Does <paramref name="b"/> match <paramref name="moved"/> at every pixel of the box, within the tolerance and anti-aliasing allowance of <see cref="Measure"/>?</summary>
+    static bool Matches(Pixels moved, Pixels b, int x0, int y0, int x1, int y1, double most)
+    {
+        for (int y = y0; y <= y1; y++)
+            for (int x = x0; x <= x1; x++)
+            {
+                if (!moved.Has(x, y)) return false;
+                uint cs = moved.At(x, y), cb = b.At(x, y);
+                if (cs == cb || Math.Abs(Delta(cs, cb, false)) <= most) continue;
+                if (AntiAliased(moved, x, y, b) || AntiAliased(b, x, y, moved)) continue;
+                return false;
+            }
+        return true;
     }
 
     // ---------------------------------------------------------------- the report
@@ -338,7 +493,7 @@ static class PictureTools
                 every.Add(new JsonObject
                 {
                     ["name"] = c.Name, ["class"] = Class(c.Verdict), ["pixels"] = c.Pixels, ["faint"] = c.Faint, ["antiAliased"] = c.AntiAliased,
-                    ["counted"] = c.Counted, ["clumps"] = c.Clumps, ["largestClump"] = c.LargestClump, ["sizeBefore"] = c.SizeBefore, ["sizeAfter"] = c.SizeAfter,
+                    ["counted"] = c.Counted, ["shifted"] = c.Shifted, ["clumps"] = c.Clumps, ["largestClump"] = c.LargestClump, ["sizeBefore"] = c.SizeBefore, ["sizeAfter"] = c.SizeAfter,
                 });
                 if (c.Verdict == Verdict.Changed) changed.Add(c);
                 else if (c.Verdict == Verdict.Minor) minor.Add(c);
@@ -357,6 +512,9 @@ static class PictureTools
             ["counted"] = c.Counted,
             ["clumps"] = c.Clumps,
             ["largestClump"] = c.LargestClump,
+            ["shifted"] = c.Shifted,
+            ["shiftedBy"] = MostMoved(c.Moves),
+            ["moves"] = new JsonArray(c.Moves.Select(v => (JsonNode)new JsonObject { ["dx"] = v.Dx, ["dy"] = v.Dy, ["places"] = v.Places, ["pixels"] = v.Pixels }).ToArray()),
             ["box"] = new JsonObject { ["x"] = c.X, ["y"] = c.Y, ["width"] = c.Width, ["height"] = c.Height },
             ["sizeBefore"] = c.SizeBefore,
             ["sizeAfter"] = c.SizeAfter,
@@ -379,7 +537,7 @@ static class PictureTools
             ["baseline"] = Path.GetFullPath(baseline),
             ["current"] = Path.GetFullPath(current),
             ["firstRun"] = firstRun,
-            ["rule"] = new JsonObject { ["tolerance"] = Tolerance, ["minorMostPixels"] = MinorMostPixels, ["minorLargestClump"] = MinorLargestClump },
+            ["rule"] = new JsonObject { ["tolerance"] = Tolerance, ["minorMostPixels"] = MinorMostPixels, ["minorLargestClump"] = MinorLargestClump, ["shiftMost"] = ShiftMost },
             ["compared"] = firstRun ? 0 : changed.Count + minor.Count + unchanged,
             ["unchanged"] = unchanged,
             ["changed"] = new JsonArray(changed.Select(Entry).ToArray()),
@@ -413,7 +571,8 @@ static class PictureTools
             if (minor.Count > 0)
             {
                 md.AppendLine();
-                md.AppendLine($"Minor, a few scattered pixels each (anti-aliasing noise, not counted as changed): {string.Join(", ", minor.Select(c => $"`{c.Name}` {c.Pixels} px"))}.");
+                md.AppendLine($"Minor, a few scattered pixels each (anti-aliasing noise) or text moved by a pixel or two, not counted as changed: "
+                    + $"{string.Join(", ", minor.Select(c => $"`{c.Name}` {c.Pixels} px{(c.Shifted > 0 ? $", shifted by up to {MostMoved(c.Moves)} px" : "")}"))}.");
             }
         }
         File.WriteAllText(Path.Combine(outDir, "summary.md"), md.ToString());
@@ -435,7 +594,10 @@ static class PictureTools
         var m = Measure(a, b);
         string sizeA = $"{a.Width}x{a.Height}", sizeB = $"{b.Width}x{b.Height}";
         if (m.Verdict == Verdict.Unchanged)
-            return new Change(name, m.Verdict, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, sizeA, sizeB, "", new List<Area>());
+            return new Change(name, m.Verdict, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, sizeA, sizeB, "", new List<Area>(), 0, new List<Move>());
+        // each way places moved, the most places first
+        var moves = m.Moves.GroupBy(v => (v.Dx, v.Dy)).Select(g => new Move(g.Key.Dx, g.Key.Dy, g.Count(), g.Sum(v => v.Pixels)))
+            .OrderByDescending(v => v.Places).ThenByDescending(v => v.Pixels).ToList();
 
         int w = m.Width, h = m.Height;
         var groups = Groups(m.Verdict == Verdict.Changed ? m.Counts : m.Differs, w, h, AreaGap);
@@ -464,7 +626,7 @@ static class PictureTools
             areas.Add(area);
         }
         return new Change(name, m.Verdict, m.Differing, m.Faint, m.AntiAliased, m.Counted, m.Clumps, m.LargestClump,
-                          x0, y0, x1 - x0 + 1, y1 - y0 + 1, sizeA, sizeB, folder, areas);
+                          x0, y0, x1 - x0 + 1, y1 - y0 + 1, sizeA, sizeB, folder, areas, m.Shifted, moves);
     }
 
     /// <summary>
@@ -496,8 +658,9 @@ static class PictureTools
             Console.WriteLine(r.FirstRun
                 ? $"first run: no baseline at {args[1]}; nothing compared"
                 : $"{r.Changed.Count} visibly changed, {r.Minor.Count} minor, {r.Added.Count} new, {r.Removed.Count} removed, {r.Unchanged} unchanged");
-            foreach (var c in r.Changed) Console.WriteLine($"  changed  {c.Name}: {c.Counted} px counted of {c.Pixels} differing, in {c.Width}x{c.Height} at {c.X},{c.Y}");
-            foreach (var c in r.Minor) Console.WriteLine($"  minor    {c.Name}: {c.Pixels} px differing, {c.Counted} counted, largest clump {c.LargestClump}");
+            string Moved(Change c) => c.Shifted > 0 ? $"; {c.Shifted} px shifted, {MovedWords(c.Moves)}" : "";
+            foreach (var c in r.Changed) Console.WriteLine($"  changed  {c.Name}: {c.Counted} px counted of {c.Pixels} differing, in {c.Width}x{c.Height} at {c.X},{c.Y}{Moved(c)}");
+            foreach (var c in r.Minor) Console.WriteLine($"  minor    {c.Name}: {c.Pixels} px differing, {c.Counted} counted, largest clump {c.LargestClump}{Moved(c)}");
             foreach (var a in r.Added) Console.WriteLine($"  new      {a}");
             foreach (var x in r.Removed) Console.WriteLine($"  removed  {x}");
             Console.WriteLine($"the report is in {Path.GetFullPath(args[3])} (compare.json, summary.md)");
@@ -538,7 +701,8 @@ static class PictureTools
     sealed class Diff
     {
         public Verdict Verdict;
-        public int Pixels, Faint, AntiAliased, Counted, LargestClump;
+        public int Pixels, Faint, AntiAliased, Counted, LargestClump, Shifted;
+        public List<Move> Moves = new();
         public string Before = "", After = "", Box = "", SizeBefore = "", SizeAfter = "";
         public (int X, int Y, int W, int H) Whole;
         public List<(int X, int Y, int W, int H)> Areas = new();
@@ -568,6 +732,9 @@ static class PictureTools
             Pixels = Int(c["pixels"]), Faint = Int(c["faint"]), AntiAliased = Int(c["antiAliased"]),
             // a report from before the noise threshold counted every differing pixel
             Counted = c["counted"] == null ? Int(c["pixels"]) : Int(c["counted"]), LargestClump = Int(c["largestClump"]),
+            // and one from before the shift test, none shifted
+            Shifted = Int(c["shifted"]),
+            Moves = (c["moves"]?.AsArray() ?? new JsonArray()).Where(v => v != null).Select(v => new Move(Int(v!["dx"]), Int(v["dy"]), Int(v["places"]), Int(v["pixels"]))).ToList(),
             Before = Str(c["before"]), After = Str(c["after"]), SizeBefore = Str(c["sizeBefore"]), SizeAfter = Str(c["sizeAfter"]),
             Box = box == null ? "" : $"{box["width"]}x{box["height"]} at {box["x"]},{box["y"]}",
             Whole = box == null ? default : (Int(box["x"]), Int(box["y"]), Int(box["width"]), Int(box["height"])),
@@ -686,11 +853,21 @@ static class PictureTools
         var parts = new List<string>();
         if (d.AntiAliased > 0) parts.Add($"{d.AntiAliased} anti-aliasing");
         if (d.Faint > 0) parts.Add($"{d.Faint} too faint to see");
-        string notCounted = parts.Count > 0 ? $" ({string.Join(", ", parts)}: not counted)" : "";
+        if (d.Shifted > 0) parts.Add($"{d.Shifted} moved");
         string size = d.SizeBefore != d.SizeAfter ? $" The picture was {d.SizeBefore} and is {d.SizeAfter}." : "";
+        string notCounted = parts.Count > 0 ? $" ({string.Join(", ", parts)}: not counted)" : "";
         return d.Verdict == Verdict.Changed
             ? $"Changed: {d.Counted} pixels count, of {d.Pixels} that differ{notCounted}, in {d.Box}; the largest clump {d.LargestClump}.{size}"
+            : d.Shifted > 0
+            ? $"Minor, shifted by up to {MostMoved(d.Moves)} px: {d.Pixels} pixels differ{notCounted}, {d.Counted} counted, the largest clump {d.LargestClump}: text moved a pixel or two, the rest scattered, so not marked changed."
             : $"Minor: {d.Pixels} pixels differ{notCounted}, {d.Counted} counted, the largest clump {d.LargestClump}: scattered, below the noise threshold, so not marked changed.";
+    }
+
+    /// <summary>The line under <see cref="Says"/> for a picture with places moved: "Text moved 1 px left in 3 places." (empty for none).</summary>
+    static string SaysMoved(Diff d)
+    {
+        string w = MovedWords(d.Moves);
+        return w.Length == 0 ? "" : char.ToUpperInvariant(w[0]) + w[1..] + $" ({d.Shifted} pixels, not counted).";
     }
 
     public static (int Rows, int Columns) Gallery(string root, string outDir)
@@ -709,7 +886,7 @@ static class PictureTools
         var changedViews = new JsonArray();
         var minorViews = new JsonArray();
         var minorRows = new StringBuilder();
-        int r = 0;
+        int r = 0, minorShifted = 0;
         foreach (var name in rows)
         {
             var cells = new StringBuilder();
@@ -738,6 +915,7 @@ static class PictureTools
                         ["t"] = t,
                         ["v"] = changed ? "changed" : "minor",
                         ["d"] = Says(diff),
+                        ["m"] = SaysMoved(diff),
                         ["b"] = Cmp(diff.Before), ["a"] = Cmp(diff.After),
                         ["sb"] = new JsonArray(bw, bh), ["sa"] = new JsonArray(aw, ah),
                         ["r"] = new JsonArray(diff.Areas.Select(x => (JsonNode)new JsonArray(x.X, x.Y, x.W, x.H)).ToArray()),
@@ -779,8 +957,11 @@ static class PictureTools
                 else if (diff != null)
                 {
                     m.MinorCells++;
-                    cells.Append($"<div class=\"tag minor\">minor: {diff.Pixels} px, scattered (<a href=\"{link}\" data-view=\"{view}\">look</a>)</div>");
-                    minorRows.Append($"<tr><td>{H(m.Label)}</td><td>{H(Title(name))}</td><td>{diff.Pixels} px differ, {diff.Counted} counted, largest clump {diff.LargestClump}</td><td><a href=\"{link}\" data-view=\"{view}\">look</a></td></tr>\n");
+                    if (diff.Shifted > 0) minorShifted++;
+                    string what = diff.Shifted > 0 ? $"shifted by up to {MostMoved(diff.Moves)} px" : "scattered";
+                    cells.Append($"<div class=\"tag minor\">minor: {diff.Pixels} px, {what} (<a href=\"{link}\" data-view=\"{view}\">look</a>)</div>");
+                    minorRows.Append($"<tr><td>{H(m.Label)}</td><td>{H(Title(name))}</td><td>{diff.Pixels} px differ, {diff.Counted} counted, largest clump {diff.LargestClump}"
+                        + $"{(diff.Shifted > 0 ? $"; {H(MovedWords(diff.Moves))}" : "")}</td><td><a href=\"{link}\" data-view=\"{view}\">look</a></td></tr>\n");
                 }
                 if (failing) { rowFailing = true; m.FailingCells++; }
                 if (failures.Count > 0)
@@ -802,7 +983,7 @@ static class PictureTools
         sb.Append("<title>OpenDejenol pictures</title>\n<style>\n").Append(Css).Append("</style>\n</head>\n<body>\n");
         sb.Append("<header>\n<h1>OpenDejenol pictures</h1>\n<p class=\"lede\">Every window of the readability pass, Light and Dark, and the playthrough's steps, as each machine drew them. ");
         sb.Append("A magenta border is a picture visibly changed since the baseline run, its changed areas ringed: open it to see the change enlarged and flip between before and after. ");
-        sb.Append("A few scattered pixels of anti-aliasing are minor, listed apart and not marked. A red border has a check failing under it.</p>\n<ul class=\"counts\">\n");
+        sb.Append($"A few scattered pixels of anti-aliasing, or text moved by up to {ShiftMost} pixels and drawn the same, are minor, listed apart and not marked. A red border has a check failing under it.</p>\n<ul class=\"counts\">\n");
         foreach (var m in machines)
         {
             string state = !m.Present ? "no pictures"
@@ -811,7 +992,8 @@ static class PictureTools
         }
         sb.Append("</ul>\n");
         if (minorViews.Count > 0)
-            sb.Append($"<details class=\"minor-list\"><summary>Minor differences: {minorViews.Count} picture{(minorViews.Count == 1 ? "" : "s")} with a few scattered pixels (anti-aliasing noise, not marked changed)</summary>\n")
+            sb.Append($"<details class=\"minor-list\"><summary>Minor differences: {minorViews.Count} picture{(minorViews.Count == 1 ? "" : "s")} with a few scattered pixels (anti-aliasing noise)"
+                      + $"{(minorShifted > 0 ? $" or text moved by a pixel or two ({minorShifted} of them)" : "")}, not marked changed</summary>\n")
               .Append("<div class=\"scroll\"><table><thead><tr><th scope=\"col\">machine</th><th scope=\"col\">picture</th><th scope=\"col\">pixels</th><th scope=\"col\"></th></tr></thead><tbody>\n")
               .Append(minorRows).Append("</tbody></table></div></details>\n");
         sb.Append("<label class=\"filter\"><input type=\"checkbox\" id=\"only\"> Only rows visibly changed or failing</label>\n</header>\n");
@@ -946,6 +1128,7 @@ img.px { display: block; max-width: 100%; height: auto; image-rendering: crisp-e
     title.textContent = c.t;
     var box = el('div', 'cv');
     box.appendChild(el('p', 'what', c.d));
+    if (c.m) box.appendChild(el('p', 'what moved', c.m));
     c.z.forEach(function (z) {
       var fig = el('figure', 'zoom'), pair = el('div', 'pair');
       [['before', z.b], ['after', z.a]].forEach(function (p) {
@@ -1047,7 +1230,8 @@ img.px { display: block; max-width: 100%; height: auto; image-rendering: crisp-e
 
     /// <summary>
     /// The noise threshold on crops of CI's own pictures (test-data/compare): the six that differed
-    /// only by windows-latest's anti-aliasing from one run to the next, and real changes. Then
+    /// only by windows-latest's anti-aliasing from one run to the next, and real changes; the shift
+    /// test on crops of the Avalonia 12 trial's and on words drawn here, moved 1, 2 and 3 px. Then
     /// --compare and --gallery on pictures made here: a folder against itself (nothing changed),
     /// against a copy with a block changed, a pixel changed, one picture added and one taken away,
     /// and against no baseline; then a gallery of two machines. Returns how many failed.
@@ -1070,7 +1254,8 @@ img.px { display: block; max-width: 100%; height: auto; image-rendering: crisp-e
             // counts are the whole picture's
             string data = Path.Combine(AppContext.BaseDirectory, "test-data", "compare");
             Measured Of(string c) => Measure(Pixels.Load(Path.Combine(data, c, "before.png")), Pixels.Load(Path.Combine(data, c, "after.png")));
-            string Counts(Measured m) => $"{m.Differing} px differ, {m.AntiAliased} anti-aliasing, {m.Faint} faint, {m.Counted} counted, largest clump {m.LargestClump}";
+            string Counts(Measured m) => $"{m.Differing} px differ, {m.AntiAliased} anti-aliasing, {m.Faint} faint, {m.Shifted} shifted, {m.Counted} counted, largest clump {m.LargestClump}";
+            int Most(Measured m) => m.Moves.Select(v => Math.Max(Math.Abs(v.Dx), Math.Abs(v.Dy))).DefaultIfEmpty(0).Max();
             foreach (var (c, what, px) in new[]
             {
                 ("noise-dark-exchange", "Dark: the Exchange", 8),
@@ -1095,6 +1280,20 @@ img.px { display: block; max-width: 100%; height: auto; image-rendering: crisp-e
                 var m = Of(c);
                 Check($"the noise threshold, a real change, {what} ({Counts(m)}): changed", m.Verdict, Verdict.Changed);
             }
+            // ---- the shift test on the Avalonia 12 trial's pictures (2026-11-27, Windows), cropped the same
+            // way with 7 pixels round the area: text moved, the Stats buttons a pixel narrower (their
+            // right edges moved 2 px, their left 1), and the Help's placeholder drawn a lighter grey
+            foreach (var (c, what, most) in new[]
+            {
+                ("shift-dark-about-ok", "Dark: the About box's OK, 1 px right", 1),
+                ("shift-light-stats-buttons", "Light: Create a Character's Race Stats and Guild Stats, edges and text 1 and 2 px left", 2),
+            })
+            {
+                var m = Of(c);
+                Check($"the shift test, Avalonia 12, {what} ({Counts(m)}): minor, shifted by up to {most} px", (m.Verdict, Most(m), m.Shifted > 0), (Verdict.Minor, most, true));
+            }
+            var help = Of("real-light-help-placeholder");
+            Check($"the shift test, Avalonia 12, Light: the Help's placeholder a lighter grey ({Counts(help)}): changed, nothing shifted", (help.Verdict, help.Shifted), (Verdict.Changed, 0));
 
             // ---- the noise threshold on pictures made here
             Pixels Make(int w, int h, uint colour, Action<uint[], int>? draw = null)
@@ -1119,6 +1318,44 @@ img.px { display: block; max-width: 100%; height: auto; image-rendering: crisp-e
             var clump = Measure(plain, Make(40, 30, Grey, (d, w) => { d[5 * w + 5] = d[5 * w + 6] = d[6 * w + 6] = d[7 * w + 7] = Black; }));
             Check($"the noise threshold: a clump of {MinorLargestClump + 1} touching pixels is changed", (clump.Verdict, clump.LargestClump), (Verdict.Changed, MinorLargestClump + 1));
             Check("the noise threshold: another size is changed", Measure(plain, Make(40, 31, Grey)).Verdict, Verdict.Changed);
+
+            // ---- the shift test on pictures made here: words in a small pixel font, its curves' corners half ink
+            var font = new Dictionary<char, string[]>
+            {
+                ['M'] = new[] { "#...#", "##.##", "#+#+#", "#.#.#", "#...#", "#...#", "#...#" },
+                ['O'] = new[] { "+###+", "#...#", "#...#", "#...#", "#...#", "#...#", "+###+" },
+                ['R'] = new[] { "####+", "#...#", "#...#", "####+", "#.#..", "#..#.", "#...#" },
+                ['D'] = new[] { "###+.", "#..+#", "#...#", "#...#", "#...#", "#..+#", "###+." },
+            };
+            const uint Navy = 0xFF000080, MidGrey = 0xFF808080;
+            uint Half(uint c1, uint c2) => 0xFF000000 | (((c1 >> 16 & 0xFF) + (c2 >> 16 & 0xFF)) / 2 << 16) | (((c1 >> 8 & 0xFF) + (c2 >> 8 & 0xFF)) / 2 << 8) | ((c1 & 0xFF) + (c2 & 0xFF)) / 2;
+            Pixels Words(params (string Text, int X, int Y, uint Ink)[] words) => Make(60, 34, Grey, (d, w) =>
+            {
+                foreach (var (text, x, y, ink) in words)
+                    for (int k = 0; k < text.Length; k++)
+                        for (int r = 0; r < 7; r++)
+                            for (int c = 0; c < 5; c++)
+                                if (font[text[k]][r][c] is char g && g != '.') d[(y + r) * w + x + k * 6 + c] = g == '#' ? ink : Half(ink, Grey);
+            });
+            var word = Words(("MORDOR", 6, 6, Navy));
+            foreach (var (dx, dy, what) in new[] { (1, 0, "1 px right"), (-2, 1, "2 px left and 1 down") })
+            {
+                var m = Measure(word, Words(("MORDOR", 6 + dx, 6 + dy, Navy)));
+                Check($"the shift test: a word moved {what} ({Counts(m)}): minor, shifted by up to {Math.Max(Math.Abs(dx), Math.Abs(dy))} px, the move found",
+                      (m.Verdict, Most(m), m.Moves.Select(v => (v.Dx, v.Dy)).Distinct().SingleOrDefault()), (Verdict.Minor, Math.Max(Math.Abs(dx), Math.Abs(dy)), (dx, dy)));
+            }
+            var far = Measure(word, Words(("MORDOR", 9, 6, Navy)));
+            Check($"the shift test: a word moved 3 px, past {ShiftMost} ({Counts(far)}): changed", (far.Verdict, far.Shifted), (Verdict.Changed, 0));
+            var both = Measure(Words(("MORDOR", 6, 6, Navy), ("DOOR", 6, 22, Navy)), Words(("MORDOR", 7, 6, Navy), ("DOOR", 6, 22, MidGrey)));
+            Check($"the shift test: a word moved 1 px and another drawn grey ({Counts(both)}): changed, the moved one shifted and the grey one counted",
+                  (both.Verdict, both.Shifted > 0, both.Counted > MinorMostPixels), (Verdict.Changed, true, true));
+            // a stroke grown a pixel thicker matches a move, but only goes darker; and so do a wide box's
+            // edges, moved without the rest of the box between them (more than ShiftPair apart)
+            Action<uint[], int> Bar(int x0, int width) => (d, w) => { for (int y = 5; y < 20; y++) for (int x = x0; x < x0 + width; x++) d[y * w + x] = Navy; };
+            var thick = Measure(Make(40, 30, Grey, Bar(10, 3)), Make(40, 30, Grey, Bar(10, 4)));
+            Check($"the shift test: a stroke 3 px wide drawn 4 ({Counts(thick)}): changed", (thick.Verdict, thick.Shifted), (Verdict.Changed, 0));
+            var box = Measure(Make(80, 30, Grey, Bar(5, 60)), Make(80, 30, Grey, Bar(6, 60)));
+            Check($"the shift test: a box 60 px wide moved 1 px, its edges alone ({Counts(box)}): changed", (box.Verdict, box.Shifted), (Verdict.Changed, 0));
 
             // ---- --compare
             void Png(string path, int w, int h, uint colour, (int X, int Y, int W, int H)? block = null)
@@ -1219,6 +1456,29 @@ img.px { display: block; max-width: 100%; height: auto; image-rendering: crisp-e
                   && File.Exists(Path.Combine(gal, "pictures", "screenshots-Windows-X64", "compare", "minor", "Dark_one", "before.png")), true);
             Check("--gallery: the flip, by a click and the F key", (html.Contains("stage.addEventListener('click', flip)"), html.Contains("e.key === 'f'")), (true, true));
             Check("--gallery: nothing loaded from elsewhere", System.Text.RegularExpressions.Regex.IsMatch(html, "(src|href)=\"(https?:)?//|https?://"), false);
+
+            // ---- --compare and --gallery on a word moved 1 px right: minor, and what moved said
+            string shiftBase = Path.Combine(scratch, "shift-base"), shiftMachine = Path.Combine(scratch, "shift-artifacts", "screenshots-Windows-X64");
+            SavePng(word.Data, word.Width, word.Height, Path.Combine(shiftBase, "Light_word.png"));
+            var right = Words(("MORDOR", 7, 6, Navy));
+            SavePng(right.Data, right.Width, right.Height, Path.Combine(shiftMachine, "Light_word.png"));
+            string shiftOut = Path.Combine(shiftMachine, CompareFolder);
+            var sr = Compare(shiftBase, shiftMachine, shiftOut);
+            Check("--compare, a word moved 1 px: minor, its pixels shifted and none counted",
+                  (sr.Changed.Count, sr.Minor.Count, sr.Minor.Select(c => (c.Shifted > 0, c.Counted, MovedWords(c.Moves).StartsWith("text moved 1 px right in ", StringComparison.Ordinal))).FirstOrDefault()), (0, 1, (true, 0, true)));
+            var sj = JsonNode.Parse(File.ReadAllText(Path.Combine(shiftOut, "compare.json")))!;
+            var sm = sj["minor"]![0]!;
+            Check("--compare: compare.json gives what moved, and the rule its reach",
+                  (sm["shiftedBy"]!.GetValue<int>(), sm["moves"]![0]!["dx"]!.GetValue<int>(), sm["moves"]![0]!["dy"]!.GetValue<int>(), sm["shifted"]!.GetValue<int>() > 0, sj["rule"]!["shiftMost"]!.GetValue<int>(), sj["pictures"]![0]!["shifted"]!.GetValue<int>() > 0),
+                  (1, 1, 0, true, ShiftMost, true));
+            Check("--compare: summary.md lists it with the minor, shifted", File.ReadAllText(Path.Combine(shiftOut, "summary.md")).Contains(", shifted by up to 1 px"), true);
+            string shiftGal = Path.Combine(scratch, "shift-gallery");
+            Gallery(Path.Combine(scratch, "shift-artifacts"), shiftGal);
+            string sh = File.ReadAllText(Path.Combine(shiftGal, "index.html"));
+            Check("--gallery: a picture of text moved is minor, shifted, in the minor list with what moved, and its view says so",
+                  (System.Text.RegularExpressions.Regex.IsMatch(sh, "<div class=\"tag minor\">minor: \\d+ px, shifted by up to 1 px "), sh.Contains("<span class=\"badge\">changed</span>"),
+                   sh.Contains("or text moved by a pixel or two (1 of them)"), sh.Contains("; text moved 1 px right in "), sh.Contains("\"m\":\"Text moved 1 px right in "), sh.Contains("if (c.m)")),
+                  (true, false, true, true, true, true));
         }
         catch (Exception ex) { Check($"the picture tools ran: {ex.GetType().Name}: {ex.Message}", false, true); }
         finally

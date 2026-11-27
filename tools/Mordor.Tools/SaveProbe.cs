@@ -13,7 +13,7 @@ public static class SaveProbe
         c.JoinGuild(GuildData.ByName("Nomad"));
         c.Guild.Experience = 500; c.Kills = 7;
 
-        string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "mordor_roundtrip.json");
+        string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "mordor_roundtrip-" + System.Environment.ProcessId + ".json");
         c.Save(path);
         var back = Character.Load(path);
         Console.WriteLine($"saved {new System.IO.FileInfo(path).Length} bytes");

@@ -59,6 +59,16 @@ public static class Saves
     }
 
     /// <summary>
+    /// Which of <see cref="DirFor"/>'s three the saves folder is, in words, for the save journal's
+    /// OPEN line (SaveJournal): no path, so nothing of the player's home goes into it.
+    /// </summary>
+    public static string KindFor(string gameDir)
+    {
+        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(EnvDir))) return "MORDOR_SAVES";
+        return HasAnything(LegacyDirFor(gameDir)) ? "beside the game folder" : "per-user";
+    }
+
+    /// <summary>
     /// The saved file of the character called <paramref name="name"/>, whatever the case of its letters
     /// on disk; null when there is none. Windows finds Bob.json for "bob" by itself; Linux and a
     /// browser's storage do not, and would let "bob" be made beside "Bob" - two files that could

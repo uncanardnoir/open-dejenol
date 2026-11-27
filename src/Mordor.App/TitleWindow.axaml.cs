@@ -167,7 +167,7 @@ public partial class TitleWindow : Window
                 await MenuModsOpened();
                 if (!OriginalBox.CanOwn(this)) return;
             }
-            if (Preloaded() is Character ready) { _loaded = ready; ShowMenuState(); await Play(ready); }
+            if (Preloaded() is Character ready) { SaveJournal.Loaded(ready, "Preload Character"); _loaded = ready; ShowMenuState(); await Play(ready); }
             MenuReady();
         };
         // the port's own: a newer version found by the check at start (Updates) is offered here,
@@ -388,7 +388,7 @@ public partial class TitleWindow : Window
         if (IsSaveLoaded) { await Play(_loaded!); return; }
         var create = new CharacterCreationWindow(GameDir);
         await OriginalBox.ShowOver(create, this);
-        if (create.Result is { } ch) _loaded = ch;
+        if (create.Result is { } ch) { _loaded = ch; SaveJournal.Loaded(ch, "Create a Character"); }
         ShowMenuState();
     }
 
@@ -443,6 +443,9 @@ public partial class TitleWindow : Window
         // title "Mordor 1.1". That is gc0192 + " " + gc0186, "Mordor" and "1.1" (MAIN.TXT:33-35).
         // Nothing saves the loaded character on the way out - Unload is what writes it.
         await OriginalBox.ThankYou(this);
+        // the save journal: a character still loaded goes unsaved, and this is the last line
+        if (IsSaveLoaded) SaveJournal.Unloaded(_loaded!, "Exit at the main menu, still loaded", saved: null);
+        SaveJournal.Closed("Exit at the main menu");
         Close();
     }
 
@@ -471,7 +474,7 @@ public partial class TitleWindow : Window
         {
             await OriginalBox.Tell(this, "Sorry!",   // MsgBox 48
                 "One or both characters still owe money to the Bank and cannot Exchange Items or Gold until it is paid!");
-            UnloadSave(SaveCharacter, other);   // mdrcharUnload mc0058
+            UnloadExchanged(other);   // mdrcharUnload mc0058
             ShowMenuState();
             return;
         }
@@ -479,8 +482,15 @@ public partial class TitleWindow : Window
             await OriginalBox.Tell(this, "Exchange Items", "Characters are not at the same location!");   // MsgBox 48
         else
             await new ExchangeWindow(me, other, Lookup, c => SaveCharacter(c)).ShowDialog(this);
-        UnloadSave(SaveCharacter, other);   // mdrcharUnload mc0058
+        UnloadExchanged(other);   // mdrcharUnload mc0058
         ShowMenuState();
+    }
+
+    /// <summary>The second character of Exchange Items unloaded, saved, and said in the save journal.</summary>
+    private void UnloadExchanged(Character other)
+    {
+        using (SaveJournal.Because("end of Exchange Items"))
+            SaveJournal.Unloaded(other, "end of Exchange Items", UnloadSave(SaveCharacter, other));
     }
 
     /// <summary>
@@ -491,6 +501,7 @@ public partial class TitleWindow : Window
     {
         if (_loaded is not { } ch || ch.Name.Trim() == "") return;
         if (!await OriginalBox.YesNo(this, "DELETE CHARACTER", "Delete " + ch.Name.TrimEnd() + "?")) return;
+        using var journal = SaveJournal.Because("Delete Character");
 
         // the guildmasters first (178-185): every guild this character held loses the name, and sub0565
         // True refills every empty seat, not only the ones just vacated
@@ -504,7 +515,7 @@ public partial class TitleWindow : Window
 
         // then the record; the original has no box for a failed delete, so the system's own message is shown
         var before = SavedCharacters().Select(p => p.ch.Name).ToList();
-        try { File.Delete(FileFor(ch)); }
+        try { File.Delete(FileFor(ch)); SaveJournal.Deleted(FileFor(ch)); }
         catch (Exception ex) { StatusText.Text = ex.Message; return; }
         // the record is blanked, not removed (FRMMENU.BAS:191-192), and the next new character takes it
         Roster.Removed(SavesDir, ch.Name, before);
@@ -543,7 +554,15 @@ public partial class TitleWindow : Window
     /// </summary>
     private async void OnLoad(object? s, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (IsSaveLoaded) { if (UnloadSave(SaveCharacter, _loaded!)) _loaded = null; }
+        if (IsSaveLoaded)
+        {
+            using (SaveJournal.Because("Unload Character"))
+            {
+                bool saved = UnloadSave(SaveCharacter, _loaded!);
+                SaveJournal.Unloaded(_loaded!, saved ? "Unload Character" : "Unload Character, refused: the save failed and the character stays loaded", saved);
+                if (saved) _loaded = null;
+            }
+        }
         else if (await LoadCharacter(exchange: false) is Character c) _loaded = c;
         ShowMenuState();
         CreateBtn.Focus();
@@ -587,6 +606,7 @@ public partial class TitleWindow : Window
             await OriginalBox.Tell(this, "SORRY!", "Incorrect Password!");   // MsgBox 64
             return null;
         }
+        SaveJournal.Loaded(candidate, exchange ? "Exchange Items, the second character" : "Load Character", saved[i].file);
         return candidate;
     }
 
@@ -662,6 +682,7 @@ public partial class TitleWindow : Window
         // the port's own (docs/MODDING.md): a save made with mods that are not running now is
         // pointed out once, and then plays as it is
         await ModStartup.WarnIfModsMissing(this, ch);
+        SaveJournal.Loaded(ch, "Run");
         Hide();
         var city = new CityWindow(ch, GameDir);
         // the game loop over, frmMenu is loaded again and its Form_Load asks for THEME (FRMMENU.BAS:132)

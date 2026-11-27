@@ -93,6 +93,8 @@ public static class CrashLog
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
             if (e.ExceptionObject is Exception ex) Write("unhandled on " + AppDomain.CurrentDomain.FriendlyName, ex);
+            // the save journal's closing line: the program ends here (Mordor.Core.SaveJournal)
+            Mordor.Core.SaveJournal.Closed("crash: an unhandled " + (e.ExceptionObject as Exception)?.GetType().Name + ", in crash.log");
         };
         System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (_, e) =>
         {

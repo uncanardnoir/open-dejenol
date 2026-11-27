@@ -75,6 +75,8 @@ static class PlaythroughCheck
             Environment.SetEnvironmentVariable("MORDOR_MUTE", "1");
             ModHost.Active = new ModHost(new ModSettingsStore(Path.Combine(scratch, "settings.ini")), _ => { });
             TitleWindow.GameDir = game;
+            // the save journal opened as the app opens it once the game folder is known (App.OpenJournal)
+            App.OpenJournal(game);
             if (Environment.GetEnvironmentVariable("MORDOR_SNAPSHOT_DIR") is { Length: > 0 } shots)
                 Directory.CreateDirectory(_shots = Path.Combine(shots, "playthrough"));
             BindDragSource();
@@ -84,6 +86,7 @@ static class PlaythroughCheck
         finally
         {
             opened.Dispose();
+            SaveJournal.Detach();
             foreach (var w in Opened.ToArray().Reverse()) { try { if (w.IsVisible) w.Close(); } catch { } }
             Pump();
             Opened.Clear();
@@ -139,6 +142,7 @@ static class PlaythroughCheck
                 ("8, the spell in a buffer, and that buffer the Combat Setting", SetBuffer),
                 ("9, the Target Room: the spell cast with no key pressed", CastOnArrival),
                 ("10, back to town and out to the main menu, the saves written", Home),
+                ("11, Exit at the main menu, and the save journal it leaves", ExitAndJournal),
             };
             // A step returns false when the game is not where the next step needs it (no fight began,
             // a window did not open): the run stops there. A check that fails without that - a
@@ -566,6 +570,52 @@ static class PlaythroughCheck
                           $"{SpellBuffers.IsSpell(c.Buffers[0]) && SpellBuffers.SpellIndexOf(c.Buffers[0]) == _spells.IndexOf(Spark)} {c.CombatSetting}", "True 3");
             }
             Shot("10-main-menu", Menu);
+            return true;
+        }
+
+        // ---- 11 ----
+
+        /// <summary>
+        /// The menu's Exit, Yes, and the goodbye box; then the save journal the game kept on the way
+        /// (SaveJournal, docs/GAME_FILES.md): a few of its lines, and none with a path in it.
+        /// </summary>
+        bool ExitAndJournal()
+        {
+            Click(Menu.FindControl<Button>("ExitBtn")!);
+            if (!Answer("EXIT", "Yes")) return false;
+            if (LimitedVersion.SaysGoodbye && !Answer("Mordor 1.1", "OK")) return false;
+            if (!WaitFor(() => !Menu.IsVisible)) return Fail("the main menu did not close on Exit");
+            string journal = Path.Combine(_saves, SaveJournal.FileName);
+            if (!File.Exists(journal)) return Fail("no save journal in the saves folder");
+            var lines = File.ReadAllLines(journal);
+            bool Has(string evt, params string[] parts) => lines.Any(l => l.Contains("] " + evt + " ") && parts.All(l.Contains));
+            Check("journal: opened first, on the MORDOR_SAVES folder", lines.Length > 0 && lines[0].Contains("] OPEN OpenDejenol ")
+                  && lines[0].Contains("saves folder: MORDOR_SAVES"), true);
+            Check($"journal: {FirstName}'s file written by Create a Character, with the character",
+                  Has("WRITE", $"\"{FirstName}.json\"", "Create a Character", ", town"), true);
+            Check($"journal: {FirstName} loaded by Load Character, the file the same as written",
+                  Has("LOAD", $"\"{FirstName}\" how: Load Character", $"file \"{FirstName}.json\"", "same as written"), true);
+            Check($"journal: {FirstName} run from the menu", Has("LOAD", $"\"{FirstName}\" how: Run", "same as written"), true);
+            Check($"journal: {SecondName} joined in town, the file the same as written",
+                  Has("LOAD", $"\"{SecondName}\" how: Ask to Join", "same as written"), true);
+            Check("journal: the dungeon's autosave and the arrival in town write the party",
+                  Has("WRITE", $"\"{FirstName}.json\"", "autosave") && Has("WRITE", $"\"{SecondName}.json\"", "arrival in town"), true);
+            Check("journal: the world files written (automap.json, dungeon.json)",
+                  Has("WRITE", "\"automap.json\"") && Has("WRITE", "\"dungeon.json\""), true);
+            Check($"journal: {SecondName} unloaded as the party broke up at exit",
+                  Has("UNLOAD", $"\"{SecondName}\" how: the party breaking up at exit", "last saved by this run"), true);
+            Check("journal: the last save of each is level 2, in town",
+                  lines.Last(l => l.Contains($"] WRITE \"{FirstName}.json\"")).Contains($"{FixtureGame.PlaythroughGuild} 2,")
+                  && lines.Last(l => l.Contains($"] WRITE \"{FirstName}.json\"")).EndsWith(", town"), true);
+            Check("journal: nothing CHANGED, OLDER or failed in a game played alone",
+                  lines.Any(l => l.Contains("CHANGED since") || l.Contains("OLDER than") || l.Contains("] WRITE-FAILED ")), false);
+            Check("journal: the last line is the Exit at the main menu", lines[^1].Contains("] CLOSE Exit at the main menu"), true);
+            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            Check("journal: no line holds the home folder or the saves folder's path",
+                  lines.Any(l => l.Contains(home, StringComparison.OrdinalIgnoreCase) || l.Contains(_saves, StringComparison.OrdinalIgnoreCase)), false);
+            // a sample, for the eye: the opening, the first loads, and the end
+            foreach (string l in lines.Take(4).Concat(lines.Where(l => l.Contains("] LOAD ")).Take(3)).Concat(lines.TakeLast(5)))
+                Note("journal: " + l);
             return true;
         }
 

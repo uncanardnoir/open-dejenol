@@ -1621,7 +1621,7 @@ public static partial class SelfCheckProbe
             // without regard to case so nothing came of it, and the port keeps the slip - which
             // only stays harmless because its own reader matches the same way. That is the thing
             // worth asserting here: not the slip, but the property that makes it survivable.
-            string tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "mordor-selfcheck-ini");
+            string tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "mordor-selfcheck-ini-" + System.Environment.ProcessId);
             System.IO.Directory.CreateDirectory(tmp);
             string path = GameOptions.PathFor(tmp);
             System.IO.File.WriteAllText(path, "[Loading Information]\r\nNoToolBar=True\r\n");
@@ -5220,6 +5220,7 @@ public static partial class SelfCheckProbe
         Section(() => LegacyInstallerChecks(dir));
         Section(() => ImportChecks(dir));
         Section(() => SafeSaveChecks(dir));
+        Section(() => SaveJournalChecks(dir));
         Section(() => FixtureChecks(dir));
 
         Console.WriteLine(_failed == 0 ? "\nall checks passed" : $"\n{_failed} CHECK(S) FAILED");
@@ -5424,7 +5425,7 @@ public static partial class SelfCheckProbe
                 Check("a fresh room with a chest found", withChest != null, true);
                 if (withChest != null && sc != null)
                 {
-                    string tmpArrive = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "mordor-selfcheck-arrive");
+                    string tmpArrive = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "mordor-selfcheck-arrive-" + System.Environment.ProcessId);
                     sc.Save(tmpArrive);
                     var onDisk = DungeonState.Load(tmpArrive).LoadRoom(2, area);
                     bool leftTemp = System.IO.File.Exists(System.IO.Path.Combine(tmpArrive, "dungeon.json.tmp"));
@@ -5471,7 +5472,7 @@ public static partial class SelfCheckProbe
                 Check("an unopened chest in an emptied room, on return", left != null && left.Count == 0 && left.TreasureClass == 3, true);
 
                 // and it all survives dungeon.json (a temporary folder, never the saves)
-                string tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "mordor-selfcheck-rooms");
+                string tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "mordor-selfcheck-rooms-" + System.Environment.ProcessId);
                 st.StoreRoom(2, area, EncounterGenerator.Capture(first.ToRecord(), first, null, all));
                 st.Save(tmp);
                 var read = DungeonState.Load(tmp).LoadRoom(2, area);

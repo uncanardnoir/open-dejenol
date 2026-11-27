@@ -15,7 +15,7 @@ public static class HallProbe
         var byId = items.GroupBy(i => i.Id).ToDictionary(g => g.Key, g => g.First());
         Item? Lookup(short id) => byId.TryGetValue(id, out var x) ? x : null;
 
-        string saves = Path.Combine(Path.GetTempPath(), "mordor-hall-probe");
+        string saves = Path.Combine(Path.GetTempPath(), "mordor-hall-probe-" + System.Environment.ProcessId);
         if (Directory.Exists(saves)) Directory.Delete(saves, recursive: true);
         Directory.CreateDirectory(saves);
 

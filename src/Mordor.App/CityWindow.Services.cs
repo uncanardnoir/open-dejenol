@@ -235,7 +235,12 @@ public partial class CityWindow
         if (_party.Size <= 1) return;
         int before = _party.Size;
         var said = _party.RemoveTheDead(
-            c => c.Save(System.IO.Path.Combine(SavesDir, Character.SafeFileName(c.Name) + ".json")),
+            c =>
+            {
+                using (SaveJournal.Because("death"))
+                    c.Save(System.IO.Path.Combine(SavesDir, Character.SafeFileName(c.Name) + ".json"));
+                SaveJournal.Unloaded(c, "death: out of the party", saved: true);
+            },
             c =>
             {
                 // mdrcharSetDead l0118, 1 (FRMGROUP.BAS:333-335; MAINMOD2.BAS:4558): an ordinary death,

@@ -21,7 +21,7 @@ public static class GuildLogProbe
             return;
         }
 
-        string saves = Path.Combine(Path.GetTempPath(), "mordor-guildlog-probe");
+        string saves = Path.Combine(Path.GetTempPath(), "mordor-guildlog-probe-" + System.Environment.ProcessId);
         if (Directory.Exists(saves)) Directory.Delete(saves, recursive: true);
         Directory.CreateDirectory(saves);
 

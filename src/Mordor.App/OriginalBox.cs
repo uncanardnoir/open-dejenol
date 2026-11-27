@@ -131,7 +131,7 @@ public static class OriginalBox
                     // no refusal: the rest of QueryUnload's question, and on a Yes the program ends
                     // as the menu's Exit ends it - MDIForm_Unload's box, which says nothing in the
                     // limited build, then the frame closed
-                    if (await queryEnd()) { await ThankYou(w); w.Close(); }
+                    if (await queryEnd()) { await ThankYou(w); Mordor.Core.SaveJournal.Closed("the close box, then Yes to Exit"); w.Close(); }
                 }
                 else await Tell(w, "Exit Mordor", "Please use the Mordor EXIT buttons to leave the game.");
             }
@@ -189,6 +189,7 @@ public static class OriginalBox
             // "Cannot exit while monsters are in the area!" leaves the help up with the game
             HelpWindow.CloseAll();
             await ThankYou(owner);
+            Mordor.Core.SaveJournal.Closed("the system ended the session (a logout or a shutdown)");
             if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime life)
                 life.Shutdown();
         }

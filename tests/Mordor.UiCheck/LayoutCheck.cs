@@ -194,7 +194,11 @@ static class LayoutCheck
             {
                 bool askedBold = run.Asked >= FontWeight.SemiBold;
                 var (family, weight, made) = FaceWeight(run.Face);
-                bool drawnBold = askedBold ? weight >= (int)FontWeight.SemiBold : weight >= (int)FontWeight.SemiBold || made;
+                // Avalonia's thickening is the faint stand-in only where a real bold of the family is to be
+                // had: Avalonia 11.3 drew it over Windows' bold of MS Sans Serif. A machine with no bold of
+                // the family at all - a Mac, whose Microsoft Sans Serif has none - can draw bold no other way
+                bool drawnBold = askedBold ? weight >= (int)FontWeight.SemiBold || made && !HasRealBold(family)
+                                           : weight >= (int)FontWeight.SemiBold || made;
                 if (askedBold == drawnBold) continue;
                 wrong.Add($"set {run.Asked}, drawn in {family} {weight}{(made ? " thickened by Avalonia" : "")}");
             }
@@ -202,6 +206,26 @@ static class LayoutCheck
                 yield return new Finding("weight", Name(s.Control, s.Text), string.Join("; ", wrong));
         }
     }
+
+    /// <summary>
+    /// Whether this machine has a bold face of the family, as the system's font manager answers for a
+    /// bold of it (a made-up one included, as DirectWrite makes for a family with none): weighed 600
+    /// or more. Asked once per family.
+    /// </summary>
+    static bool HasRealBold(string family)
+    {
+        lock (RealBold)
+        {
+            if (RealBold.TryGetValue(family, out bool has)) return has;
+            using var bold = SkiaSharp.SKFontManager.Default.MatchFamily(family, SkiaSharp.SKFontStyle.Bold);
+            has = bold != null && bold.FontWeight >= (int)FontWeight.SemiBold
+                  && string.Equals(bold.FamilyName, family, StringComparison.OrdinalIgnoreCase);
+            RealBold[family] = has;
+            return has;
+        }
+    }
+
+    static readonly Dictionary<string, bool> RealBold = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>A shaped run of text with a letter or a figure in it: the weight it asked for and the face it got.</summary>
     record WeighedRun(FontWeight Asked, GlyphTypeface Face);

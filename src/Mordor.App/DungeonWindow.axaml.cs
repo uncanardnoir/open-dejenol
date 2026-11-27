@@ -175,6 +175,7 @@ public partial class DungeonWindow : Window
                 return false;
             }
             if (!await Confirm("Exit Mordor?", "EXIT")) return false;
+            using var journal = SaveJournal.Because("Exit Mordor, a session end");
             FinishWonFight();
             SaveChar();
             await PartyUnload.Run(DialogOwner, _party, SavesDir, Say);
@@ -415,7 +416,11 @@ public partial class DungeonWindow : Window
             // and every form writes its placement as it unloads (FRMDUNM.BAS:360-361,
             // FRMGROUP.BAS:130-131), whichever way the dungeon is left - a rescue included
             Guarded("saving the window layout", SaveWindowLayout);
-            Guarded("saving the party", () => _party.SaveAll(Saves.DirFor(_gameDir)));
+            Guarded("saving the party", () =>
+            {
+                using var journal = SaveJournal.Because("leaving the dungeon");
+                _party.SaveAll(Saves.DirFor(_gameDir));
+            });
         };
 
         // smoke tests only: he turns up about twelve times in twenty thousand encounters on the
@@ -1024,6 +1029,7 @@ public partial class DungeonWindow : Window
             FinishWonFight();
             ExitedToMainMenu = true;
             CrashLog.Note("closing: q, Exit to Main Menu");
+            using var journal = SaveJournal.Because("Exit to Main Menu");
             SaveChar();
             // M6023 is set, so sub1738 runs sub16CC before it shows frmMenu (MAINMOD2.BAS:6322-6325)
             await PartyUnload.Run(DialogOwner, _party, SavesDir, Say);
@@ -2022,6 +2028,7 @@ public partial class DungeonWindow : Window
         // they stay where they are, as a character left behind in the dungeon does
         leaving.DungeonLevel = _level; leaving.X = _nav.X; leaving.Y = _nav.Y;
         leaving.Save(System.IO.Path.Combine(SavesDir, Character.SafeFileName(leaving.Name) + ".json"));
+        SaveJournal.Unloaded(leaving, "Leave", saved: true);
         // sub1776's "frmParty!lblCall = "UPDATE"" (MULTIMOD.BAS:755, 701-702): anyone at nought leaves too
         // (FRMGROUP.BAS:321-346), before mdrmulSwitch and sub1536 (756-757)
         PruneTheDead();
@@ -2761,6 +2768,7 @@ public partial class DungeonWindow : Window
         // a refusal here unloads them too, saved as they stand (mdrcharUnload, MAINMOD.BAS:419-423)
         if (_party.WhyCannotJoin(who) is string refused) { Say(refused); who.Save(whoFile); return; }
         _party.Add(who);
+        SaveJournal.Loaded(who, $"Ask to Join, joining the party of \"{_party.Leader.Name.TrimEnd()}\"");
         // sub154A (MAINMOD2.BAS:3511) runs mdrcharGetCarry for the newcomer (MULTIMOD.BAS:380): a
         // fallen companion they brought is picked up, and any others let go
         foreach (string line in CompanionCarry.Run(who, who == _party.Selected, MonsterOf)) Say(line);
@@ -3399,6 +3407,7 @@ public partial class DungeonWindow : Window
                 if (wasShown) _party.Select(0);           // sub0908 hands the screen to the leader (MULTIMOD.BAS:78-84)
                 _shownSlot = _party.SelectedIndex;   // M5E4F: sub1536 gv1A84 closes sub0908 (MULTIMOD.BAS:95)
                 m.Save(System.IO.Path.Combine(SavesDir, Character.SafeFileName(m.Name) + ".json"));
+                SaveJournal.Unloaded(m, "separated from the party (a teleporter)", saved: true);
             }
             // "If l0012 = True Then ... frmParty!lblCall = "UPDATE": sub1776" (MULTIMOD.BAS:88-95): once
             // anyone has gone, the party list's UPDATE - anyone at nought left with the leader goes too
@@ -3914,7 +3923,11 @@ public partial class DungeonWindow : Window
         int before = _party.Size;
         var shown = _shownSlot < _party.Size ? _party.Members[_shownSlot] : null;
         var said = _party.RemoveTheDead(c =>
-            c.Save(System.IO.Path.Combine(SavesDir, Character.SafeFileName(c.Name) + ".json")), SetDead);
+        {
+            using (SaveJournal.Because("death"))
+                c.Save(System.IO.Path.Combine(SavesDir, Character.SafeFileName(c.Name) + ".json"));
+            SaveJournal.Unloaded(c, "death: out of the party", saved: true);
+        }, SetDead);
         // "If l0118 = gv1A82 Then l011A = True" (FRMGROUP.BAS:336-338) ... "If l011A = True Then sub1536 Me" (360-361):
         // the one the windows showed has gone, so sub1536 paints them for Me - its caption
         // overwritten by mdrmulSwitch after (383-389). Otherwise M5E4F keeps its slot while Me moves
@@ -4067,6 +4080,7 @@ public partial class DungeonWindow : Window
             if (wasShown) _party.Select(0);   // sub0908 hands the screen to the leader (MULTIMOD.BAS:78-84)
             _shownSlot = _party.SelectedIndex;   // M5E4F: sub1536 gv1A84 closes sub0908 (MULTIMOD.BAS:95)
             m.Save(System.IO.Path.Combine(SavesDir, Character.SafeFileName(m.Name) + ".json"));
+            SaveJournal.Unloaded(m, "separated from the party (a chute)", saved: true);
         }
         // sub0908's UPDATE once anyone has gone (MULTIMOD.BAS:88-95): anyone at nought left with the
         // leader goes too (FRMGROUP.BAS:321-346) - its lines after the chute's and the disappearances
@@ -4285,6 +4299,7 @@ public partial class DungeonWindow : Window
     {
         try
         {
+            using var journal = SaveJournal.Because("autosave");
             // each form writes its own placement back in Form_Unload; the port has one save
             SaveWindowLayout();
             SavePos();
@@ -6266,6 +6281,7 @@ public partial class DungeonWindow : Window
             if (wasShown) _party.Select(0);           // sub0908 hands the screen to the leader (MULTIMOD.BAS:78-84)
             _shownSlot = _party.SelectedIndex;   // M5E4F: sub1536 gv1A84 closes sub0908 (MULTIMOD.BAS:95)
             opener.Save(System.IO.Path.Combine(SavesDir, Character.SafeFileName(opener.Name) + ".json"));
+            SaveJournal.Unloaded(opener, "separated from the party (a chest teleport)", saved: true);
             // sub0908 (MONSMOD.BAS:3590) ends, with the opener gone, in frmParty's UPDATE (MULTIMOD.BAS:88-95):
             // anyone the trap left at nought with the leader goes too (FRMGROUP.BAS:321-346)
             PruneTheDead();

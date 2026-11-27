@@ -203,6 +203,8 @@ public static partial class SelfCheckProbe
                 ("GuildLog.cs", "File.AppendAllText(Path.Combine(savesDir, TextName)", "GUILDLOG.TXT, a printout appended to"),
                 ("PortFiles.cs", "File.AppendAllText(p, text)", "crash.log and CHARSTAT.TXT, appended to"),
                 ("GuildLog.cs", "new BinaryWriter(buffer,", "builds the log in memory for SafeFile.WriteAllBytes"),
+                ("SaveJournal.cs", "new FileStream(path, FileMode.Append,", "saves-journal.log, appended to a line at a time"),
+                ("SaveJournal.cs", "File.WriteAllBytes(temp, all[from..])", "saves-journal.log's newest half, to a .tmp moved over it; not a save, and never journalled itself"),
             };
             string core = Path.Combine(PortTree.Root, "src", "Mordor.Core");
             var writes = new System.Text.RegularExpressions.Regex(@"(?<![\w.])File\.(WriteAll\w*|AppendAll\w*|Copy|Create|Open\w*)\(|new (BinaryWriter|StreamWriter|FileStream)\(");

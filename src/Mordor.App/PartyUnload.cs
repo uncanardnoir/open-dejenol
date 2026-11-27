@@ -19,6 +19,7 @@ public static class PartyUnload
 {
     public static async System.Threading.Tasks.Task Run(Window owner, Party party, string savesDir, Action<string> say)
     {
+        using var journal = SaveJournal.Because("the party unloaded at exit");
         if (party.Size > 1)   // UBound(Chars) > False (MAINMOD2.BAS:5926)
         {
             say(Party.Disbanding);
@@ -50,5 +51,7 @@ public static class PartyUnload
             if (!wrote) CrashLog.Note("could not write Character to " + PortSettings.PathFor(savesDir));
         }
         catch (Exception ex) { CrashLog.Note("could not write Character to settings.ini: " + ex.Message); }
+        // the save journal: everyone but the leader, whom the main menu keeps loaded, leaves play here
+        for (int i = 1; i < party.Members.Count; i++) SaveJournal.Unloaded(party.Members[i], "the party breaking up at exit", saved: null);
     }
 }

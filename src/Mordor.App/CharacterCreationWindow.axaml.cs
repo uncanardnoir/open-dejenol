@@ -204,6 +204,7 @@ public partial class CharacterCreationWindow : Window
 
         try
         {
+            using var journal = SaveJournal.Because("Create a Character");
             System.IO.Directory.CreateDirectory(saveDir);
             ch.Save(System.IO.Path.Combine(saveDir, Character.SafeFileName(name) + ".json"));
             // fn04ED (MAINMOD.BAS:384-402): the new record goes into the first blank one, or on the end

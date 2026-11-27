@@ -273,6 +273,7 @@ the folder is made if need be, a place that refuses is passed over, and nothing 
 | characters, party, automap, dungeon state, shelves, Library, Hall, guild logs, `saves\BACKUP` | the saves folder (above) | - (the per-user saves when nothing is beside the game folder) |
 | `settings.ini` (the Options, window places, mods switched on) | the saves folder | as above |
 | `mods.log`, a mod's data (`dpsmeter.json`, `kaizen.json`) | the saves folder, beside settings.ini | as above |
+| `saves-journal.log` (below) | the saves folder | - (a line that cannot be written is dropped) |
 | `crash.log` | beside the saves folder in use - for `<game>\..\saves`, beside the game folder (`Desktop\mordor\crash.log`), where it always was; for the per-user saves, `%APPDATA%\OpenDejenol` | `%APPDATA%\OpenDejenol`, then `%TEMP%\mordor-crash.log` |
 | `CHARSTAT.TXT` (Shift-F6) | beside the saves folder when the saves are not the per-user ones - `Desktop\mordor\CHARSTAT.TXT`, where the port has always put it - else the game folder, the original's "Root Mordor directory" | the game folder, then `%APPDATA%\OpenDejenol` |
 | the pictures and the help | `%LOCALAPPDATA%\OpenDejenol\cache` (below) | - |
@@ -300,6 +301,38 @@ directory). DEVIATION, a port necessity: the original wrote CHARSTAT.TXT only in
 directory, which under Program Files a player cannot write to; the port then writes it to the
 per-user folder rather than lose it. `MORDOR_CRASHLOG` (the smoke test) names the crash log
 outright. Checked with read-only scratch folders in `selfcheck` (the game files section).
+
+### The save journal (`SaveJournal`)
+
+`saves-journal.log` in the saves folder is a plain-text log of what the game does with save files,
+so that a report of lost progress ("my character lost a level") comes with evidence. It is the
+port's own, kept on the player's machine and **never sent anywhere**: the player attaches it to an
+issue when asked. One line per event - the time in UTC with the local offset, the process id in
+brackets (two copies of the game on one folder show as two ids), then:
+
+- `OPEN`: the version, the system and processor, which kind of saves folder (beside the game
+  folder, per-user, `MORDOR_SAVES`), and whether the run before has no `CLOSE` line (it crashed,
+  was killed, or is still running).
+- `CLOSE`: how the program ended - Exit at the main menu, the session ended, the program shut
+  down, SIGTERM (Linux, macOS), a crash (the crash log has it). The last line of a run.
+- `LOAD`: a character taken into play and how (Load Character, Preload, Create, Run, Ask to Join,
+  with the party); the file's name as it is on disk, its size and short SHA-256; the character
+  (guild and level, experience, gold, the six statistics, where); and the file against the
+  journal's last write of it: `same as written`, `CHANGED since this program wrote it` (something
+  else wrote it), `OLDER than the last write` (an earlier copy put back), or `no write recorded`.
+  Another file whose name differs only in case (possible on Linux) is said too.
+- `UNLOAD`: a character let go of and how (Unload Character, Leave, death, separated by a chute,
+  the party breaking up at exit), and whether it was saved as it happened.
+- `WRITE`, `WRITE-FAILED`, `DELETE`, `RENAME`: every save file written through `SafeFile` into the
+  saves folder (characters, parties and the world files; not `settings.ini`), with its size, short
+  hash, the reason (autosave, arrival in town, Exit to Main Menu, ...) and the calls that saved it,
+  and for a character the snapshot above; a failed write with its error.
+
+File names are relative to the saves folder, and no line holds the home folder's path. Over about
+1 MB the oldest half is dropped. Nothing in it is ever read back by the game but the journal
+itself (for the verdicts), and a journal that cannot be written - read-only, a folder in its
+place - loses its lines and nothing else. Checked in `selfcheck` (the save journal section) and at
+the end of the playthrough (`Mordor.UiCheck --playthrough`).
 
 ## The installers (`InstallerUnpack`)
 

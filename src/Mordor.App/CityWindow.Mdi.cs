@@ -300,6 +300,7 @@ public partial class CityWindow
         OriginalBox.RefuseCloseBox(this, async () =>
         {
             if (!await Confirm("EXIT", "Exit Mordor?")) return false;
+            using var journal = SaveJournal.Because("Exit Mordor, a session end");
             Save();
             await PartyUnload.Run(this, _party, SavesDir, Log);
             return true;

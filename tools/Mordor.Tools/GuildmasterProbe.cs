@@ -21,7 +21,7 @@ public static class GuildmasterProbe
                                                $"att {crest.Att} def {crest.Def}, abilities 0x{crest.Abilities:X})"));
         }
 
-        string saves = Path.Combine(Path.GetTempPath(), "mordor-gm-probe");
+        string saves = Path.Combine(Path.GetTempPath(), "mordor-gm-probe-" + System.Environment.ProcessId);
         if (Directory.Exists(saves)) Directory.Delete(saves, recursive: true);
         Directory.CreateDirectory(saves);
 

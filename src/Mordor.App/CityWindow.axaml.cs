@@ -644,6 +644,7 @@ public partial class CityWindow : Window
     /// </summary>
     private List<string> RestOnArrival()
     {
+        using var journal = SaveJournal.Because("arrival in town");
         // FRMCTYM.BAS:87 - reaching the city settles where you are. It clears the level and
         // position flags but leaves the facing one, which means nothing above ground anyway.
         foreach (var m in _party.Members) { m.LostLevel = false; m.LostPosition = false; }
@@ -966,6 +967,7 @@ public partial class CityWindow : Window
         who.DungeonLevel = _party.Leader.DungeonLevel; who.X = _party.Leader.X; who.Y = _party.Leader.Y;
         if (_party.WhyCannotJoin(who) is string refused) { Log(refused); return; }
         _party.Add(who);
+        SaveJournal.Loaded(who, $"Ask to Join, joining the party of \"{_party.Leader.Name.TrimEnd()}\"");
         who.CurHits = who.MaxHits;
         who.CurSpellPoints = who.MaxSpellPoints;
         // sub154A (MAINMOD2.BAS:3511) runs mdrcharGetCarry for the newcomer (MULTIMOD.BAS:380)
@@ -1066,6 +1068,7 @@ public partial class CityWindow : Window
         if (_party.SelectedIndex == 0) { Log("Leader cannot leave Party!"); return; }
         if (!await Confirm("Leave", $"Ask \"{who.Name.TrimEnd()}\" to Leave?")) return;
         if (!_party.Remove(who)) return;
+        SaveJournal.Unloaded(who, "Leave", saved: null);
         // sub1776's "frmParty!lblCall = "UPDATE"" (MULTIMOD.BAS:755, 701-702): anyone at nought leaves too
         PruneTheDead();
         Save();
@@ -3045,6 +3048,7 @@ public partial class CityWindow : Window
         // q, which comes here with no sender, is fn1521's and works for the dead
         if (s != null && DeadScreenOwed) { ShowDead(); return; }
         if (!await Confirm("EXIT", "Exit to Main Menu?")) return;
+        using var journal = SaveJournal.Because("Exit to Main Menu");
         Save();
         await PartyUnload.Run(this, _party, SavesDir, Log);
         Close();
